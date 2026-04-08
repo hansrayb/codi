@@ -58,6 +58,7 @@ Contoh prompt:
 - `kirim screenshot jendela aktif sekarang`
 - `restart codi`
 - `ubah codex timeout jadi 600`
+- `ubah local shell timeout jadi 600`
 - `shell: systemctl --user status codex-agent.service`
 - `bash: git status --short`
 - `pwsh: Get-Process | Select-Object -First 5`
@@ -72,13 +73,19 @@ Contoh prompt:
 - `commit semua perubahan di repo ini dengan pesan "Update payroll flow"`
 - `cherry-pick commit a1b2c3d di repo ini`
 - `rollback commit terakhir di repo ini`
+- `rollback ke tag v1.2.3 di repo ini`
 - `buat tag v1.2.3 di repo ini`
+- `cek health service codex-agent`
+- `cek health semua service penting`
 - `status service codex-agent`
+- `start service payroll`
+- `stop service payroll`
 - `restart service payroll`
 - `lihat log service payroll`
 - `publish build frontend payroll`
 - `deploy frontend payroll`
 - `publish backend payroll`
+- `deploy backend payroll`
 - `test backend payroll`
 - `build frontend payroll`
 - `test repo web-dashboard-payroll`
@@ -91,9 +98,11 @@ Catatan:
 - Codi perlu berjalan dalam sesi desktop Linux aktif agar aplikasi GUI benar-benar muncul.
 - `shell:` dan kawan-kawannya menjalankan perintah lokal langsung di mesin host, bukan lewat sandbox Codex, jadi sebaiknya dipakai dengan prefix yang sengaja dan oleh user yang memang dipercaya.
 - Shortcut natural seperti `pull repo ini` atau `build frontend payroll` juga diarahkan ke shell lokal, dengan target repo yang dicoba ditebak dari konteks aktif atau nama repo di prompt.
-- Untuk pengaturan yang sangat spesifik seperti `ubah codex timeout jadi 600`, Codi sekarang bisa mengubah `.env` lokal langsung tanpa perlu masuk ke flow Codex builder.
-- Shortcut `status/restart/log service ...` saat ini menarget `systemd --user`, jadi paling cocok untuk service yang memang dijalankan di level user.
+- Untuk pengaturan yang sangat spesifik seperti `ubah codex timeout jadi 600` atau `ubah local shell timeout jadi 600`, Codi sekarang bisa mengubah `.env` lokal langsung tanpa perlu masuk ke flow Codex builder.
+- Shortcut `status/start/stop/restart/log/health service ...` saat ini menarget `systemd --user`, jadi paling cocok untuk service yang memang dijalankan di level user.
+- `cek health semua service penting` akan membaca daftar dari `IMPORTANT_SERVICES` di `.env`.
 - Shortcut backend akan mencoba script `package.json`, target `Makefile`, atau tooling Python yang umum seperti `uv`, `poetry`, dan `pytest`.
+- `rollback ke tag ...` memakai `git revert`, jadi lebih aman karena tidak mereset history branch secara destruktif.
 
 ## Commit / PR Assistant
 

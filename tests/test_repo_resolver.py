@@ -44,6 +44,7 @@ class RepoResolverTests(unittest.TestCase):
             max_requests_per_minute=5,
             repo_watch_poll_seconds=30,
             max_watched_repos_per_user=5,
+            important_services=("codex-agent.service",),
         )
         self.resolver = RepoResolver(self.settings, refresh_interval_seconds=0)
 
@@ -153,6 +154,7 @@ class RepoResolverTests(unittest.TestCase):
                 max_requests_per_minute=5,
                 repo_watch_poll_seconds=30,
                 max_watched_repos_per_user=5,
+                important_services=("codex-agent.service",),
             )
             resolver = RepoResolver(unique_settings, refresh_interval_seconds=0)
 

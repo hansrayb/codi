@@ -753,7 +753,10 @@ class Orchestrator:
                 redact_prompt(text),
             )
             try:
-                shell_request = build_shell_request_for_service_shortcut(service_shortcut)
+                shell_request = build_shell_request_for_service_shortcut(
+                    service_shortcut,
+                    important_services=self._settings.important_services,
+                )
                 result = await self._local_shell_service.run(
                     shell_request,
                     cwd=self._settings.codex_work_dir,

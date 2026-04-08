@@ -43,6 +43,7 @@ class Settings:
     max_requests_per_minute: int
     repo_watch_poll_seconds: int
     max_watched_repos_per_user: int
+    important_services: tuple[str, ...]
 
     @property
     def session_idle_ttl_seconds(self) -> int:
@@ -123,6 +124,11 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("MAX_WATCHED_REPOS_PER_USER", "5"),
         "MAX_WATCHED_REPOS_PER_USER",
     )
+    important_services = tuple(
+        item.strip()
+        for item in _split_csv(os.getenv("IMPORTANT_SERVICES", "codex-agent.service"))
+        if item.strip()
+    ) or ("codex-agent.service",)
 
     if default_role not in VALID_ROLES:
         raise ConfigError(
@@ -168,6 +174,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         max_requests_per_minute=max_requests_per_minute,
         repo_watch_poll_seconds=repo_watch_poll_seconds,
         max_watched_repos_per_user=max_watched_repos_per_user,
+        important_services=important_services,
     )
 
 

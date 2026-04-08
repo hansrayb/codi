@@ -51,6 +51,7 @@ class RepoWatchManagerTests(unittest.IsolatedAsyncioTestCase):
             max_requests_per_minute=5,
             repo_watch_poll_seconds=30,
             max_watched_repos_per_user=5,
+            important_services=("codex-agent.service",),
         )
         self.repo = workspace / "repo-a"
         self.repo.mkdir()

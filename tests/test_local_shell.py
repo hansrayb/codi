@@ -263,6 +263,29 @@ class LocalShellQueryTests(unittest.TestCase):
             ),
         )
 
+    def test_repo_shortcut_backend_deploy_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("deploy backend payroll")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="backend_deploy",
+                repo_hint="backend payroll",
+                original_prompt="deploy backend payroll",
+            ),
+        )
+
+    def test_repo_shortcut_rollback_to_tag_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("rollback ke tag v1.2.3 di repo ini")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="git_rollback_to_tag",
+                repo_hint="repo ini",
+                original_prompt="rollback ke tag v1.2.3 di repo ini",
+                tag_name="v1.2.3",
+            ),
+        )
+
     def test_service_shortcut_status_is_detected(self) -> None:
         request = match_system_service_shortcut("status service payroll")
         self.assertEqual(
@@ -271,6 +294,49 @@ class LocalShellQueryTests(unittest.TestCase):
                 action="service_status",
                 unit_name="payroll.service",
                 original_prompt="status service payroll",
+            ),
+        )
+
+    def test_service_shortcut_health_is_detected(self) -> None:
+        request = match_system_service_shortcut("cek health service payroll")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_health",
+                unit_name="payroll.service",
+                original_prompt="cek health service payroll",
+            ),
+        )
+
+    def test_service_shortcut_health_all_is_detected(self) -> None:
+        request = match_system_service_shortcut("cek health semua service penting")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_health_all",
+                original_prompt="cek health semua service penting",
+            ),
+        )
+
+    def test_service_shortcut_start_is_detected(self) -> None:
+        request = match_system_service_shortcut("start service payroll")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_start",
+                unit_name="payroll.service",
+                original_prompt="start service payroll",
+            ),
+        )
+
+    def test_service_shortcut_stop_is_detected(self) -> None:
+        request = match_system_service_shortcut("stop service payroll")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_stop",
+                unit_name="payroll.service",
+                original_prompt="stop service payroll",
             ),
         )
 
@@ -645,6 +711,28 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             LocalShellRequest(shell="bash", command="git tag v1.2.3"),
         )
 
+    def test_git_rollback_to_tag_maps_to_safe_revert_commit(self) -> None:
+        request = build_shell_request_for_repo_shortcut(
+            RepoShellShortcutRequest(
+                action="git_rollback_to_tag",
+                repo_hint="repo ini",
+                original_prompt="rollback ke tag v1.2.3 di repo ini",
+                tag_name="v1.2.3",
+            ),
+            Path("/tmp/repo"),
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command=(
+                    "git revert --no-commit v1.2.3..HEAD "
+                    "&& git commit -m 'Rollback ke tag v1.2.3'"
+                ),
+            ),
+        )
+
     def test_backend_publish_prefers_package_script(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -713,6 +801,22 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             )
 
         self.assertEqual(request, LocalShellRequest(shell="bash", command="make publish"))
+
+    def test_backend_deploy_uses_make_when_target_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "Makefile").write_text("deploy:\n\t@echo deploy\n", encoding="utf-8")
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="backend_deploy",
+                    repo_hint="backend payroll",
+                    original_prompt="deploy backend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="make deploy"))
 
     def test_backend_publish_requires_known_backend_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -851,8 +955,8 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
         request = build_shell_request_for_service_shortcut(
             ServiceShellShortcutRequest(
                 action="service_status",
-                unit_name="codex-agent.service",
                 original_prompt="status service codex-agent",
+                unit_name="codex-agent.service",
             )
         )
 
@@ -868,8 +972,8 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
         request = build_shell_request_for_service_shortcut(
             ServiceShellShortcutRequest(
                 action="service_restart",
-                unit_name="payroll.service",
                 original_prompt="restart service payroll",
+                unit_name="payroll.service",
             )
         )
 
@@ -888,8 +992,8 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
         request = build_shell_request_for_service_shortcut(
             ServiceShellShortcutRequest(
                 action="service_logs",
-                unit_name="web-dashboard-payroll.service",
                 original_prompt="lihat log service web dashboard payroll",
+                unit_name="web-dashboard-payroll.service",
             )
         )
 
@@ -901,13 +1005,98 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             ),
         )
 
+    def test_service_health_maps_to_health_command(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_health",
+                original_prompt="cek health service payroll",
+                unit_name="payroll.service",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command=(
+                    "systemctl --user is-active payroll.service; "
+                    "systemctl --user is-enabled payroll.service 2>/dev/null || true; "
+                    "systemctl --user status payroll.service --no-pager --full"
+                ),
+            ),
+        )
+
+    def test_service_health_all_uses_configured_important_services(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_health_all",
+                original_prompt="cek health semua service penting",
+            ),
+            important_services=("codex-agent.service", "payroll.service"),
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command=(
+                    "overall=0; for unit in codex-agent.service payroll.service; do "
+                    "printf '==> %s\\n' \"$unit\"; "
+                    "systemctl --user is-active \"$unit\" || overall=1; "
+                    "systemctl --user is-enabled \"$unit\" 2>/dev/null || true; "
+                    "systemctl --user status \"$unit\" --no-pager --full || overall=1; "
+                    "printf '\\n'; done; exit \"$overall\""
+                ),
+            ),
+        )
+
+    def test_service_start_maps_to_start_and_status(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_start",
+                original_prompt="start service payroll",
+                unit_name="payroll.service",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command=(
+                    "systemctl --user start payroll.service "
+                    "&& systemctl --user status payroll.service --no-pager --full"
+                ),
+            ),
+        )
+
+    def test_service_stop_maps_to_stop_and_status(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_stop",
+                original_prompt="stop service payroll",
+                unit_name="payroll.service",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command=(
+                    "systemctl --user stop payroll.service "
+                    "&& systemctl --user status payroll.service --no-pager --full"
+                ),
+            ),
+        )
+
     def test_service_shortcut_rejects_unsafe_unit_name(self) -> None:
         with self.assertRaises(LocalShellError):
             build_shell_request_for_service_shortcut(
                 ServiceShellShortcutRequest(
                     action="service_status",
-                    unit_name="postgres;rm.service",
                     original_prompt="status service postgres;rm",
+                    unit_name="postgres;rm.service",
                 )
             )
 

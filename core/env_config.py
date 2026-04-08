@@ -42,10 +42,17 @@ _ENV_SETTING_ALIASES: dict[str, tuple[str, ...]] = {
         "timeout codi",
         "timeout codi codex",
     ),
+    "LOCAL_SHELL_TIMEOUT": (
+        "local shell timeout",
+        "timeout local shell",
+        "timeout shell lokal",
+        "shell timeout lokal",
+    ),
 }
 
 _DISPLAY_NAMES = {
     "CODEX_TIMEOUT": "Codex timeout",
+    "LOCAL_SHELL_TIMEOUT": "Local shell timeout",
 }
 
 
@@ -144,7 +151,7 @@ def _resolve_setting_alias(raw_alias: str) -> str | None:
 
 
 def _validate_env_value(key: str, raw_value: str) -> str:
-    if key == "CODEX_TIMEOUT":
+    if key in {"CODEX_TIMEOUT", "LOCAL_SHELL_TIMEOUT"}:
         return _validate_positive_int(raw_value, key)
     raise EnvConfigError(f"Pengaturan `{key}` belum didukung untuk update natural ini.")
 

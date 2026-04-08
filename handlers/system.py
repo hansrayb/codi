@@ -93,6 +93,7 @@ Contoh:
 - kirim screenshot jendela aktif sekarang
 - restart codi
 - ubah codex timeout jadi 600
+- ubah local shell timeout jadi 600
 - shell: systemctl --user status codex-agent.service
 - bash: git status --short
 - pwsh: Get-Process | Select-Object -First 5
@@ -107,13 +108,19 @@ Contoh:
 - commit semua perubahan di repo ini dengan pesan "Update payroll flow"
 - cherry-pick commit a1b2c3d di repo ini
 - rollback commit terakhir di repo ini
+- rollback ke tag v1.2.3 di repo ini
 - buat tag v1.2.3 di repo ini
+- cek health service codex-agent
+- cek health semua service penting
 - status service codex-agent
+- start service payroll
+- stop service payroll
 - restart service payroll
 - lihat log service payroll
 - publish build frontend payroll
 - deploy frontend payroll
 - publish backend payroll
+- deploy backend payroll
 - test backend payroll
 - build frontend payroll
 - test repo web-dashboard-payroll

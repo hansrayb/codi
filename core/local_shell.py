@@ -117,8 +117,9 @@ class ServiceShellShortcutRequest:
     """A structured systemd service shortcut mapped to local shell commands."""
 
     action: str
-    unit_name: str
     original_prompt: str
+    unit_name: str | None = None
+    unit_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +310,16 @@ def build_shell_request_for_repo_shortcut(
         return LocalShellRequest(shell="bash", command=f"git cherry-pick {commit_sha}")
     if shortcut.action == "git_rollback_last_commit":
         return LocalShellRequest(shell="bash", command="git revert --no-edit HEAD")
+    if shortcut.action == "git_rollback_to_tag":
+        tag_name = _quote_git_ref(shortcut.tag_name)
+        rollback_message = _quote_commit_message(f"Rollback ke tag {shortcut.tag_name}")
+        return LocalShellRequest(
+            shell="bash",
+            command=(
+                f"git revert --no-commit {tag_name}..HEAD "
+                f"&& git commit -m {rollback_message}"
+            ),
+        )
     if shortcut.action == "git_tag_create":
         tag_name = _quote_git_ref(shortcut.tag_name)
         return LocalShellRequest(shell="bash", command=f"git tag {tag_name}")
@@ -354,6 +365,10 @@ def match_system_service_shortcut(prompt: str) -> ServiceShellShortcutRequest | 
         return None
 
     patterns: tuple[tuple[str, str], ...] = (
+        ("service_health_all", r"^(?:cek\s+)?health\s+semua\s+serv(?:ice|is)\s+penting$"),
+        ("service_health_all", r"^(?:cek\s+)?kesehatan\s+semua\s+serv(?:ice|is)\s+penting$"),
+        ("service_health", r"^(?:cek\s+)?health\s+serv(?:ice|is)\s+(.+)$"),
+        ("service_health", r"^(?:cek\s+)?kesehatan\s+serv(?:ice|is)\s+(.+)$"),
         ("service_status", r"^(?:cek\s+|lihat\s+|tampilkan\s+)?status\s+serv(?:ice|is)\s+(.+)$"),
         ("service_restart", r"^(?:restart|mulai\s+ulang|reload)\s+serv(?:ice|is)\s+(.+)$"),
         ("service_start", r"^(?:start|jalankan|nyalakan)\s+serv(?:ice|is)\s+(.+)$"),
@@ -363,20 +378,55 @@ def match_system_service_shortcut(prompt: str) -> ServiceShellShortcutRequest | 
     for action, pattern in patterns:
         match = re.match(pattern, condensed_prompt, re.IGNORECASE)
         if match:
+            if action == "service_health_all":
+                return ServiceShellShortcutRequest(
+                    action=action,
+                    original_prompt=condensed_prompt,
+                )
             return ServiceShellShortcutRequest(
                 action=action,
-                unit_name=_normalize_systemd_unit_name(match.group(1)),
                 original_prompt=condensed_prompt,
+                unit_name=_normalize_systemd_unit_name(match.group(1)),
             )
     return None
 
 
 def build_shell_request_for_service_shortcut(
     shortcut: ServiceShellShortcutRequest,
+    *,
+    important_services: tuple[str, ...] = (),
 ) -> LocalShellRequest:
     """Translate a service shortcut into a concrete `systemctl` or `journalctl` call."""
 
+    if shortcut.action == "service_health_all":
+        raw_units = important_services or ("codex-agent.service",)
+        units = tuple(_quote_systemd_unit(unit) for unit in raw_units)
+        units_expr = " ".join(units)
+        return LocalShellRequest(
+            shell="bash",
+            command=(
+                "overall=0; "
+                f"for unit in {units_expr}; do "
+                "printf '==> %s\\n' \"$unit\"; "
+                "systemctl --user is-active \"$unit\" || overall=1; "
+                "systemctl --user is-enabled \"$unit\" 2>/dev/null || true; "
+                "systemctl --user status \"$unit\" --no-pager --full || overall=1; "
+                "printf '\\n'; "
+                "done; "
+                "exit \"$overall\""
+            ),
+        )
+
     unit_name = _quote_systemd_unit(shortcut.unit_name)
+    if shortcut.action == "service_health":
+        return LocalShellRequest(
+            shell="bash",
+            command=(
+                f"systemctl --user is-active {unit_name}; "
+                f"systemctl --user is-enabled {unit_name} 2>/dev/null || true; "
+                f"systemctl --user status {unit_name} --no-pager --full"
+            ),
+        )
     if shortcut.action == "service_status":
         return LocalShellRequest(
             shell="bash",
@@ -613,6 +663,19 @@ def _match_structured_git_shortcut(
             action="git_rollback_last_commit",
             repo_hint=_canonicalize_repo_hint(rollback_match.group(1)),
             original_prompt=prompt,
+        )
+
+    rollback_tag_match = re.match(
+        r"^rollback\s+(?:ke\s+)?(?:tag|versi)\s+([A-Za-z0-9._/-]+)\s+(?:di|untuk)\s+(.+)$",
+        prompt,
+        re.IGNORECASE,
+    )
+    if rollback_tag_match:
+        return RepoShellShortcutRequest(
+            action="git_rollback_to_tag",
+            repo_hint=_canonicalize_repo_hint(rollback_tag_match.group(2)),
+            original_prompt=prompt,
+            tag_name=rollback_tag_match.group(1),
         )
 
     tag_match = re.match(

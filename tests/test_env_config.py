@@ -41,6 +41,18 @@ class EnvConfigQueryTests(unittest.TestCase):
             ),
         )
 
+    def test_local_shell_timeout_prompt_is_detected(self) -> None:
+        request = match_env_config_update_query("ubah local shell timeout jadi 600")
+        self.assertEqual(
+            request,
+            EnvConfigUpdateRequest(
+                key="LOCAL_SHELL_TIMEOUT",
+                value="600",
+                display_name="Local shell timeout",
+                original_prompt="ubah local shell timeout jadi 600",
+            ),
+        )
+
     def test_unknown_setting_is_ignored(self) -> None:
         self.assertIsNone(match_env_config_update_query("ubah telegram token jadi 123"))
 
@@ -108,6 +120,10 @@ class EnvConfigApplyTests(unittest.TestCase):
     def test_invalid_value_is_rejected_during_matching(self) -> None:
         with self.assertRaises(EnvConfigError):
             match_env_config_update_query("ubah codex timeout jadi 0")
+
+    def test_invalid_local_shell_timeout_is_rejected_during_matching(self) -> None:
+        with self.assertRaises(EnvConfigError):
+            match_env_config_update_query("ubah local shell timeout jadi 0")
 
 
 if __name__ == "__main__":
