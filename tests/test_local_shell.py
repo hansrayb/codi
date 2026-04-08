@@ -13,10 +13,13 @@ from core.local_shell import (
     LocalShellService,
     LocalShellError,
     RepoShellShortcutRequest,
+    ServiceShellShortcutRequest,
     build_shell_request_for_repo_shortcut,
+    build_shell_request_for_service_shortcut,
     match_local_shell_query,
     match_repo_shell_shortcut,
     match_restart_self_query,
+    match_system_service_shortcut,
 )
 
 
@@ -235,6 +238,61 @@ class LocalShellQueryTests(unittest.TestCase):
                 repo_hint="repo ini",
                 original_prompt="buat tag v1.2.3 di repo ini",
                 tag_name="v1.2.3",
+            ),
+        )
+
+    def test_repo_shortcut_backend_publish_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("publish backend payroll")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="backend_publish",
+                repo_hint="backend payroll",
+                original_prompt="publish backend payroll",
+            ),
+        )
+
+    def test_repo_shortcut_backend_test_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("test backend payroll")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="backend_test",
+                repo_hint="backend payroll",
+                original_prompt="test backend payroll",
+            ),
+        )
+
+    def test_service_shortcut_status_is_detected(self) -> None:
+        request = match_system_service_shortcut("status service payroll")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_status",
+                unit_name="payroll.service",
+                original_prompt="status service payroll",
+            ),
+        )
+
+    def test_service_shortcut_restart_is_detected(self) -> None:
+        request = match_system_service_shortcut("restart service codex-agent")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_restart",
+                unit_name="codex-agent.service",
+                original_prompt="restart service codex-agent",
+            ),
+        )
+
+    def test_service_shortcut_logs_is_detected(self) -> None:
+        request = match_system_service_shortcut("lihat log service web dashboard payroll")
+        self.assertEqual(
+            request,
+            ServiceShellShortcutRequest(
+                action="service_logs",
+                unit_name="web-dashboard-payroll.service",
+                original_prompt="lihat log service web dashboard payroll",
             ),
         )
 
@@ -587,6 +645,90 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             LocalShellRequest(shell="bash", command="git tag v1.2.3"),
         )
 
+    def test_backend_publish_prefers_package_script(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "package.json").write_text(
+                '{"scripts":{"publish":"node scripts/publish.js"}}',
+                encoding="utf-8",
+            )
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="backend_publish",
+                    repo_hint="backend payroll",
+                    original_prompt="publish backend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="npm run publish"))
+
+    def test_backend_build_uses_poetry_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "pyproject.toml").write_text("[project]\nname='payroll-api'\n", encoding="utf-8")
+            (repo_root / "poetry.lock").write_text("", encoding="utf-8")
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="backend_build",
+                    repo_hint="backend payroll",
+                    original_prompt="build backend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="poetry build"))
+
+    def test_backend_test_uses_uv_when_lockfile_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "pyproject.toml").write_text("[project]\nname='payroll-api'\n", encoding="utf-8")
+            (repo_root / "uv.lock").write_text("", encoding="utf-8")
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="backend_test",
+                    repo_hint="backend payroll",
+                    original_prompt="test backend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="uv run pytest"))
+
+    def test_backend_publish_uses_make_when_target_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "Makefile").write_text("publish:\n\t@echo publish\n", encoding="utf-8")
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="backend_publish",
+                    repo_hint="backend payroll",
+                    original_prompt="publish backend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="make publish"))
+
+    def test_backend_publish_requires_known_backend_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "pyproject.toml").write_text("[project]\nname='payroll-api'\n", encoding="utf-8")
+
+            with self.assertRaises(LocalShellError):
+                build_shell_request_for_repo_shortcut(
+                    RepoShellShortcutRequest(
+                        action="backend_publish",
+                        repo_hint="backend payroll",
+                        original_prompt="publish backend payroll",
+                    ),
+                    repo_root,
+                )
+
     def test_node_build_prefers_pnpm_when_lockfile_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -703,6 +845,70 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
                     tag_name="v1.2.3;rm",
                 ),
                 Path("/tmp/repo"),
+            )
+
+    def test_service_status_maps_to_systemctl_status(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_status",
+                unit_name="codex-agent.service",
+                original_prompt="status service codex-agent",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command="systemctl --user status codex-agent.service --no-pager --full",
+            ),
+        )
+
+    def test_service_restart_maps_to_restart_and_status(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_restart",
+                unit_name="payroll.service",
+                original_prompt="restart service payroll",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command=(
+                    "systemctl --user restart payroll.service "
+                    "&& systemctl --user status payroll.service --no-pager --full"
+                ),
+            ),
+        )
+
+    def test_service_logs_maps_to_journalctl(self) -> None:
+        request = build_shell_request_for_service_shortcut(
+            ServiceShellShortcutRequest(
+                action="service_logs",
+                unit_name="web-dashboard-payroll.service",
+                original_prompt="lihat log service web dashboard payroll",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command="journalctl --user -u web-dashboard-payroll.service -n 100 --no-pager",
+            ),
+        )
+
+    def test_service_shortcut_rejects_unsafe_unit_name(self) -> None:
+        with self.assertRaises(LocalShellError):
+            build_shell_request_for_service_shortcut(
+                ServiceShellShortcutRequest(
+                    action="service_status",
+                    unit_name="postgres;rm.service",
+                    original_prompt="status service postgres;rm",
+                )
             )
 
 

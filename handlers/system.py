@@ -107,8 +107,13 @@ Contoh:
 - cherry-pick commit a1b2c3d di repo ini
 - rollback commit terakhir di repo ini
 - buat tag v1.2.3 di repo ini
+- status service codex-agent
+- restart service payroll
+- lihat log service payroll
 - publish build frontend payroll
 - deploy frontend payroll
+- publish backend payroll
+- test backend payroll
 - build frontend payroll
 - test repo web-dashboard-payroll
 

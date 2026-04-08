@@ -32,9 +32,11 @@ from core.local_shell import (
     LocalShellError,
     LocalShellService,
     build_shell_request_for_repo_shortcut,
+    build_shell_request_for_service_shortcut,
     match_local_shell_query,
     match_repo_shell_shortcut,
     match_restart_self_query,
+    match_system_service_shortcut,
 )
 from core.prompts import build_codex_prompt
 from core.repo_resolver import RepoResolution, RepoResolver, RepoResolverError
@@ -696,6 +698,40 @@ class Orchestrator:
                 )
                 return format_error_payload(
                     "Codi belum berhasil menjalankan perintah shell lokal itu.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            return format_local_shell_payload(
+                assistant_name=self._settings.assistant_name,
+                result=result,
+                max_output_length=self._settings.max_output_length,
+            )
+
+        service_shortcut = match_system_service_shortcut(text)
+        if service_shortcut is not None:
+            self._logger.info(
+                "user_id=%s | action=service_shell_shortcut | shortcut=%s | prompt=%r",
+                user_id,
+                service_shortcut.action,
+                redact_prompt(text),
+            )
+            try:
+                shell_request = build_shell_request_for_service_shortcut(service_shortcut)
+                result = await self._local_shell_service.run(
+                    shell_request,
+                    cwd=self._settings.codex_work_dir,
+                )
+            except LocalShellError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            except Exception:
+                self._logger.exception(
+                    "user_id=%s | action=service_shell_shortcut_failed",
+                    user_id,
+                )
+                return format_error_payload(
+                    "Codi belum berhasil menjalankan shortcut service itu.",
                     assistant_name=self._settings.assistant_name,
                 )
             return format_local_shell_payload(

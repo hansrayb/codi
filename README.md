@@ -72,8 +72,13 @@ Contoh prompt:
 - `cherry-pick commit a1b2c3d di repo ini`
 - `rollback commit terakhir di repo ini`
 - `buat tag v1.2.3 di repo ini`
+- `status service codex-agent`
+- `restart service payroll`
+- `lihat log service payroll`
 - `publish build frontend payroll`
 - `deploy frontend payroll`
+- `publish backend payroll`
+- `test backend payroll`
 - `build frontend payroll`
 - `test repo web-dashboard-payroll`
 
@@ -85,6 +90,8 @@ Catatan:
 - Codi perlu berjalan dalam sesi desktop Linux aktif agar aplikasi GUI benar-benar muncul.
 - `shell:` dan kawan-kawannya menjalankan perintah lokal langsung di mesin host, bukan lewat sandbox Codex, jadi sebaiknya dipakai dengan prefix yang sengaja dan oleh user yang memang dipercaya.
 - Shortcut natural seperti `pull repo ini` atau `build frontend payroll` juga diarahkan ke shell lokal, dengan target repo yang dicoba ditebak dari konteks aktif atau nama repo di prompt.
+- Shortcut `status/restart/log service ...` saat ini menarget `systemd --user`, jadi paling cocok untuk service yang memang dijalankan di level user.
+- Shortcut backend akan mencoba script `package.json`, target `Makefile`, atau tooling Python yang umum seperti `uv`, `poetry`, dan `pytest`.
 
 ## Commit / PR Assistant
 
