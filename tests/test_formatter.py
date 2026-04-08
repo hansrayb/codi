@@ -9,6 +9,7 @@ from pathlib import Path
 from telegram.constants import ParseMode
 
 from core.desktop_screenshot import DesktopScreenshot
+from core.env_config import EnvConfigUpdateResult
 from core.local_shell import LocalShellResult
 from core.system_activity import (
     LogSnapshot,
@@ -18,6 +19,7 @@ from core.system_activity import (
 )
 from utils.formatter import (
     format_desktop_screenshot_payload,
+    format_env_config_update_payload,
     format_error_payload,
     format_execution_payload,
     format_local_shell_payload,
@@ -174,6 +176,26 @@ class FormatterTests(unittest.TestCase):
         self.assertTrue(payload.has_attachment)
         self.assertEqual(payload.attachment_filename, "shell-bash-output.txt")
         self.assertIn("Versi lengkap saya kirim sebagai file.", payload.text)
+
+    def test_env_config_update_payload_can_schedule_restart(self) -> None:
+        payload = format_env_config_update_payload(
+            assistant_name="Codi",
+            result=EnvConfigUpdateResult(
+                key="CODEX_TIMEOUT",
+                display_name="Codex timeout",
+                old_value="180",
+                new_value="600",
+                env_path=Path("/home/hans/AI-Agent-Telegram/.env"),
+                changed=True,
+                restart_required=True,
+            ),
+        )
+
+        self.assertIn("Codi sudah merapikan konfigurasi lokal ini.", payload.text)
+        self.assertIn("CODEX_TIMEOUT", payload.text)
+        self.assertIn("600", payload.text)
+        self.assertEqual(payload.post_send_action, "restart_self")
+        self.assertEqual(payload.parse_mode, ParseMode.HTML)
 
     def test_system_activity_payload_includes_sections(self) -> None:
         report = SystemActivityReport(

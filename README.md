@@ -57,6 +57,7 @@ Contoh prompt:
 - `kirim screenshot monitor aktif`
 - `kirim screenshot jendela aktif sekarang`
 - `restart codi`
+- `ubah codex timeout jadi 600`
 - `shell: systemctl --user status codex-agent.service`
 - `bash: git status --short`
 - `pwsh: Get-Process | Select-Object -First 5`
@@ -90,6 +91,7 @@ Catatan:
 - Codi perlu berjalan dalam sesi desktop Linux aktif agar aplikasi GUI benar-benar muncul.
 - `shell:` dan kawan-kawannya menjalankan perintah lokal langsung di mesin host, bukan lewat sandbox Codex, jadi sebaiknya dipakai dengan prefix yang sengaja dan oleh user yang memang dipercaya.
 - Shortcut natural seperti `pull repo ini` atau `build frontend payroll` juga diarahkan ke shell lokal, dengan target repo yang dicoba ditebak dari konteks aktif atau nama repo di prompt.
+- Untuk pengaturan yang sangat spesifik seperti `ubah codex timeout jadi 600`, Codi sekarang bisa mengubah `.env` lokal langsung tanpa perlu masuk ke flow Codex builder.
 - Shortcut `status/restart/log service ...` saat ini menarget `systemd --user`, jadi paling cocok untuk service yang memang dijalankan di level user.
 - Shortcut backend akan mencoba script `package.json`, target `Makefile`, atau tooling Python yang umum seperti `uv`, `poetry`, dan `pytest`.
 

@@ -92,6 +92,7 @@ Contoh:
 - kirim screenshot monitor aktif
 - kirim screenshot jendela aktif sekarang
 - restart codi
+- ubah codex timeout jadi 600
 - shell: systemctl --user status codex-agent.service
 - bash: git status --short
 - pwsh: Get-Process | Select-Object -First 5

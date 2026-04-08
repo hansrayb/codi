@@ -71,7 +71,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     token = _require_env("TELEGRAM_BOT_TOKEN")
     allowed_user_ids = _parse_int_list(_require_env("ALLOWED_USER_IDS"), "ALLOWED_USER_IDS")
     codex_bin = os.getenv("CODEX_BIN", "codex").strip() or "codex"
-    codex_timeout = _parse_positive_int(os.getenv("CODEX_TIMEOUT", "180"), "CODEX_TIMEOUT")
+    codex_timeout = _parse_positive_int(os.getenv("CODEX_TIMEOUT", "600"), "CODEX_TIMEOUT")
     codex_reasoning_effort = (
         os.getenv("CODEX_REASONING_EFFORT", "medium").strip().lower() or "medium"
     )

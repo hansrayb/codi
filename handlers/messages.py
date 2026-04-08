@@ -24,27 +24,28 @@ async def handle_text_message(
     if message is None or user is None:
         return
 
+    chat_id = update.effective_chat.id if update.effective_chat is not None else None
     orchestrator = context.application.bot_data["orchestrator"]
     control_payload = await orchestrator.try_handle_control_message(user.id, message.text or "")
     if control_payload is not None:
         await _send_payload(message, control_payload)
-        await _handle_post_send_action(context, control_payload)
+        await _handle_post_send_action(context, control_payload, chat_id=chat_id)
         return
 
     watch_payload = await orchestrator.try_handle_repo_watch_message(
         user.id,
-        update.effective_chat.id if update.effective_chat is not None else user.id,
+        chat_id if chat_id is not None else user.id,
         message.text or "",
     )
     if watch_payload is not None:
         await _send_payload(message, watch_payload)
-        await _handle_post_send_action(context, watch_payload)
+        await _handle_post_send_action(context, watch_payload, chat_id=chat_id)
         return
 
     direct_payload = await orchestrator.try_handle_direct_query(user.id, message.text or "")
     if direct_payload is not None:
         await _send_payload(message, direct_payload)
-        await _handle_post_send_action(context, direct_payload)
+        await _handle_post_send_action(context, direct_payload, chat_id=chat_id)
         return
 
     try:
@@ -57,7 +58,7 @@ async def handle_text_message(
         await message.reply_text(prepared.ack_text)
         payload = await orchestrator.run_prepared(prepared)
         await _send_payload(message, payload)
-        await _handle_post_send_action(context, payload)
+        await _handle_post_send_action(context, payload, chat_id=chat_id)
         return
 
     assistant_name = context.application.bot_data["settings"].assistant_name
@@ -71,7 +72,7 @@ async def handle_text_message(
     payload = await orchestrator.run_prepared(prepared, on_progress=reporter.push)
     await reporter.flush(completed=True)
     await _send_payload(message, payload)
-    await _handle_post_send_action(context, payload)
+    await _handle_post_send_action(context, payload, chat_id=chat_id)
 
 
 async def _send_payload(message, payload) -> None:
@@ -91,10 +92,24 @@ async def _send_payload(message, payload) -> None:
     await message.reply_document(document=document)
 
 
-async def _handle_post_send_action(context: ContextTypes.DEFAULT_TYPE, payload) -> None:
+async def _handle_post_send_action(
+    context: ContextTypes.DEFAULT_TYPE,
+    payload,
+    *,
+    chat_id: int | None = None,
+) -> None:
     if payload.post_send_action != "restart_self":
         return
     manager = context.application.bot_data.get("self_maintenance_manager")
     if manager is None:
         return
-    manager.schedule_restart()
+    assistant_name = context.application.bot_data["settings"].assistant_name
+    manager.schedule_restart(
+        notify_chat_id=chat_id,
+        notify_text=(
+            f"<b>{assistant_name}</b>\n\n"
+            "Saya sudah aktif lagi dan siap lanjut."
+        )
+        if chat_id is not None
+        else None,
+    )

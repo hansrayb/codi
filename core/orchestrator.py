@@ -28,6 +28,11 @@ from core.edit_approval import (
     EditApprovalManager,
     rewrite_workspace_paths,
 )
+from core.env_config import (
+    EnvConfigError,
+    apply_env_config_update,
+    match_env_config_update_query,
+)
 from core.local_shell import (
     LocalShellError,
     LocalShellService,
@@ -59,6 +64,7 @@ from utils.formatter import (
     format_desktop_screenshot_payload,
     format_edit_approval_payload,
     format_edit_approval_result,
+    format_env_config_update_payload,
     format_error_payload,
     format_execution_payload,
     format_local_shell_payload,
@@ -668,6 +674,38 @@ class Orchestrator:
                 ),
                 parse_mode="HTML",
                 post_send_action="restart_self",
+            )
+
+        env_config_request = match_env_config_update_query(text)
+        if env_config_request is not None:
+            self._logger.info(
+                "user_id=%s | action=env_config_update | key=%s | prompt=%r",
+                user_id,
+                env_config_request.key,
+                redact_prompt(text),
+            )
+            try:
+                result = apply_env_config_update(
+                    env_config_request,
+                    env_path=self._settings.codex_work_dir / ".env",
+                )
+            except EnvConfigError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            except Exception:
+                self._logger.exception(
+                    "user_id=%s | action=env_config_update_failed",
+                    user_id,
+                )
+                return format_error_payload(
+                    "Codi belum berhasil merapikan konfigurasi lokal itu.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            return format_env_config_update_payload(
+                assistant_name=self._settings.assistant_name,
+                result=result,
             )
 
         shell_request = match_local_shell_query(text)

@@ -9,6 +9,7 @@ from telegram.constants import ParseMode
 
 from core.desktop_screenshot import ActiveWindowInfo, DesktopScreenshot
 from core.edit_approval import PendingApproval
+from core.env_config import EnvConfigUpdateResult
 from core.local_shell import LocalShellResult
 from core.self_maintenance import SelfCheckResult
 from core.system_activity import ProcessGroupSummary, SystemActivityReport, SystemActivityRequest
@@ -80,6 +81,44 @@ def format_error_payload(message: str, *, assistant_name: str = "Codi") -> Messa
     return MessagePayload(
         text=f"<b>{escape(assistant_name)} belum sempat menyelesaikan task ini.</b>\n\n{escape(message)}",
         parse_mode=ParseMode.HTML,
+    )
+
+
+def format_env_config_update_payload(
+    *,
+    assistant_name: str,
+    result: EnvConfigUpdateResult,
+) -> MessagePayload:
+    """Return a Telegram-safe summary for a successful `.env` config update."""
+
+    lines = [
+        f"<b>{escape(assistant_name)} sudah merapikan konfigurasi lokal ini.</b>",
+        "",
+        f"Pengaturan: <code>{escape(result.key)}</code>",
+        f"File: <code>{escape(str(result.env_path))}</code>",
+        (
+            f"Nilai sebelumnya: <code>{escape(result.old_value)}</code>"
+            if result.old_value is not None
+            else "Nilai sebelumnya: belum ada di file"
+        ),
+        f"Nilai sekarang: <code>{escape(result.new_value)}</code>",
+    ]
+    if result.changed and result.restart_required:
+        lines.extend(
+            [
+                "",
+                "Supaya perubahan ini langsung kepakai, saya akan restart sebentar lagi setelah pesan ini terkirim.",
+            ]
+        )
+    elif result.changed:
+        lines.extend(["", "Perubahannya sudah tersimpan di file lokal."])
+    else:
+        lines.extend(["", "Nilainya memang sudah sama, jadi saya tidak mengubah file."])
+
+    return MessagePayload(
+        text="\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        post_send_action="restart_self" if result.changed and result.restart_required else None,
     )
 
 

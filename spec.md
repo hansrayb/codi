@@ -462,7 +462,7 @@ ALLOWED_USER_IDS=123456789,987654321
 
 # Codex
 CODEX_BIN=codex
-CODEX_TIMEOUT=180
+CODEX_TIMEOUT=600
 CODEX_WORK_DIR=/home/hans/projects
 ALLOWED_WORK_DIRS=/home/hans/projects,/home/hans/sandbox
 

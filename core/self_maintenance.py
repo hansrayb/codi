@@ -8,6 +8,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+_RESTART_NOTICE_CHAT_ID_ENV = "CODI_RESTART_NOTICE_CHAT_ID"
+_RESTART_NOTICE_TEXT_ENV = "CODI_RESTART_NOTICE_TEXT"
+
 
 @dataclass(frozen=True, slots=True)
 class SelfCheckResult:
@@ -59,11 +62,21 @@ class SelfMaintenanceManager:
 
         return await asyncio.to_thread(self._run_checks)
 
-    def schedule_restart(self) -> bool:
+    def schedule_restart(
+        self,
+        *,
+        notify_chat_id: int | None = None,
+        notify_text: str | None = None,
+    ) -> bool:
         """Schedule an in-place process restart once the current reply is sent."""
 
         if self._restart_scheduled:
             return False
+        if notify_chat_id is not None:
+            os.environ[_RESTART_NOTICE_CHAT_ID_ENV] = str(notify_chat_id)
+            os.environ[_RESTART_NOTICE_TEXT_ENV] = (
+                notify_text or "Codi sudah aktif lagi dan siap dipakai."
+            )
         self._restart_scheduled = True
         self._restart_task = asyncio.create_task(self._delayed_restart())
         return True
@@ -75,6 +88,22 @@ class SelfMaintenanceManager:
             self._restart_task.cancel()
         self._restart_task = None
         self._restart_scheduled = False
+
+    def consume_restart_notice(self) -> tuple[int, str] | None:
+        """Return and clear any pending restart notice carried across execv."""
+
+        raw_chat_id = (os.environ.pop(_RESTART_NOTICE_CHAT_ID_ENV, "") or "").strip()
+        raw_text = (os.environ.pop(_RESTART_NOTICE_TEXT_ENV, "") or "").strip()
+        if not raw_chat_id:
+            return None
+        try:
+            chat_id = int(raw_chat_id)
+        except ValueError:
+            return None
+        return (
+            chat_id,
+            raw_text or "Codi sudah aktif lagi dan siap dipakai.",
+        )
 
     def _run_checks(self) -> SelfCheckResult:
         compile_output, compile_ok = self._run_command(

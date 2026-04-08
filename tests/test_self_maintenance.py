@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,6 +32,8 @@ class SelfMaintenanceManagerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         self.manager.cancel_restart()
         self.tempdir.cleanup()
+        os.environ.pop("CODI_RESTART_NOTICE_CHAT_ID", None)
+        os.environ.pop("CODI_RESTART_NOTICE_TEXT", None)
 
     def test_is_self_repo(self) -> None:
         self.assertTrue(self.manager.is_self_repo(self.project_root))
@@ -56,6 +59,23 @@ class SelfMaintenanceManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(first)
         self.assertFalse(second)
         await asyncio.sleep(0)
+
+    async def test_schedule_restart_can_store_notice_for_next_boot(self) -> None:
+        with patch.dict(os.environ, {}, clear=False):
+            scheduled = self.manager.schedule_restart(
+                notify_chat_id=42,
+                notify_text="Codi sudah aktif lagi.",
+            )
+            notice = self.manager.consume_restart_notice()
+
+        self.assertTrue(scheduled)
+        self.assertEqual(notice, (42, "Codi sudah aktif lagi."))
+
+    async def test_consume_restart_notice_returns_none_without_pending_notice(self) -> None:
+        with patch.dict(os.environ, {}, clear=False):
+            notice = self.manager.consume_restart_notice()
+
+        self.assertIsNone(notice)
 
 
 if __name__ == "__main__":

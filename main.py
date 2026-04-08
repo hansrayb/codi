@@ -107,6 +107,22 @@ def build_application(settings: Settings) -> Application:
 async def _post_init(application: Application) -> None:
     """Start background services after Telegram polling is initialized."""
 
+    logger = application.bot_data["logger"]
+    self_maintenance_manager: SelfMaintenanceManager = application.bot_data[
+        "self_maintenance_manager"
+    ]
+    restart_notice = self_maintenance_manager.consume_restart_notice()
+    if restart_notice is not None:
+        chat_id, text = restart_notice
+        try:
+            await application.bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML",
+            )
+        except Exception:
+            logger.exception("action=restart_notice_failed | chat_id=%s", chat_id)
+
     watch_task = asyncio.create_task(_repo_watch_loop(application))
     application.bot_data["repo_watch_task"] = watch_task
 
