@@ -105,6 +105,9 @@ Contoh:
 - commit repo ini dengan pesan "Update payroll flow"
 - commit semua perubahan di repo ini dengan pesan "Update payroll flow"
 - cherry-pick commit a1b2c3d di repo ini
+- rollback commit terakhir di repo ini
+- buat tag v1.2.3 di repo ini
+- publish build frontend payroll
 - deploy frontend payroll
 - build frontend payroll
 - test repo web-dashboard-payroll

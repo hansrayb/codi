@@ -204,6 +204,40 @@ class LocalShellQueryTests(unittest.TestCase):
             ),
         )
 
+    def test_repo_shortcut_publish_build_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("publish build frontend payroll")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="node_publish",
+                repo_hint="web dashboard payroll",
+                original_prompt="publish build frontend payroll",
+            ),
+        )
+
+    def test_repo_shortcut_rollback_last_commit_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("rollback commit terakhir di repo ini")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="git_rollback_last_commit",
+                repo_hint="repo ini",
+                original_prompt="rollback commit terakhir di repo ini",
+            ),
+        )
+
+    def test_repo_shortcut_tag_create_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("buat tag v1.2.3 di repo ini")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="git_tag_create",
+                repo_hint="repo ini",
+                original_prompt="buat tag v1.2.3 di repo ini",
+                tag_name="v1.2.3",
+            ),
+        )
+
     def test_non_repo_build_prompt_is_not_treated_as_shell_shortcut(self) -> None:
         self.assertIsNone(match_repo_shell_shortcut("build fitur payroll baru"))
 
@@ -522,6 +556,37 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             LocalShellRequest(shell="bash", command="git cherry-pick a1b2c3d"),
         )
 
+    def test_git_rollback_last_commit_maps_to_revert(self) -> None:
+        request = build_shell_request_for_repo_shortcut(
+            RepoShellShortcutRequest(
+                action="git_rollback_last_commit",
+                repo_hint="repo ini",
+                original_prompt="rollback commit terakhir di repo ini",
+            ),
+            Path("/tmp/repo"),
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(shell="bash", command="git revert --no-edit HEAD"),
+        )
+
+    def test_git_tag_create_maps_to_git_tag(self) -> None:
+        request = build_shell_request_for_repo_shortcut(
+            RepoShellShortcutRequest(
+                action="git_tag_create",
+                repo_hint="repo ini",
+                original_prompt="buat tag v1.2.3 di repo ini",
+                tag_name="v1.2.3",
+            ),
+            Path("/tmp/repo"),
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(shell="bash", command="git tag v1.2.3"),
+        )
+
     def test_node_build_prefers_pnpm_when_lockfile_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -560,6 +625,25 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             )
 
         self.assertEqual(request, LocalShellRequest(shell="bash", command="npm run deploy"))
+
+    def test_node_publish_uses_publish_script(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "package.json").write_text(
+                '{"scripts":{"publish":"node scripts/publish.js"}}',
+                encoding="utf-8",
+            )
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="node_publish",
+                    repo_hint="web dashboard payroll",
+                    original_prompt="publish build frontend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="npm run publish"))
 
     def test_node_build_requires_package_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -605,6 +689,18 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
                     repo_hint="repo ini",
                     original_prompt="cherry-pick commit nope123; di repo ini",
                     commit_sha="nope123;",
+                ),
+                Path("/tmp/repo"),
+            )
+
+    def test_git_tag_rejects_unsafe_name(self) -> None:
+        with self.assertRaises(LocalShellError):
+            build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="git_tag_create",
+                    repo_hint="repo ini",
+                    original_prompt="buat tag v1.2.3;rm di repo ini",
+                    tag_name="v1.2.3;rm",
                 ),
                 Path("/tmp/repo"),
             )

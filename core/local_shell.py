@@ -56,6 +56,7 @@ SHORTCUT_SCOPE_HINTS = (
 )
 BUILD_LIKE_ACTIONS = {
     "node_build",
+    "node_publish",
     "node_test",
     "node_lint",
     "node_install",
@@ -89,6 +90,7 @@ class RepoShellShortcutRequest:
     target_branch: str | None = None
     commit_message: str | None = None
     commit_sha: str | None = None
+    tag_name: str | None = None
     force: bool = False
     stage_all: bool = False
 
@@ -277,6 +279,11 @@ def build_shell_request_for_repo_shortcut(
     if shortcut.action == "git_cherry_pick":
         commit_sha = _quote_git_commit(shortcut.commit_sha)
         return LocalShellRequest(shell="bash", command=f"git cherry-pick {commit_sha}")
+    if shortcut.action == "git_rollback_last_commit":
+        return LocalShellRequest(shell="bash", command="git revert --no-edit HEAD")
+    if shortcut.action == "git_tag_create":
+        tag_name = _quote_git_ref(shortcut.tag_name)
+        return LocalShellRequest(shell="bash", command=f"git tag {tag_name}")
 
     package_json = repo_path / "package.json"
     if not package_json.exists():
@@ -292,6 +299,7 @@ def build_shell_request_for_repo_shortcut(
 
     script_name = {
         "node_build": "build",
+        "node_publish": "publish",
         "node_deploy": "deploy",
         "node_test": "test",
         "node_lint": "lint",
@@ -369,6 +377,7 @@ def _match_shortcut_action(normalized_prompt: str) -> tuple[str | None, str | No
         ("git_branch_current", ("cek branch ", "lihat branch ", "tampilkan branch ", "branch ")),
         ("git_status", ("cek status ", "lihat status ", "tampilkan status ", "status ")),
         ("node_build", ("build ", "build frontend ", "build web ", "build dashboard ")),
+        ("node_publish", ("publish build ", "publish ",)),
         ("node_deploy", ("deploy ", "deploy frontend ", "deploy web ", "deploy dashboard ")),
         ("node_test", ("test ", "test frontend ", "test web ", "test dashboard ")),
         ("node_lint", ("lint ", "lint frontend ", "lint web ", "lint dashboard ")),
@@ -491,6 +500,31 @@ def _match_structured_git_shortcut(
             commit_sha=cherry_pick_match.group(1),
         )
 
+    rollback_match = re.match(
+        r"^rollback\s+commit\s+terakhir\s+(?:di|untuk)\s+(.+)$",
+        prompt,
+        re.IGNORECASE,
+    )
+    if rollback_match:
+        return RepoShellShortcutRequest(
+            action="git_rollback_last_commit",
+            repo_hint=_canonicalize_repo_hint(rollback_match.group(1)),
+            original_prompt=prompt,
+        )
+
+    tag_match = re.match(
+        r"^(?:buat(?:kan)?\s+)?tag\s+([A-Za-z0-9._/-]+)\s+(?:di|untuk)\s+(.+)$",
+        prompt,
+        re.IGNORECASE,
+    )
+    if tag_match:
+        return RepoShellShortcutRequest(
+            action="git_tag_create",
+            repo_hint=_canonicalize_repo_hint(tag_match.group(2)),
+            original_prompt=prompt,
+            tag_name=tag_match.group(1),
+        )
+
     return None
 
 
@@ -546,7 +580,7 @@ def _build_package_manager_run_command(repo_root: Path, script_name: str) -> str
     if manager == "pnpm":
         return f"pnpm run {script_name}"
     if manager == "yarn":
-        return f"yarn {script_name}"
+        return f"yarn run {script_name}"
     if manager == "bun":
         return f"bun run {script_name}"
     return f"npm run {script_name}"
