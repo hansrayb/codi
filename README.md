@@ -68,6 +68,9 @@ Contoh prompt:
 - `hapus branch fitur/login di repo ini`
 - `rebase branch fitur/login ke main di repo ini`
 - `commit repo ini dengan pesan "Update payroll flow"`
+- `commit semua perubahan di repo ini dengan pesan "Update payroll flow"`
+- `cherry-pick commit a1b2c3d di repo ini`
+- `deploy frontend payroll`
 - `build frontend payroll`
 - `test repo web-dashboard-payroll`
 

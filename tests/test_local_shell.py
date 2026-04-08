@@ -166,6 +166,44 @@ class LocalShellQueryTests(unittest.TestCase):
             ),
         )
 
+    def test_repo_shortcut_commit_all_with_message_is_detected(self) -> None:
+        request = match_repo_shell_shortcut(
+            'commit semua perubahan di repo ini dengan pesan "Update payroll flow"'
+        )
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="git_commit",
+                repo_hint="repo ini",
+                original_prompt='commit semua perubahan di repo ini dengan pesan "Update payroll flow"',
+                commit_message="Update payroll flow",
+                stage_all=True,
+            ),
+        )
+
+    def test_repo_shortcut_cherry_pick_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("cherry-pick commit a1b2c3d di repo ini")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="git_cherry_pick",
+                repo_hint="repo ini",
+                original_prompt="cherry-pick commit a1b2c3d di repo ini",
+                commit_sha="a1b2c3d",
+            ),
+        )
+
+    def test_repo_shortcut_deploy_is_detected(self) -> None:
+        request = match_repo_shell_shortcut("deploy frontend payroll")
+        self.assertEqual(
+            request,
+            RepoShellShortcutRequest(
+                action="node_deploy",
+                repo_hint="web dashboard payroll",
+                original_prompt="deploy frontend payroll",
+            ),
+        )
+
     def test_non_repo_build_prompt_is_not_treated_as_shell_shortcut(self) -> None:
         self.assertIsNone(match_repo_shell_shortcut("build fitur payroll baru"))
 
@@ -448,6 +486,42 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             LocalShellRequest(shell="bash", command="git commit -m 'Update payroll flow'"),
         )
 
+    def test_git_commit_all_maps_to_add_and_commit(self) -> None:
+        request = build_shell_request_for_repo_shortcut(
+            RepoShellShortcutRequest(
+                action="git_commit",
+                repo_hint="repo ini",
+                original_prompt='commit semua perubahan di repo ini dengan pesan "Update payroll flow"',
+                commit_message="Update payroll flow",
+                stage_all=True,
+            ),
+            Path("/tmp/repo"),
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command="git add -A && git commit -m 'Update payroll flow'",
+            ),
+        )
+
+    def test_git_cherry_pick_maps_to_command(self) -> None:
+        request = build_shell_request_for_repo_shortcut(
+            RepoShellShortcutRequest(
+                action="git_cherry_pick",
+                repo_hint="repo ini",
+                original_prompt="cherry-pick commit a1b2c3d di repo ini",
+                commit_sha="a1b2c3d",
+            ),
+            Path("/tmp/repo"),
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(shell="bash", command="git cherry-pick a1b2c3d"),
+        )
+
     def test_node_build_prefers_pnpm_when_lockfile_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -467,6 +541,25 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
             )
 
         self.assertEqual(request, LocalShellRequest(shell="bash", command="pnpm run build"))
+
+    def test_node_deploy_uses_deploy_script(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / "package.json").write_text(
+                '{"scripts":{"deploy":"vite deploy"}}',
+                encoding="utf-8",
+            )
+
+            request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="node_deploy",
+                    repo_hint="web dashboard payroll",
+                    original_prompt="deploy frontend payroll",
+                ),
+                repo_root,
+            )
+
+        self.assertEqual(request, LocalShellRequest(shell="bash", command="npm run deploy"))
 
     def test_node_build_requires_package_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -500,6 +593,18 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
                     repo_hint="repo ini",
                     original_prompt='commit repo ini dengan pesan ""',
                     commit_message="   ",
+                ),
+                Path("/tmp/repo"),
+            )
+
+    def test_git_cherry_pick_rejects_unsafe_hash(self) -> None:
+        with self.assertRaises(LocalShellError):
+            build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="git_cherry_pick",
+                    repo_hint="repo ini",
+                    original_prompt="cherry-pick commit nope123; di repo ini",
+                    commit_sha="nope123;",
                 ),
                 Path("/tmp/repo"),
             )

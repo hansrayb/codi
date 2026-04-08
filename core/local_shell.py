@@ -54,8 +54,15 @@ SHORTCUT_SCOPE_HINTS = (
     "pnpm",
     "yarn",
 )
-BUILD_LIKE_ACTIONS = {"node_build", "node_test", "node_lint", "node_install"}
+BUILD_LIKE_ACTIONS = {
+    "node_build",
+    "node_test",
+    "node_lint",
+    "node_install",
+    "node_deploy",
+}
 SAFE_GIT_REF_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
+SAFE_GIT_COMMIT_PATTERN = re.compile(r"[A-Fa-f0-9]{7,40}")
 
 
 class LocalShellError(RuntimeError):
@@ -81,7 +88,9 @@ class RepoShellShortcutRequest:
     source_branch: str | None = None
     target_branch: str | None = None
     commit_message: str | None = None
+    commit_sha: str | None = None
     force: bool = False
+    stage_all: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +268,15 @@ def build_shell_request_for_repo_shortcut(
         )
     if shortcut.action == "git_commit":
         message = _quote_commit_message(shortcut.commit_message)
+        if shortcut.stage_all:
+            return LocalShellRequest(
+                shell="bash",
+                command=f"git add -A && git commit -m {message}",
+            )
         return LocalShellRequest(shell="bash", command=f"git commit -m {message}")
+    if shortcut.action == "git_cherry_pick":
+        commit_sha = _quote_git_commit(shortcut.commit_sha)
+        return LocalShellRequest(shell="bash", command=f"git cherry-pick {commit_sha}")
 
     package_json = repo_path / "package.json"
     if not package_json.exists():
@@ -275,6 +292,7 @@ def build_shell_request_for_repo_shortcut(
 
     script_name = {
         "node_build": "build",
+        "node_deploy": "deploy",
         "node_test": "test",
         "node_lint": "lint",
     }.get(shortcut.action)
@@ -351,6 +369,7 @@ def _match_shortcut_action(normalized_prompt: str) -> tuple[str | None, str | No
         ("git_branch_current", ("cek branch ", "lihat branch ", "tampilkan branch ", "branch ")),
         ("git_status", ("cek status ", "lihat status ", "tampilkan status ", "status ")),
         ("node_build", ("build ", "build frontend ", "build web ", "build dashboard ")),
+        ("node_deploy", ("deploy ", "deploy frontend ", "deploy web ", "deploy dashboard ")),
         ("node_test", ("test ", "test frontend ", "test web ", "test dashboard ")),
         ("node_lint", ("lint ", "lint frontend ", "lint web ", "lint dashboard ")),
         ("node_install", ("install ", "install frontend ", "install web ", "install dashboard ")),
@@ -438,12 +457,38 @@ def _match_structured_git_shortcut(
         prompt,
         re.IGNORECASE,
     )
+    commit_all_match = re.match(
+        r'^(?:buat(?:kan)?\s+)?commit\s+semua\s+perubahan\s+(?:(?:di|untuk)\s+)?(.+?)\s+dengan\s+pesan\s+["\'](.+?)["\']$',
+        prompt,
+        re.IGNORECASE,
+    )
+    if commit_all_match:
+        return RepoShellShortcutRequest(
+            action="git_commit",
+            repo_hint=_canonicalize_repo_hint(commit_all_match.group(1)),
+            original_prompt=prompt,
+            commit_message=commit_all_match.group(2),
+            stage_all=True,
+        )
     if commit_match:
         return RepoShellShortcutRequest(
             action="git_commit",
             repo_hint=_canonicalize_repo_hint(commit_match.group(1)),
             original_prompt=prompt,
             commit_message=commit_match.group(2),
+        )
+
+    cherry_pick_match = re.match(
+        r"^cherry-pick\s+commit\s+([A-Fa-f0-9]{7,40})\s+(?:di|untuk)\s+(.+)$",
+        prompt,
+        re.IGNORECASE,
+    )
+    if cherry_pick_match:
+        return RepoShellShortcutRequest(
+            action="git_cherry_pick",
+            repo_hint=_canonicalize_repo_hint(cherry_pick_match.group(2)),
+            original_prompt=prompt,
+            commit_sha=cherry_pick_match.group(1),
         )
 
     return None
@@ -553,4 +598,15 @@ def _quote_commit_message(message: str | None) -> str:
         raise LocalShellError("Pesan commit tidak boleh kosong.")
     if len(candidate) > 300:
         raise LocalShellError("Pesan commit terlalu panjang untuk shortcut natural ini.")
+    return shlex.quote(candidate)
+
+
+def _quote_git_commit(commit_sha: str | None) -> str:
+    if commit_sha is None:
+        raise LocalShellError("Hash commit belum terbaca dari prompt.")
+    candidate = commit_sha.strip()
+    if not SAFE_GIT_COMMIT_PATTERN.fullmatch(candidate):
+        raise LocalShellError(
+            f"Hash commit `{commit_sha}` tidak aman atau belum didukung untuk shortcut ini."
+        )
     return shlex.quote(candidate)
