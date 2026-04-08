@@ -15,7 +15,9 @@ from telegram.ext import Application, ApplicationBuilder
 from config import ConfigError, Settings, load_settings
 from core.case_manager import CaseManager
 from core.desktop_actions import DesktopActionManager
+from core.desktop_screenshot import DesktopScreenshotService
 from core.edit_approval import EditApprovalManager
+from core.local_shell import LocalShellService
 from core.orchestrator import Orchestrator
 from core.repo_resolver import RepoResolver
 from core.repo_watch import RepoWatchManager
@@ -37,6 +39,12 @@ def build_application(settings: Settings) -> Application:
     repo_resolver = RepoResolver(settings)
     repo_watch_manager = RepoWatchManager(settings)
     desktop_action_manager = DesktopActionManager()
+    desktop_screenshot_service = DesktopScreenshotService()
+    local_shell_service = LocalShellService(
+        enabled=settings.enable_local_shell,
+        default_cwd=settings.codex_work_dir,
+        timeout=settings.local_shell_timeout,
+    )
     edit_approval_manager = EditApprovalManager(
         draft_ttl_seconds=settings.session_idle_ttl_seconds,
     )
@@ -59,6 +67,8 @@ def build_application(settings: Settings) -> Application:
         repo_watch_manager,
         self_maintenance_manager,
         desktop_action_manager,
+        desktop_screenshot_service,
+        local_shell_service,
         edit_approval_manager,
         system_activity_inspector,
         logger,
@@ -81,6 +91,8 @@ def build_application(settings: Settings) -> Application:
             "repo_resolver": repo_resolver,
             "repo_watch_manager": repo_watch_manager,
             "desktop_action_manager": desktop_action_manager,
+            "desktop_screenshot_service": desktop_screenshot_service,
+            "local_shell_service": local_shell_service,
             "edit_approval_manager": edit_approval_manager,
             "self_maintenance_manager": self_maintenance_manager,
             "system_activity_inspector": system_activity_inspector,

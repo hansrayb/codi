@@ -18,10 +18,23 @@ from core.desktop_actions import (
     DesktopActionRequest,
     match_desktop_action,
 )
+from core.desktop_screenshot import (
+    DesktopScreenshotError,
+    DesktopScreenshotService,
+    match_desktop_screenshot_query,
+)
 from core.edit_approval import (
     EditApprovalError,
     EditApprovalManager,
     rewrite_workspace_paths,
+)
+from core.local_shell import (
+    LocalShellError,
+    LocalShellService,
+    build_shell_request_for_repo_shortcut,
+    match_local_shell_query,
+    match_repo_shell_shortcut,
+    match_restart_self_query,
 )
 from core.prompts import build_codex_prompt
 from core.repo_resolver import RepoResolution, RepoResolver, RepoResolverError
@@ -41,10 +54,12 @@ from models.result import MessagePayload
 from models.session import Session
 from utils.executor import run_codex_task
 from utils.formatter import (
+    format_desktop_screenshot_payload,
     format_edit_approval_payload,
     format_edit_approval_result,
     format_error_payload,
     format_execution_payload,
+    format_local_shell_payload,
     format_self_update_result,
     format_system_activity_payload,
 )
@@ -92,6 +107,8 @@ class Orchestrator:
         repo_watch_manager: RepoWatchManager,
         self_maintenance_manager: SelfMaintenanceManager,
         desktop_action_manager: DesktopActionManager,
+        desktop_screenshot_service: DesktopScreenshotService,
+        local_shell_service: LocalShellService,
         edit_approval_manager: EditApprovalManager,
         system_activity_inspector: SystemActivityInspector,
         logger: logging.Logger,
@@ -104,6 +121,8 @@ class Orchestrator:
         self._repo_watch_manager = repo_watch_manager
         self._self_maintenance_manager = self_maintenance_manager
         self._desktop_action_manager = desktop_action_manager
+        self._desktop_screenshot_service = desktop_screenshot_service
+        self._local_shell_service = local_shell_service
         self._edit_approval_manager = edit_approval_manager
         self._system_activity_inspector = system_activity_inspector
         self._logger = logger
@@ -634,6 +653,151 @@ class Orchestrator:
     ) -> MessagePayload | None:
         """Handle runtime host-observability questions directly."""
 
+        if match_restart_self_query(text):
+            self._logger.info(
+                "user_id=%s | action=restart_self_request | prompt=%r",
+                user_id,
+                redact_prompt(text),
+            )
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
+                    "Codi akan mulai ulang setelah pesan ini terkirim."
+                ),
+                parse_mode="HTML",
+                post_send_action="restart_self",
+            )
+
+        shell_request = match_local_shell_query(text)
+        if shell_request is not None:
+            self._logger.info(
+                "user_id=%s | action=local_shell_query | shell=%s | prompt=%r",
+                user_id,
+                shell_request.shell,
+                redact_prompt(text),
+            )
+            active_case = await self._case_manager.get_active_case(user_id)
+            cwd = (
+                Path(active_case.repo_root)
+                if active_case is not None and active_case.repo_root
+                else self._settings.codex_work_dir
+            )
+            try:
+                result = await self._local_shell_service.run(shell_request, cwd=cwd)
+            except LocalShellError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            except Exception:
+                self._logger.exception(
+                    "user_id=%s | action=local_shell_query_failed",
+                    user_id,
+                )
+                return format_error_payload(
+                    "Codi belum berhasil menjalankan perintah shell lokal itu.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            return format_local_shell_payload(
+                assistant_name=self._settings.assistant_name,
+                result=result,
+                max_output_length=self._settings.max_output_length,
+            )
+
+        repo_shortcut = match_repo_shell_shortcut(text)
+        if repo_shortcut is not None:
+            self._logger.info(
+                "user_id=%s | action=repo_shell_shortcut | shortcut=%s | prompt=%r",
+                user_id,
+                repo_shortcut.action,
+                redact_prompt(text),
+            )
+            active_case = await self._case_manager.get_active_case(user_id)
+            active_session = await self._session_manager.get_active_session(user_id)
+            try:
+                resolution_prompt = repo_shortcut.repo_hint
+                if not resolution_prompt.startswith(
+                    ("repo ", "project ", "proyek ", "folder ", "workspace ")
+                ):
+                    resolution_prompt = f"repo {resolution_prompt}"
+                repo_resolution = self._repo_resolver.resolve(
+                    resolution_prompt,
+                    active_session,
+                    active_case,
+                )
+                shell_request = build_shell_request_for_repo_shortcut(
+                    repo_shortcut,
+                    repo_resolution.root,
+                )
+                result = await self._local_shell_service.run(
+                    shell_request,
+                    cwd=repo_resolution.root,
+                )
+            except (LocalShellError, RepoResolverError) as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            except Exception:
+                self._logger.exception(
+                    "user_id=%s | action=repo_shell_shortcut_failed",
+                    user_id,
+                )
+                return format_error_payload(
+                    "Codi belum berhasil menjalankan shortcut repo itu.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            return format_local_shell_payload(
+                assistant_name=self._settings.assistant_name,
+                result=result,
+                max_output_length=self._settings.max_output_length,
+            )
+
+        screenshot_request = match_desktop_screenshot_query(text)
+        if screenshot_request is not None:
+            self._logger.info(
+                "user_id=%s | action=desktop_screenshot_query | mode=%s | prompt=%r",
+                user_id,
+                screenshot_request.mode,
+                redact_prompt(text),
+            )
+            try:
+                screenshot = await self._desktop_screenshot_service.capture(screenshot_request)
+            except DesktopScreenshotError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            except Exception:
+                self._logger.exception(
+                    "user_id=%s | action=desktop_screenshot_query_failed",
+                    user_id,
+                )
+                return format_error_payload(
+                    "Codi belum berhasil mengambil screenshot desktop saat ini.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            report = None
+            if screenshot_request.include_summary:
+                try:
+                    report = await self._system_activity_inspector.inspect(
+                        SystemActivityRequest(
+                            include_processes=True,
+                            include_logs=False,
+                        )
+                    )
+                except Exception:
+                    self._logger.exception(
+                        "user_id=%s | action=desktop_screenshot_summary_failed",
+                        user_id,
+                    )
+            return format_desktop_screenshot_payload(
+                assistant_name=self._settings.assistant_name,
+                screenshot=screenshot,
+                report=report,
+                include_summary_requested=screenshot_request.include_summary,
+            )
+
         request = match_system_activity_query(text)
         if request is None:
             return None
@@ -658,6 +822,7 @@ class Orchestrator:
             )
         return format_system_activity_payload(
             assistant_name=self._settings.assistant_name,
+            request=request,
             report=report,
             max_output_length=self._settings.max_output_length,
         )

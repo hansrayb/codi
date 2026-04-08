@@ -23,6 +23,7 @@ class Settings:
 
     assistant_name: str
     enable_desktop_actions: bool
+    enable_local_shell: bool
     telegram_bot_token: str
     allowed_user_ids: tuple[int, ...]
     codex_bin: str
@@ -36,6 +37,7 @@ class Settings:
     session_idle_ttl_minutes: int
     max_queue_per_session: int
     max_output_length: int
+    local_shell_timeout: int
     log_level: str
     log_file: str | None
     max_requests_per_minute: int
@@ -65,6 +67,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
 
     assistant_name = (os.getenv("ASSISTANT_NAME") or "Codi").strip() or "Codi"
     enable_desktop_actions = _parse_bool(os.getenv("ENABLE_DESKTOP_ACTIONS", "true"))
+    enable_local_shell = _parse_bool(os.getenv("ENABLE_LOCAL_SHELL", "false"))
     token = _require_env("TELEGRAM_BOT_TOKEN")
     allowed_user_ids = _parse_int_list(_require_env("ALLOWED_USER_IDS"), "ALLOWED_USER_IDS")
     codex_bin = os.getenv("CODEX_BIN", "codex").strip() or "codex"
@@ -101,6 +104,10 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     max_output_length = _parse_positive_int(
         os.getenv("MAX_OUTPUT_LENGTH", "3000"),
         "MAX_OUTPUT_LENGTH",
+    )
+    local_shell_timeout = _parse_positive_int(
+        os.getenv("LOCAL_SHELL_TIMEOUT", "120"),
+        "LOCAL_SHELL_TIMEOUT",
     )
     log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
     log_file = (os.getenv("LOG_FILE") or "").strip() or None
@@ -141,6 +148,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     return Settings(
         assistant_name=assistant_name,
         enable_desktop_actions=enable_desktop_actions,
+        enable_local_shell=enable_local_shell,
         telegram_bot_token=token,
         allowed_user_ids=allowed_user_ids,
         codex_bin=codex_bin,
@@ -154,6 +162,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         session_idle_ttl_minutes=session_idle_ttl_minutes,
         max_queue_per_session=max_queue_per_session,
         max_output_length=max_output_length,
+        local_shell_timeout=local_shell_timeout,
         log_level=log_level,
         log_file=log_file,
         max_requests_per_minute=max_requests_per_minute,

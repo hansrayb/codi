@@ -87,6 +87,24 @@ Contoh:
 - repo yang dipantau apa
 - Codi laptop ku sedang menjalankan aplikasi apa
 - tampilkan log Codi terbaru
+- kirim screenshot laptop sekarang
+- kirim screenshot laptop sekarang dan ringkas isi layar
+- kirim screenshot monitor aktif
+- kirim screenshot jendela aktif sekarang
+- restart codi
+- shell: systemctl --user status codex-agent.service
+- bash: git status --short
+- pwsh: Get-Process | Select-Object -First 5
+- pull repo ini
+- cek branch repo ini
+- buat branch fitur/login di repo ini
+- switch ke branch main di repo ini
+- merge branch staging ke main di repo ini
+- hapus branch fitur/login di repo ini
+- rebase branch fitur/login ke main di repo ini
+- commit repo ini dengan pesan "Update payroll flow"
+- build frontend payroll
+- test repo web-dashboard-payroll
 
 	Untuk task edit, Codi akan menyiapkan diff dulu.
 	Balas `lanjutkan` untuk apply checkpoint edit itu, atau `batal` untuk membuang revisi terakhir.

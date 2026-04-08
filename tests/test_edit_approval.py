@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -152,6 +153,55 @@ class EditApprovalManagerTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.close_case("c-03")
 
         self.assertFalse(draft_root.exists())
+
+    async def test_gitignored_runtime_file_does_not_block_approval(self) -> None:
+        subprocess.run(
+            ["git", "init"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        (self.repo_root / ".gitignore").write_text(".env\ncodi-runtime.log\n", encoding="utf-8")
+        (self.repo_root / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
+        (self.repo_root / "codi-runtime.log").write_text("line 1\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", ".gitignore", "README.md", "src/app.py"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        draft = await self.manager.open_or_reuse_draft(
+            user_id=11,
+            case_id="c-11",
+            repo_root=self.repo_root,
+        )
+        self.assertFalse((draft.draft_root / ".env").exists())
+        self.assertFalse((draft.draft_root / "codi-runtime.log").exists())
+
+        (draft.draft_root / "src" / "app.py").write_text("print('after')\n", encoding="utf-8")
+        pending = await self.manager.build_pending(
+            case_id="c-11",
+            user_id=11,
+            role="builder",
+            repo_root=self.repo_root,
+            prompt="ubah app.py",
+            draft_root=draft.draft_root,
+            execution_output="Saya menyiapkan perubahan app.py.",
+        )
+
+        self.assertIsNotNone(pending)
+        (self.repo_root / "codi-runtime.log").write_text("line 1\nline 2\n", encoding="utf-8")
+
+        approved = await self.manager.approve(11)
+
+        self.assertEqual(approved.case_id, "c-11")
+        self.assertEqual(
+            (self.repo_root / "src" / "app.py").read_text(encoding="utf-8"),
+            "print('after')\n",
+        )
 
 
 if __name__ == "__main__":

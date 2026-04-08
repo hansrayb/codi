@@ -8,6 +8,7 @@ import hashlib
 import itertools
 import os
 import shutil
+import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -289,12 +290,7 @@ class EditApprovalManager:
     def _copy_repo_to_draft(self, repo_root: Path) -> Path:
         temp_dir = Path(tempfile.mkdtemp(prefix="codi-draft-")).resolve()
         draft_root = temp_dir / repo_root.name
-        shutil.copytree(
-            repo_root,
-            draft_root,
-            symlinks=True,
-            ignore=_copy_ignore_filter,
-        )
+        _copy_repo_contents(repo_root, draft_root)
         return draft_root
 
     async def _reset_draft_locked(self, case_id: str) -> None:
@@ -321,12 +317,7 @@ class EditApprovalManager:
     def _sync_repo_to_draft(self, repo_root: Path, draft_root: Path) -> None:
         if draft_root.exists() or draft_root.is_symlink():
             shutil.rmtree(draft_root, ignore_errors=True)
-        shutil.copytree(
-            repo_root,
-            draft_root,
-            symlinks=True,
-            ignore=_copy_ignore_filter,
-        )
+        _copy_repo_contents(repo_root, draft_root)
 
     def _collect_changes(
         self,
@@ -409,7 +400,19 @@ def _copy_ignore_filter(directory: str, names: list[str]) -> set[str]:
     return {name for name in names if name in COPY_IGNORE_NAMES}
 
 
+def _copy_repo_contents(repo_root: Path, draft_root: Path) -> None:
+    draft_root.mkdir(parents=True, exist_ok=True)
+    for relative_path, source_path in _collect_file_map(repo_root).items():
+        target_path = draft_root / relative_path
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        _copy_path(source_path, target_path)
+
+
 def _collect_file_map(root: Path) -> dict[str, Path]:
+    git_file_map = _collect_git_file_map(root)
+    if git_file_map is not None:
+        return git_file_map
+
     files: dict[str, Path] = {}
     for dirpath, dirnames, filenames in os.walk(root, topdown=True):
         dirnames[:] = [dirname for dirname in dirnames if dirname not in DIFF_IGNORE_NAMES]
@@ -420,6 +423,51 @@ def _collect_file_map(root: Path) -> dict[str, Path]:
             path = current_dir / filename
             relative_path = str(path.relative_to(root))
             files[relative_path] = path
+    return files
+
+
+def _collect_git_file_map(root: Path) -> dict[str, Path] | None:
+    if not (root / ".git").exists():
+        return None
+
+    git_bin = shutil.which("git")
+    if git_bin is None:
+        return None
+
+    try:
+        completed = subprocess.run(
+            [
+                git_bin,
+                "-C",
+                str(root),
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            check=False,
+            capture_output=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if completed.returncode != 0:
+        return None
+
+    files: dict[str, Path] = {}
+    for raw_path in completed.stdout.split(b"\x00"):
+        if not raw_path:
+            continue
+        relative_path = raw_path.decode("utf-8", errors="surrogateescape")
+        relative = Path(relative_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            continue
+        path = root / relative
+        if not (path.exists() or path.is_symlink()):
+            continue
+        files[relative_path] = path
     return files
 
 

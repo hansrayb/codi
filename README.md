@@ -52,6 +52,24 @@ Contoh prompt:
 - `tutup libreoffice writer`
 - `Codi laptop ku sedang menjalankan aplikasi apa`
 - `tampilkan log Codi terbaru`
+- `kirim screenshot laptop sekarang`
+- `kirim screenshot laptop sekarang dan ringkas isi layar`
+- `kirim screenshot monitor aktif`
+- `kirim screenshot jendela aktif sekarang`
+- `restart codi`
+- `shell: systemctl --user status codex-agent.service`
+- `bash: git status --short`
+- `pwsh: Get-Process | Select-Object -First 5`
+- `pull repo ini`
+- `cek branch repo ini`
+- `buat branch fitur/login di repo ini`
+- `switch ke branch main di repo ini`
+- `merge branch staging ke main di repo ini`
+- `hapus branch fitur/login di repo ini`
+- `rebase branch fitur/login ke main di repo ini`
+- `commit repo ini dengan pesan "Update payroll flow"`
+- `build frontend payroll`
+- `test repo web-dashboard-payroll`
 
 Catatan:
 
@@ -59,6 +77,8 @@ Catatan:
 - Firefox/Mozilla memakai profile `new window`, jadi lebih cepat dan lebih konsisten saat browser sudah aktif.
 - Aksi `tutup` hanya berlaku untuk instance aplikasi yang berhasil dilacak Codi pada runtime yang sama.
 - Codi perlu berjalan dalam sesi desktop Linux aktif agar aplikasi GUI benar-benar muncul.
+- `shell:` dan kawan-kawannya menjalankan perintah lokal langsung di mesin host, bukan lewat sandbox Codex, jadi sebaiknya dipakai dengan prefix yang sengaja dan oleh user yang memang dipercaya.
+- Shortcut natural seperti `pull repo ini` atau `build frontend payroll` juga diarahkan ke shell lokal, dengan target repo yang dicoba ditebak dari konteks aktif atau nama repo di prompt.
 
 ## Commit / PR Assistant
 

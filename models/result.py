@@ -11,9 +11,17 @@ class MessagePayload:
 
     text: str
     parse_mode: str | None = None
+    photo_filename: str | None = None
+    photo_bytes: bytes | None = None
     attachment_filename: str | None = None
     attachment_bytes: bytes | None = None
     post_send_action: str | None = None
+
+    @property
+    def has_photo(self) -> bool:
+        """Return whether the payload should be sent as a photo."""
+
+        return self.photo_filename is not None and self.photo_bytes is not None
 
     @property
     def has_attachment(self) -> bool:

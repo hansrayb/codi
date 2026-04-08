@@ -7,9 +7,11 @@ import re
 
 from telegram.constants import ParseMode
 
+from core.desktop_screenshot import ActiveWindowInfo, DesktopScreenshot
 from core.edit_approval import PendingApproval
+from core.local_shell import LocalShellResult
 from core.self_maintenance import SelfCheckResult
-from core.system_activity import ProcessGroupSummary, SystemActivityReport
+from core.system_activity import ProcessGroupSummary, SystemActivityReport, SystemActivityRequest
 from models.result import MessagePayload
 
 
@@ -238,13 +240,14 @@ def format_self_update_result(
 def format_system_activity_payload(
     *,
     assistant_name: str,
+    request: SystemActivityRequest,
     report: SystemActivityReport,
     max_output_length: int,
 ) -> MessagePayload:
     """Return a Telegram-safe summary of local host activity."""
 
-    title = f"{assistant_name} melihat aktivitas laptop ini."
-    body = _build_system_activity_text(report)
+    title = _build_system_activity_title(assistant_name, request)
+    body = _build_system_activity_text(request, report)
     if len(body) > max_output_length:
         preview = _build_preview_text(body, max_lines=18, max_chars=1100)
         return MessagePayload(
@@ -260,6 +263,105 @@ def format_system_activity_payload(
 
     return MessagePayload(
         text=f"<b>{escape(title)}</b>\n\n{escape(body)}",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+def format_desktop_screenshot_payload(
+    *,
+    assistant_name: str,
+    screenshot: DesktopScreenshot,
+    report: SystemActivityReport | None = None,
+    include_summary_requested: bool = False,
+) -> MessagePayload:
+    """Return a Telegram payload containing a fresh desktop screenshot."""
+
+    timestamp = screenshot.captured_at.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    mode_text = _describe_screenshot_mode(screenshot.mode)
+    lines = [
+        f"<b>{escape(assistant_name)} sudah ambil {escape(mode_text)}.</b>",
+    ]
+
+    summary_lines = _build_desktop_scene_summary_lines(screenshot, report)
+    if summary_lines or include_summary_requested:
+        lines.append("")
+        lines.append("<b>Ringkasan isi layar:</b>")
+        if summary_lines:
+            lines.extend(summary_lines)
+        else:
+            lines.append(
+                "Saya sudah kirim screenshot-nya, tapi ringkasan isi layar belum kebaca jelas dari sesi desktop ini."
+            )
+
+    lines.extend(
+        [
+            "",
+            f"Waktu ambil: {escape(timestamp)}",
+            f"Tool: {escape(screenshot.source)}",
+        ]
+    )
+
+    return MessagePayload(
+        text="\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        photo_filename=screenshot.filename,
+        photo_bytes=screenshot.image_bytes,
+    )
+
+
+def format_local_shell_payload(
+    *,
+    assistant_name: str,
+    result: LocalShellResult,
+    max_output_length: int,
+) -> MessagePayload:
+    """Return a Telegram-safe summary of a local shell command result."""
+
+    title = f"{assistant_name} sudah menjalankan perintah shell lokal."
+    detail_text = _build_local_shell_detail_text(result)
+    preview_text = _normalize_output(result.stderr.strip() or result.stdout.strip())
+
+    lines = [
+        f"<b>{escape(title)}</b>",
+        "",
+        f"Shell: <code>{escape(result.shell_path)}</code>",
+        f"Folder kerja: <code>{escape(str(result.cwd))}</code>",
+        f"Exit code: <code>{result.exit_code}</code>",
+        f"Command: <code>{escape(result.command)}</code>",
+    ]
+    if result.timed_out:
+        lines.extend(
+            [
+                "",
+                "Perintah ini kena timeout, jadi saya hentikan setelah menunggu terlalu lama.",
+            ]
+        )
+
+    if not preview_text:
+        return MessagePayload(
+            text="\n".join(lines + ["", "Tidak ada output."]),
+            parse_mode=ParseMode.HTML,
+        )
+
+    if len(preview_text) > max_output_length:
+        preview = _build_preview_text(preview_text, max_lines=18, max_chars=1100)
+        return MessagePayload(
+            text="\n".join(
+                lines
+                + [
+                    "",
+                    f"<pre>{escape(preview)}</pre>",
+                    "",
+                    "Versi lengkap saya kirim sebagai file.",
+                ]
+            ),
+            parse_mode=ParseMode.HTML,
+            attachment_filename=f"shell-{result.shell}-output.txt",
+            attachment_bytes=detail_text.encode("utf-8"),
+        )
+
+    return MessagePayload(
+        text="\n".join(lines + ["", f"<pre>{escape(preview_text)}</pre>"]),
         parse_mode=ParseMode.HTML,
     )
 
@@ -288,6 +390,23 @@ def _build_attachment_text(
     return "\n".join(parts)
 
 
+def _build_local_shell_detail_text(result: LocalShellResult) -> str:
+    parts = [
+        f"shell={result.shell_path}",
+        f"cwd={result.cwd}",
+        f"exit_code={result.exit_code}",
+        f"timed_out={str(result.timed_out).lower()}",
+        f"command={result.command}",
+        "",
+        "[stdout]",
+        result.stdout.strip() or "(empty)",
+        "",
+        "[stderr]",
+        result.stderr.strip() or "(empty)",
+    ]
+    return "\n".join(parts)
+
+
 def _build_self_update_detail_text(check_result: SelfCheckResult) -> str:
     parts = [
         "[compileall]",
@@ -297,6 +416,64 @@ def _build_self_update_detail_text(check_result: SelfCheckResult) -> str:
         check_result.test_output.strip() or "(empty)",
     ]
     return "\n".join(parts)
+
+
+def _describe_screenshot_mode(mode: str) -> str:
+    mapping = {
+        "fullscreen": "screenshot layar penuh laptop ini",
+        "current_monitor": "screenshot monitor aktif",
+        "active_window": "screenshot jendela aktif",
+    }
+    return mapping.get(mode, "screenshot desktop saat ini")
+
+
+def _build_desktop_scene_summary_lines(
+    screenshot: DesktopScreenshot,
+    report: SystemActivityReport | None,
+) -> list[str]:
+    lines: list[str] = []
+    active_window = screenshot.active_window
+
+    if active_window is not None:
+        app_name = _humanize_window_app_name(active_window)
+        if active_window.caption and app_name:
+            lines.append(
+                escape(
+                    f'- Jendela yang paling depan terlihat {app_name} dengan judul "{active_window.caption}".'
+                )
+            )
+        elif active_window.caption:
+            lines.append(escape(f'- Jendela yang paling depan berjudul "{active_window.caption}".'))
+        elif app_name:
+            lines.append(escape(f"- Jendela yang paling depan tampaknya berasal dari {app_name}."))
+
+        if active_window.active_output_name:
+            lines.append(escape(f"- Monitor aktif yang terdeteksi: {active_window.active_output_name}."))
+
+    if report is not None and report.desktop_apps:
+        top_labels = [group.label for group in report.desktop_apps[:3]]
+        label_text = _join_labels_naturally(top_labels)
+        if len(report.desktop_apps) > len(top_labels):
+            remaining_count = len(report.desktop_apps) - len(top_labels)
+            lines.append(
+                escape(
+                    f"- Aplikasi yang paling kelihatan saat ini antara lain {label_text}, plus {remaining_count} aplikasi lain."
+                )
+            )
+        else:
+            lines.append(escape(f"- Aplikasi yang paling kelihatan saat ini antara lain {label_text}."))
+
+    return lines
+
+
+def _humanize_window_app_name(active_window: ActiveWindowInfo) -> str | None:
+    for value in (active_window.app_id, active_window.resource_class):
+        if not value:
+            continue
+        candidate = value.split("/")[-1].split(".")[-1].replace("_", " ").replace("-", " ").strip()
+        if candidate:
+            return " ".join(word.capitalize() for word in candidate.split())
+    return None
 
 
 def _build_status_line(assistant_name: str, role: str, exit_code: int) -> str:
@@ -313,30 +490,82 @@ def _build_status_line(assistant_name: str, role: str, exit_code: int) -> str:
     return role_lines.get(role, f"{assistant_name} selesai memproses task ini")
 
 
-def _build_system_activity_text(report: SystemActivityReport) -> str:
-    lines = [
-        f"Snapshot: {report.captured_at.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}",
-        f"User bot: {report.current_user}",
-        "",
-        "Ringkasan host:",
-        f"CPU  : {report.cpu_percent:.0f}%",
-        (
-            "RAM  : "
-            f"{_format_bytes(report.memory_used_bytes)} / {_format_bytes(report.memory_total_bytes)} "
-            f"({report.memory_percent:.0f}%)"
-        ),
-        f"Swap : {report.swap_percent:.0f}%",
-        f"Uptime host: {_humanize_duration(report.host_uptime_seconds)}",
-    ]
+def _build_system_activity_title(
+    assistant_name: str,
+    request: SystemActivityRequest,
+) -> str:
+    if request.include_processes and request.include_logs:
+        return f"Ini yang saya lihat di laptopmu, plus catatan terbaru dari {assistant_name}."
+    if request.include_processes:
+        return "Ini yang lagi kelihatan di laptopmu."
+    return f"Ini catatan terbaru dari {assistant_name}."
 
-    lines.extend(_build_process_section("Aplikasi desktop aktif:", report.desktop_apps, report))
-    lines.extend(_build_process_section("Background atau service menonjol:", report.background_apps, report))
 
-    if report.logs is not None:
+def _build_system_activity_text(
+    request: SystemActivityRequest,
+    report: SystemActivityReport,
+) -> str:
+    lines: list[str] = []
+    opening_line = _build_system_activity_opening_line(request, report)
+    if opening_line:
+        lines.append(opening_line)
+
+    include_system_summary = request.include_logs or request.detail_hint
+    if include_system_summary:
+        timestamp_label = "Baru saya cek" if request.include_processes else "Baru saya ambil"
+        lines.append(
+            f"{timestamp_label}: {report.captured_at.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        )
+
+    if request.include_processes:
+        if include_system_summary:
+            lines.extend(
+                [
+                    "",
+                    "Sekilas kondisi laptopmu:",
+                    (
+                        f"CPU sekitar {report.cpu_percent:.0f}%, RAM terpakai "
+                        f"{_format_bytes(report.memory_used_bytes)} dari {_format_bytes(report.memory_total_bytes)} "
+                        f"({report.memory_percent:.0f}%), swap {report.swap_percent:.0f}%, "
+                        f"dan laptop sudah menyala sekitar {_humanize_duration(report.host_uptime_seconds)}."
+                    ),
+                ]
+            )
+        lines.extend(
+            _build_process_section(
+                "Yang lagi kebuka:",
+                report.desktop_apps,
+                report,
+                is_background=False,
+            )
+        )
+        if request.include_logs or request.detail_hint or report.background_apps:
+            lines.extend(
+                _build_process_section(
+                    "Yang jalan di belakang layar:",
+                    report.background_apps,
+                    report,
+                    is_background=True,
+                )
+            )
+
+        if not include_system_summary:
+            lines.extend(
+                [
+                    "",
+                    f"Saya cek ini pada {report.captured_at.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}.",
+                ]
+            )
+
+    if request.include_logs and report.logs is not None:
+        source_text = _describe_log_source(report.logs.source)
+        log_title = "Catatan terbaru dari Codi"
+        if source_text:
+            log_title = f"{log_title} ({source_text})"
         lines.extend(
             [
                 "",
-                f"Log terbaru ({report.logs.source}):",
+                f"{log_title}:",
                 *report.logs.lines,
             ]
         )
@@ -345,7 +574,7 @@ def _build_system_activity_text(report: SystemActivityReport) -> str:
         lines.extend(
             [
                 "",
-                "Catatan:",
+                "Catatan kecil:",
                 *[f"- {note}" for note in report.notes],
             ]
         )
@@ -353,39 +582,106 @@ def _build_system_activity_text(report: SystemActivityReport) -> str:
     return "\n".join(line.rstrip() for line in lines).strip()
 
 
+def _build_system_activity_opening_line(
+    request: SystemActivityRequest,
+    report: SystemActivityReport,
+) -> str:
+    if request.include_processes:
+        if report.desktop_apps:
+            top_labels = [group.label for group in report.desktop_apps[:3]]
+            label_text = _join_labels_naturally(top_labels)
+            remaining_count = max(0, len(report.desktop_apps) - len(top_labels))
+            if remaining_count:
+                return (
+                    f"Yang paling kelihatan sekarang ada {label_text}, "
+                    f"plus {remaining_count} aplikasi lain."
+                )
+            return f"Yang paling kelihatan sekarang ada {label_text}."
+        if report.background_apps:
+            return (
+                "Saya belum melihat aplikasi desktop yang benar-benar menonjol. "
+                "Yang lebih kelihatan justru proses yang jalan di belakang layar."
+            )
+        return "Saat ini belum kelihatan ada aplikasi yang benar-benar menonjol."
+
+    if request.include_logs and report.logs is not None:
+        return "Saya ambil catatan terbaru dari Codi di bawah ini."
+
+    return ""
+
+
 def _build_process_section(
     title: str,
     groups: tuple[ProcessGroupSummary, ...],
     report: SystemActivityReport,
+    *,
+    is_background: bool,
 ) -> list[str]:
     lines = ["", title]
     if not groups:
-        lines.append("- Tidak ada item yang menonjol saat snapshot diambil.")
+        if is_background:
+            lines.append("- Belum ada proses latar belakang yang benar-benar menonjol saat saya cek.")
+        else:
+            lines.append("- Saat saya cek, belum ada aplikasi desktop yang benar-benar menonjol.")
         return lines
 
     for group in groups:
-        flags: list[str] = []
-        if group.tracked_by_codi:
-            flags.append("dibuka oleh Codi")
-        if group.usernames:
-            flags.append(f"user: {', '.join(group.usernames)}")
-        age_seconds = _group_age_seconds(group, report)
-        lines.append(
-            " | ".join(
-                [
-                    f"- {group.label}",
-                    f"{group.process_count} proses",
-                    f"RAM {_format_bytes(group.total_memory_bytes)}",
-                    f"uptime {_humanize_duration(age_seconds)}",
-                    group.status_summary,
-                    f"pid contoh {group.sample_pid}",
-                    *flags,
-                ]
-            )
-        )
-        if group.sample_command:
-            lines.append(f"  cmd: {group.sample_command}")
+        lines.append(_build_process_summary_line(group, report, is_background=is_background))
     return lines
+
+
+def _build_process_summary_line(
+    group: ProcessGroupSummary,
+    report: SystemActivityReport,
+    *,
+    is_background: bool,
+) -> str:
+    details: list[str] = []
+    age_seconds = _group_age_seconds(group, report)
+
+    if group.process_count > 1:
+        details.append(f"terdiri dari {group.process_count} proses")
+    if group.total_memory_bytes > 0:
+        details.append(f"memakai sekitar {_format_bytes(group.total_memory_bytes)} RAM")
+    if age_seconds > 0:
+        if is_background:
+            details.append(f"sudah berjalan sekitar {_humanize_duration(age_seconds)}")
+        else:
+            details.append(f"terlihat aktif sekitar {_humanize_duration(age_seconds)}")
+    if group.tracked_by_codi:
+        details.append("dibuka lewat Codi")
+
+    other_users = tuple(
+        username
+        for username in group.usernames
+        if username and username != report.current_user
+    )
+    if other_users:
+        details.append(f"jalan atas nama akun {', '.join(other_users)}")
+
+    if not details:
+        return f"- {group.label}: terdeteksi saat pengecekan."
+
+    return f"- {group.label}: {', '.join(details)}."
+
+
+def _describe_log_source(source: str) -> str:
+    if source.startswith("file:"):
+        return "diambil dari file log lokal"
+    if source.startswith("journal:"):
+        return "diambil dari service log"
+    return ""
+
+
+def _join_labels_naturally(labels: list[str]) -> str:
+    cleaned = [label.strip() for label in labels if label.strip()]
+    if not cleaned:
+        return "beberapa aplikasi"
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return f"{cleaned[0]} dan {cleaned[1]}"
+    return f"{', '.join(cleaned[:-1])}, dan {cleaned[-1]}"
 
 
 def _normalize_output(text: str) -> str:

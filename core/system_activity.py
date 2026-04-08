@@ -199,17 +199,13 @@ class SystemActivityInspector:
                 tracked_processes=tracked_processes,
                 limit=self._process_limit + (2 if request.detail_hint else 0),
             )
-            if not desktop_apps:
-                notes.append("Tidak ada aplikasi desktop menonjol yang terdeteksi untuk user saat ini.")
-            if not background_apps:
-                notes.append("Tidak ada background process menonjol yang terdeteksi.")
 
         logs = None
         if request.include_logs:
             logs = self._read_logs(limit=self._log_lines + (6 if request.detail_hint else 0))
             if logs is None:
                 notes.append(
-                    "Log Codi belum tersedia dari file maupun systemd journal di host ini."
+                    "Saya belum menemukan log terbaru dari Codi di laptop ini."
                 )
 
         memory = psutil.virtual_memory()

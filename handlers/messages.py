@@ -76,6 +76,12 @@ async def handle_text_message(
 
 async def _send_payload(message, payload) -> None:
     await message.reply_text(payload.text, parse_mode=payload.parse_mode)
+    if payload.has_photo:
+        photo = InputFile(
+            BytesIO(payload.photo_bytes or b""),
+            filename=payload.photo_filename or "image.png",
+        )
+        await message.reply_photo(photo=photo)
     if not payload.has_attachment:
         return
     document = InputFile(

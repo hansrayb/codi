@@ -31,6 +31,7 @@ class RepoWatchManagerTests(unittest.IsolatedAsyncioTestCase):
         self.settings = Settings(
             assistant_name="Codi",
             enable_desktop_actions=True,
+            enable_local_shell=True,
             telegram_bot_token="token",
             allowed_user_ids=(1,),
             codex_bin="codex",
@@ -44,6 +45,7 @@ class RepoWatchManagerTests(unittest.IsolatedAsyncioTestCase):
             session_idle_ttl_minutes=60,
             max_queue_per_session=1,
             max_output_length=3000,
+            local_shell_timeout=120,
             log_level="INFO",
             log_file=None,
             max_requests_per_minute=5,
