@@ -22,6 +22,7 @@ from core.orchestrator import Orchestrator
 from core.repo_resolver import RepoResolver
 from core.repo_watch import RepoWatchManager
 from core.router import IntentRouter
+from core.safety import SafetyManager
 from core.self_maintenance import SelfMaintenanceManager
 from core.session_manager import SessionManager
 from core.system_activity import SystemActivityInspector
@@ -48,6 +49,16 @@ def build_application(settings: Settings) -> Application:
     edit_approval_manager = EditApprovalManager(
         draft_ttl_seconds=settings.session_idle_ttl_seconds,
     )
+    safety_manager = SafetyManager(
+        assistant_name=settings.assistant_name,
+        allowed_user_ids=settings.allowed_user_ids,
+        default_mode="ops",
+        admin_user_ids=settings.allowed_user_ids,
+        ops_user_ids=settings.allowed_user_ids,
+        approval_ttl_seconds=180,
+        audit_log_path=settings.codex_work_dir / "codi-audit.log",
+        logger=logger,
+    )
     self_maintenance_manager = SelfMaintenanceManager(
         project_root=Path(__file__).resolve().parent,
         python_bin=sys.executable,
@@ -70,6 +81,7 @@ def build_application(settings: Settings) -> Application:
         desktop_screenshot_service,
         local_shell_service,
         edit_approval_manager,
+        safety_manager,
         system_activity_inspector,
         logger,
     )
@@ -94,6 +106,7 @@ def build_application(settings: Settings) -> Application:
             "desktop_screenshot_service": desktop_screenshot_service,
             "local_shell_service": local_shell_service,
             "edit_approval_manager": edit_approval_manager,
+            "safety_manager": safety_manager,
             "self_maintenance_manager": self_maintenance_manager,
             "system_activity_inspector": system_activity_inspector,
             "orchestrator": orchestrator,

@@ -56,6 +56,12 @@ Contoh prompt:
 - `kirim screenshot laptop sekarang dan ringkas isi layar`
 - `kirim screenshot monitor aktif`
 - `kirim screenshot jendela aktif sekarang`
+- `mode saya apa`
+- `mode aman`
+- `mode ops`
+- `mode admin`
+- `lanjutkan aksi`
+- `batal aksi`
 - `restart codi`
 - `ubah codex timeout jadi 600`
 - `ubah local shell timeout jadi 600`
@@ -98,6 +104,7 @@ Catatan:
 - Codi perlu berjalan dalam sesi desktop Linux aktif agar aplikasi GUI benar-benar muncul.
 - `shell:` dan kawan-kawannya menjalankan perintah lokal langsung di mesin host, bukan lewat sandbox Codex, jadi sebaiknya dipakai dengan prefix yang sengaja dan oleh user yang memang dipercaya.
 - Shortcut natural seperti `pull repo ini` atau `build frontend payroll` juga diarahkan ke shell lokal, dengan target repo yang dicoba ditebak dari konteks aktif atau nama repo di prompt.
+- Codi sekarang punya safety layer untuk aksi host yang sensitif: mode `aman`/`ops`/`admin`, allowlist command, konfirmasi 2 langkah lewat `lanjutkan aksi` atau `batal aksi`, dan audit log lokal di `codi-audit.log`.
 - Untuk pengaturan yang sangat spesifik seperti `ubah codex timeout jadi 600` atau `ubah local shell timeout jadi 600`, Codi sekarang bisa mengubah `.env` lokal langsung tanpa perlu masuk ke flow Codex builder.
 - Shortcut `status/start/stop/restart/log/health service ...` saat ini menarget `systemd --user`, jadi paling cocok untuk service yang memang dijalankan di level user.
 - `cek health semua service penting` akan membaca daftar dari `IMPORTANT_SERVICES` di `.env`.

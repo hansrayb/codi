@@ -80,6 +80,8 @@ Contoh:
 - buat endpoint login FastAPI
 - kenapa service systemd gagal start
 - cek repo web-dashboard-payroll
+- repo aktif saat ini
+- pakai repo AI-Agent-Telegram
 - pakai builder, perbaiki bug di /home/hans/aplikasi-customerchant
 - di repo ini, perbaiki Codi agar /help lebih jelas
 - pantau repo ini
@@ -91,6 +93,12 @@ Contoh:
 - kirim screenshot laptop sekarang dan ringkas isi layar
 - kirim screenshot monitor aktif
 - kirim screenshot jendela aktif sekarang
+- mode saya apa
+- mode aman
+- mode ops
+- mode admin
+- lanjutkan aksi
+- batal aksi
 - restart codi
 - ubah codex timeout jadi 600
 - ubah local shell timeout jadi 600
@@ -128,6 +136,11 @@ Contoh:
 	Untuk task edit, Codi akan menyiapkan diff dulu.
 	Balas `lanjutkan` untuk apply checkpoint edit itu, atau `batal` untuk membuang revisi terakhir.
 	Selama konteks kerja yang sama masih aktif, draft edit akan tetap dipakai supaya revisi lanjutan tidak mulai dari nol.
+
+	Untuk aksi host yang sensitif seperti restart, shell langsung, deploy, push, merge, atau ubah `.env`,
+	Codi sekarang pakai safety layer.
+	Kamu bisa pindah mode dengan `mode aman`, `mode ops`, atau `mode admin`,
+	lalu balas `lanjutkan aksi` atau `batal aksi` saat diminta konfirmasi 2 langkah.
 
 Konteks kerja sekarang lebih lengket karena session Codex dijaga per session Codi.
 Kalau repo aktif adalah repo Codi sendiri, setelah apply Codi akan cek test lokal lalu restart otomatis bila aman.

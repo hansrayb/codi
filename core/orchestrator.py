@@ -30,11 +30,13 @@ from core.edit_approval import (
 )
 from core.env_config import (
     EnvConfigError,
+    EnvConfigUpdateRequest,
     apply_env_config_update,
     match_env_config_update_query,
 )
 from core.local_shell import (
     LocalShellError,
+    LocalShellRequest,
     LocalShellService,
     build_shell_request_for_repo_shortcut,
     build_shell_request_for_service_shortcut,
@@ -44,10 +46,24 @@ from core.local_shell import (
     match_system_service_shortcut,
 )
 from core.prompts import build_codex_prompt
+from core.repo_context import (
+    extract_repo_context_selection,
+    is_repo_context_status_query,
+)
 from core.repo_resolver import RepoResolution, RepoResolver, RepoResolverError
 from core.repo_watch import RepoWatchError, RepoWatchManager
 from core.role_policy import get_role_policy
 from core.router import IntentRouter, RoutingDecision
+from core.safety import (
+    PendingSafetyApproval,
+    SafetyManager,
+    SafetyPolicy,
+    classify_env_config_policy,
+    classify_repo_shortcut_policy,
+    classify_restart_policy,
+    classify_service_shortcut_policy,
+    classify_shell_policy,
+)
 from core.self_maintenance import SelfMaintenanceManager
 from core.session_manager import (
     QueueFullError,
@@ -56,7 +72,11 @@ from core.session_manager import (
     SessionLimitError,
     SessionManager,
 )
-from core.system_activity import SystemActivityInspector, match_system_activity_query
+from core.system_activity import (
+    SystemActivityInspector,
+    SystemActivityRequest,
+    match_system_activity_query,
+)
 from models.result import MessagePayload
 from models.session import Session
 from utils.executor import run_codex_task
@@ -118,6 +138,7 @@ class Orchestrator:
         desktop_screenshot_service: DesktopScreenshotService,
         local_shell_service: LocalShellService,
         edit_approval_manager: EditApprovalManager,
+        safety_manager: SafetyManager,
         system_activity_inspector: SystemActivityInspector,
         logger: logging.Logger,
     ) -> None:
@@ -132,6 +153,7 @@ class Orchestrator:
         self._desktop_screenshot_service = desktop_screenshot_service
         self._local_shell_service = local_shell_service
         self._edit_approval_manager = edit_approval_manager
+        self._safety_manager = safety_manager
         self._system_activity_inspector = system_activity_inspector
         self._logger = logger
 
@@ -380,6 +402,7 @@ class Orchestrator:
     async def reset_user(self, user_id: int) -> int:
         """Clear session state for a user."""
 
+        self._safety_manager.reset_user(user_id)
         await self._edit_approval_manager.reset_user(user_id)
         await self._case_manager.reset_user(user_id)
         count = await self._session_manager.reset_user(user_id)
@@ -389,6 +412,7 @@ class Orchestrator:
     async def close_active_case(self, user_id: int) -> MessagePayload:
         """Close the active case and stop its related sessions."""
 
+        self._safety_manager.clear_pending(user_id)
         if await self._edit_approval_manager.has_pending(user_id):
             try:
                 await self._edit_approval_manager.reject(user_id)
@@ -502,6 +526,10 @@ class Orchestrator:
             "user_session_count": stats.user_session_count,
             "watched_repos": watch_stats.watched_repos,
             "watched_labels": watch_stats.watched_labels,
+            "safety_mode": self._safety_manager.get_current_mode(user_id),
+            "safety_max_mode": self._safety_manager.get_max_mode(user_id),
+            "safety_pending": self._safety_manager.get_pending_summary(user_id),
+            "audit_log_path": str(self._safety_manager.get_audit_log_path()),
         }
 
     @staticmethod
@@ -586,6 +614,15 @@ class Orchestrator:
         user_id: int,
         text: str,
     ) -> MessagePayload | None:
+        safety_result = self._safety_manager.try_handle_control_message(user_id, text)
+        if safety_result.handled:
+            if safety_result.approved and safety_result.pending is not None:
+                return await self._execute_approved_safety_action(
+                    user_id,
+                    safety_result.pending,
+                )
+            return safety_result.payload
+
         action = self._edit_approval_manager.classify_control_message(text)
         if action is not None:
             if not await self._edit_approval_manager.has_pending(user_id):
@@ -661,19 +698,99 @@ class Orchestrator:
     ) -> MessagePayload | None:
         """Handle runtime host-observability questions directly."""
 
+        if is_repo_context_status_query(text):
+            active_case = await self._case_manager.get_active_case(user_id)
+            active_session = await self._session_manager.get_active_session(user_id)
+            if active_case is None and active_session is None:
+                return MessagePayload(
+                    text=(
+                        f"<b>{escape(self._settings.assistant_name)} belum punya repo aktif saat ini.</b>\n\n"
+                        "Sebutkan repo atau path dulu, misalnya <code>pakai repo AI-Agent-Telegram</code>."
+                    ),
+                    parse_mode="HTML",
+                )
+            try:
+                resolution = self._repo_resolver.resolve(
+                    "repo aktif saat ini",
+                    active_session,
+                    active_case,
+                )
+            except RepoResolverError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)} sedang pakai repo ini sebagai konteks aktif.</b>\n\n"
+                    f"Repo: <code>{escape(resolution.label)}</code>\n"
+                    f"Path: <code>{escape(str(resolution.root))}</code>\n\n"
+                    "Prompt berikutnya bisa langsung pakai frasa seperti <code>repo ini</code>."
+                ),
+                parse_mode="HTML",
+            )
+
+        repo_context_target = extract_repo_context_selection(text)
+        if repo_context_target is not None:
+            active_case = await self._case_manager.get_active_case(user_id)
+            active_session = await self._session_manager.get_active_session(user_id)
+            try:
+                resolution_prompt = repo_context_target
+                if not resolution_prompt.startswith(("/", "~")) and not resolution_prompt.lower().startswith(
+                    ("repo ", "project ", "proyek ", "folder ", "workspace ")
+                ):
+                    resolution_prompt = f"repo {resolution_prompt}"
+                resolution = self._repo_resolver.resolve(
+                    resolution_prompt,
+                    active_session,
+                    active_case,
+                )
+            except RepoResolverError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+
+            case, created_case = await self._case_manager.open_or_reuse_case(
+                user_id,
+                resolution.root,
+                prompt=f"pakai repo {resolution.label}",
+                role="general",
+            )
+            case_text = (
+                f"Konteks kerja baru: {escape(case.title)}"
+                if created_case
+                else f"Konteks kerja aktif: {escape(case.title)}"
+            )
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)} sekarang pakai repo ini sebagai konteks aktif.</b>\n\n"
+                    f"Repo: <code>{escape(resolution.label)}</code>\n"
+                    f"Path: <code>{escape(str(resolution.root))}</code>\n"
+                    f"{case_text}\n\n"
+                    "Prompt berikutnya bisa langsung menyebut <code>repo ini</code>."
+                ),
+                parse_mode="HTML",
+            )
+
         if match_restart_self_query(text):
             self._logger.info(
                 "user_id=%s | action=restart_self_request | prompt=%r",
                 user_id,
                 redact_prompt(text),
             )
-            return MessagePayload(
-                text=(
-                    f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
-                    "Codi akan mulai ulang setelah pesan ini terkirim."
-                ),
-                parse_mode="HTML",
-                post_send_action="restart_self",
+            policy = classify_restart_policy()
+            gate = self._safety_manager.evaluate_action(
+                user_id=user_id,
+                kind="restart_self",
+                payload=None,
+                policy=policy,
+            )
+            if not gate.allowed:
+                return gate.payload
+            return self._build_restart_payload_with_audit(
+                user_id,
+                policy=policy,
             )
 
         env_config_request = match_env_config_update_query(text)
@@ -684,28 +801,20 @@ class Orchestrator:
                 env_config_request.key,
                 redact_prompt(text),
             )
-            try:
-                result = apply_env_config_update(
-                    env_config_request,
-                    env_path=self._settings.codex_work_dir / ".env",
-                )
-            except EnvConfigError as exc:
-                return format_error_payload(
-                    str(exc),
-                    assistant_name=self._settings.assistant_name,
-                )
-            except Exception:
-                self._logger.exception(
-                    "user_id=%s | action=env_config_update_failed",
-                    user_id,
-                )
-                return format_error_payload(
-                    "Codi belum berhasil merapikan konfigurasi lokal itu.",
-                    assistant_name=self._settings.assistant_name,
-                )
-            return format_env_config_update_payload(
-                assistant_name=self._settings.assistant_name,
-                result=result,
+            preview = f"{env_config_request.key}={env_config_request.value}"
+            policy = classify_env_config_policy(env_config_request.key, preview)
+            gate = self._safety_manager.evaluate_action(
+                user_id=user_id,
+                kind="env_config",
+                payload=env_config_request,
+                policy=policy,
+            )
+            if not gate.allowed:
+                return gate.payload
+            return self._apply_env_config_with_audit(
+                user_id,
+                env_config_request,
+                policy=policy,
             )
 
         shell_request = match_local_shell_query(text)
@@ -723,25 +832,27 @@ class Orchestrator:
                 else self._settings.codex_work_dir
             )
             try:
-                result = await self._local_shell_service.run(shell_request, cwd=cwd)
-            except LocalShellError as exc:
+                policy = classify_shell_policy(shell_request.command)
+            except ValueError as exc:
                 return format_error_payload(
                     str(exc),
                     assistant_name=self._settings.assistant_name,
                 )
-            except Exception:
-                self._logger.exception(
-                    "user_id=%s | action=local_shell_query_failed",
-                    user_id,
-                )
-                return format_error_payload(
-                    "Codi belum berhasil menjalankan perintah shell lokal itu.",
-                    assistant_name=self._settings.assistant_name,
-                )
-            return format_local_shell_payload(
-                assistant_name=self._settings.assistant_name,
-                result=result,
-                max_output_length=self._settings.max_output_length,
+            gate = self._safety_manager.evaluate_action(
+                user_id=user_id,
+                kind="local_shell",
+                payload={"request": shell_request, "cwd": str(cwd)},
+                policy=policy,
+            )
+            if not gate.allowed:
+                return gate.payload
+            return await self._run_local_shell_with_audit(
+                user_id,
+                shell_request,
+                cwd=cwd,
+                policy=policy,
+                failure_message="Codi belum berhasil menjalankan perintah shell lokal itu.",
+                log_action="local_shell_query_failed",
             )
 
         service_shortcut = match_system_service_shortcut(text)
@@ -757,28 +868,33 @@ class Orchestrator:
                     service_shortcut,
                     important_services=self._settings.important_services,
                 )
-                result = await self._local_shell_service.run(
-                    shell_request,
-                    cwd=self._settings.codex_work_dir,
-                )
             except LocalShellError as exc:
                 return format_error_payload(
                     str(exc),
                     assistant_name=self._settings.assistant_name,
                 )
-            except Exception:
-                self._logger.exception(
-                    "user_id=%s | action=service_shell_shortcut_failed",
-                    user_id,
-                )
-                return format_error_payload(
-                    "Codi belum berhasil menjalankan shortcut service itu.",
-                    assistant_name=self._settings.assistant_name,
-                )
-            return format_local_shell_payload(
-                assistant_name=self._settings.assistant_name,
-                result=result,
-                max_output_length=self._settings.max_output_length,
+            policy = classify_service_shortcut_policy(
+                service_shortcut.action,
+                shell_request.command,
+            )
+            gate = self._safety_manager.evaluate_action(
+                user_id=user_id,
+                kind="local_shell",
+                payload={
+                    "request": shell_request,
+                    "cwd": str(self._settings.codex_work_dir),
+                },
+                policy=policy,
+            )
+            if not gate.allowed:
+                return gate.payload
+            return await self._run_local_shell_with_audit(
+                user_id,
+                shell_request,
+                cwd=self._settings.codex_work_dir,
+                policy=policy,
+                failure_message="Codi belum berhasil menjalankan shortcut service itu.",
+                log_action="service_shell_shortcut_failed",
             )
 
         repo_shortcut = match_repo_shell_shortcut(text)
@@ -806,28 +922,33 @@ class Orchestrator:
                     repo_shortcut,
                     repo_resolution.root,
                 )
-                result = await self._local_shell_service.run(
-                    shell_request,
-                    cwd=repo_resolution.root,
-                )
             except (LocalShellError, RepoResolverError) as exc:
                 return format_error_payload(
                     str(exc),
                     assistant_name=self._settings.assistant_name,
                 )
-            except Exception:
-                self._logger.exception(
-                    "user_id=%s | action=repo_shell_shortcut_failed",
-                    user_id,
-                )
-                return format_error_payload(
-                    "Codi belum berhasil menjalankan shortcut repo itu.",
-                    assistant_name=self._settings.assistant_name,
-                )
-            return format_local_shell_payload(
-                assistant_name=self._settings.assistant_name,
-                result=result,
-                max_output_length=self._settings.max_output_length,
+            policy = classify_repo_shortcut_policy(
+                repo_shortcut.action,
+                shell_request.command,
+            )
+            gate = self._safety_manager.evaluate_action(
+                user_id=user_id,
+                kind="local_shell",
+                payload={
+                    "request": shell_request,
+                    "cwd": str(repo_resolution.root),
+                },
+                policy=policy,
+            )
+            if not gate.allowed:
+                return gate.payload
+            return await self._run_local_shell_with_audit(
+                user_id,
+                shell_request,
+                cwd=repo_resolution.root,
+                policy=policy,
+                failure_message="Codi belum berhasil menjalankan shortcut repo itu.",
+                log_action="repo_shell_shortcut_failed",
             )
 
         screenshot_request = match_desktop_screenshot_query(text)
@@ -901,6 +1022,224 @@ class Orchestrator:
             assistant_name=self._settings.assistant_name,
             request=request,
             report=report,
+            max_output_length=self._settings.max_output_length,
+        )
+
+    async def _execute_approved_safety_action(
+        self,
+        user_id: int,
+        pending: PendingSafetyApproval,
+    ) -> MessagePayload:
+        if pending.kind == "restart_self":
+            return self._build_restart_payload_with_audit(
+                user_id,
+                policy=classify_restart_policy(),
+                approval_id=pending.approval_id,
+            )
+
+        if pending.kind == "env_config":
+            request = pending.payload
+            if not isinstance(request, EnvConfigUpdateRequest):
+                return format_error_payload(
+                    "Payload approval konfigurasi lokal ini tidak lagi valid.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            policy = classify_env_config_policy(
+                request.key,
+                f"{request.key}={request.value}",
+            )
+            return self._apply_env_config_with_audit(
+                user_id,
+                request,
+                policy=policy,
+                approval_id=pending.approval_id,
+            )
+
+        if pending.kind == "local_shell":
+            payload = pending.payload if isinstance(pending.payload, dict) else {}
+            request = payload.get("request")
+            cwd_value = payload.get("cwd")
+            if not isinstance(request, LocalShellRequest) or not cwd_value:
+                return format_error_payload(
+                    "Payload approval shell ini tidak lagi valid.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            return await self._run_local_shell_with_audit(
+                user_id,
+                request,
+                cwd=Path(str(cwd_value)),
+                policy=SafetyPolicy(
+                    category=pending.category,
+                    required_mode=pending.required_mode,
+                    requires_confirmation=True,
+                    summary=pending.summary,
+                    preview=pending.preview,
+                ),
+                approval_id=pending.approval_id,
+                failure_message="Codi belum berhasil menjalankan aksi host yang tadi disetujui.",
+                log_action="approved_local_shell_failed",
+            )
+
+        return format_error_payload(
+            "Jenis aksi sensitif ini belum punya executor yang cocok.",
+            assistant_name=self._settings.assistant_name,
+        )
+
+    def _build_restart_payload_with_audit(
+        self,
+        user_id: int,
+        *,
+        policy,
+        approval_id: str | None = None,
+    ) -> MessagePayload:
+        self._safety_manager.record_audit_event(
+            user_id=user_id,
+            event="executed",
+            category=policy.category,
+            mode=self._safety_manager.get_current_mode(user_id),
+            required_mode=policy.required_mode,
+            summary=policy.summary,
+            preview=policy.preview,
+            outcome="scheduled",
+            approval_id=approval_id,
+        )
+        return MessagePayload(
+            text=(
+                f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
+                "Codi akan mulai ulang setelah pesan ini terkirim."
+            ),
+            parse_mode="HTML",
+            post_send_action="restart_self",
+        )
+
+    def _apply_env_config_with_audit(
+        self,
+        user_id: int,
+        request: EnvConfigUpdateRequest,
+        *,
+        policy,
+        approval_id: str | None = None,
+    ) -> MessagePayload:
+        try:
+            result = apply_env_config_update(
+                request,
+                env_path=self._settings.codex_work_dir / ".env",
+            )
+        except EnvConfigError as exc:
+            self._safety_manager.record_audit_event(
+                user_id=user_id,
+                event="executed",
+                category=policy.category,
+                mode=self._safety_manager.get_current_mode(user_id),
+                required_mode=policy.required_mode,
+                summary=policy.summary,
+                preview=policy.preview,
+                outcome="failed",
+                approval_id=approval_id,
+            )
+            return format_error_payload(
+                str(exc),
+                assistant_name=self._settings.assistant_name,
+            )
+        except Exception:
+            self._logger.exception(
+                "user_id=%s | action=env_config_update_failed",
+                user_id,
+            )
+            self._safety_manager.record_audit_event(
+                user_id=user_id,
+                event="executed",
+                category=policy.category,
+                mode=self._safety_manager.get_current_mode(user_id),
+                required_mode=policy.required_mode,
+                summary=policy.summary,
+                preview=policy.preview,
+                outcome="failed",
+                approval_id=approval_id,
+            )
+            return format_error_payload(
+                "Codi belum berhasil merapikan konfigurasi lokal itu.",
+                assistant_name=self._settings.assistant_name,
+            )
+
+        self._safety_manager.record_audit_event(
+            user_id=user_id,
+            event="executed",
+            category=policy.category,
+            mode=self._safety_manager.get_current_mode(user_id),
+            required_mode=policy.required_mode,
+            summary=policy.summary,
+            preview=policy.preview,
+            outcome="success" if result.changed else "noop",
+            approval_id=approval_id,
+        )
+        return format_env_config_update_payload(
+            assistant_name=self._settings.assistant_name,
+            result=result,
+        )
+
+    async def _run_local_shell_with_audit(
+        self,
+        user_id: int,
+        request: LocalShellRequest,
+        *,
+        cwd: Path,
+        policy,
+        failure_message: str,
+        log_action: str,
+        approval_id: str | None = None,
+    ) -> MessagePayload:
+        try:
+            result = await self._local_shell_service.run(request, cwd=cwd)
+        except LocalShellError as exc:
+            self._safety_manager.record_audit_event(
+                user_id=user_id,
+                event="executed",
+                category=policy.category,
+                mode=self._safety_manager.get_current_mode(user_id),
+                required_mode=policy.required_mode,
+                summary=policy.summary,
+                preview=policy.preview,
+                outcome="failed",
+                approval_id=approval_id,
+            )
+            return format_error_payload(
+                str(exc),
+                assistant_name=self._settings.assistant_name,
+            )
+        except Exception:
+            self._logger.exception("user_id=%s | action=%s", user_id, log_action)
+            self._safety_manager.record_audit_event(
+                user_id=user_id,
+                event="executed",
+                category=policy.category,
+                mode=self._safety_manager.get_current_mode(user_id),
+                required_mode=policy.required_mode,
+                summary=policy.summary,
+                preview=policy.preview,
+                outcome="failed",
+                approval_id=approval_id,
+            )
+            return format_error_payload(
+                failure_message,
+                assistant_name=self._settings.assistant_name,
+            )
+
+        self._safety_manager.record_audit_event(
+            user_id=user_id,
+            event="executed",
+            category=policy.category,
+            mode=self._safety_manager.get_current_mode(user_id),
+            required_mode=policy.required_mode,
+            summary=policy.summary,
+            preview=policy.preview,
+            outcome="success" if result.exit_code == 0 else "failed",
+            approval_id=approval_id,
+            exit_code=result.exit_code,
+        )
+        return format_local_shell_payload(
+            assistant_name=self._settings.assistant_name,
+            result=result,
             max_output_length=self._settings.max_output_length,
         )
 

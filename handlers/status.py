@@ -31,6 +31,8 @@ async def status_command(
     active_cwd = snapshot["active_cwd"]
     active_workspace = Path(active_cwd).name if active_cwd else "-"
     active_case_title = snapshot["active_case_title"] or "-"
+    active_repo_path = snapshot["active_case_repo"] or active_cwd or "-"
+    safety_pending = snapshot["safety_pending"] or "-"
 
     cpu_percent = psutil.cpu_percent(interval=1)
     cpu_count = psutil.cpu_count() or 1
@@ -46,8 +48,11 @@ async def status_command(
         f"Session aktif   : {snapshot['active_sessions']} / {snapshot['max_active_sessions']}",
         f"Role aktif      : {snapshot['active_role'] or '-'}",
         f"Repo aktif      : {active_workspace}",
+        f"Path repo aktif : {active_repo_path}",
         f"Repo dipantau   : {snapshot['watched_repos']}",
         f"Task antre      : {snapshot['queued_tasks']}",
+        f"Mode keamanan   : {snapshot['safety_mode']} / {snapshot['safety_max_mode']}",
+        f"Pending sensitif: {safety_pending}",
         f"{assistant_name} uptime : {_humanize_duration(bot_uptime_seconds)}",
         "",
         "Host:",
@@ -63,6 +68,7 @@ async def status_command(
             f"({disk.percent:.0f}%) - /"
         ),
         f"Uptime host: {_humanize_duration(host_uptime_seconds)}",
+        f"Audit log : {snapshot['audit_log_path']}",
     ]
     await message.reply_text("\n".join(lines))
 
