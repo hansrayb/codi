@@ -32,6 +32,12 @@ async def handle_text_message(
         await _handle_post_send_action(context, control_payload, chat_id=chat_id)
         return
 
+    device_payload = await orchestrator.try_handle_device_message(user.id, message.text or "")
+    if device_payload is not None:
+        await _send_payload(message, device_payload)
+        await _handle_post_send_action(context, device_payload, chat_id=chat_id)
+        return
+
     watch_payload = await orchestrator.try_handle_repo_watch_message(
         user.id,
         chat_id if chat_id is not None else user.id,

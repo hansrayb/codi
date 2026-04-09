@@ -201,3 +201,8 @@ Ringkasan arah kerja:
 - setelah matang: ekstrak `Codi Core`
 - berikutnya: bangun `dashboard assistant` untuk use case CRUD yang aman dan terstruktur
 
+## Dokumen Lanjutan
+
+Untuk arah arsitektur `single Telegram bot + multi device agent`, lihat:
+
+- [MULTI_DEVICE_ARCHITECTURE.md](./MULTI_DEVICE_ARCHITECTURE.md)

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from config import Settings
 from core.case_manager import CaseManager
+from core.device_registry import DeviceRegistryManager
 from core.desktop_actions import (
     DesktopActionManager,
     DesktopActionError,
@@ -133,6 +134,7 @@ class Orchestrator:
         session_manager: SessionManager,
         repo_resolver: RepoResolver,
         repo_watch_manager: RepoWatchManager,
+        device_registry_manager: DeviceRegistryManager,
         self_maintenance_manager: SelfMaintenanceManager,
         desktop_action_manager: DesktopActionManager,
         desktop_screenshot_service: DesktopScreenshotService,
@@ -148,6 +150,7 @@ class Orchestrator:
         self._session_manager = session_manager
         self._repo_resolver = repo_resolver
         self._repo_watch_manager = repo_watch_manager
+        self._device_registry_manager = device_registry_manager
         self._self_maintenance_manager = self_maintenance_manager
         self._desktop_action_manager = desktop_action_manager
         self._desktop_screenshot_service = desktop_screenshot_service
@@ -512,6 +515,7 @@ class Orchestrator:
         stats = await self._session_manager.get_stats(user_id)
         case_stats = await self._case_manager.get_stats(user_id)
         watch_stats = await self._repo_watch_manager.get_stats(user_id)
+        device_stats = self._device_registry_manager.get_stats()
         return {
             "active_sessions": stats.active_sessions,
             "busy_sessions": stats.busy_sessions,
@@ -526,11 +530,30 @@ class Orchestrator:
             "user_session_count": stats.user_session_count,
             "watched_repos": watch_stats.watched_repos,
             "watched_labels": watch_stats.watched_labels,
+            "registered_devices": device_stats.registered_devices,
+            "online_devices": device_stats.online_devices,
             "safety_mode": self._safety_manager.get_current_mode(user_id),
             "safety_max_mode": self._safety_manager.get_max_mode(user_id),
             "safety_pending": self._safety_manager.get_pending_summary(user_id),
             "audit_log_path": str(self._safety_manager.get_audit_log_path()),
         }
+
+    async def try_handle_device_message(
+        self,
+        user_id: int,
+        text: str,
+    ) -> MessagePayload | None:
+        """Handle device-registry queries without invoking Codex."""
+
+        del user_id
+        query = self._device_registry_manager.classify_message(text)
+        if query is None:
+            return None
+        if query.action == "list":
+            return self._device_registry_manager.render_list_payload()
+        if query.action == "detail" and query.device_ref:
+            return self._device_registry_manager.render_detail_payload(query.device_ref)
+        return None
 
     @staticmethod
     def _summarize_session(existing_summary: str, prompt: str) -> str:

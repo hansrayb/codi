@@ -44,6 +44,12 @@ class Settings:
     repo_watch_poll_seconds: int
     max_watched_repos_per_user: int
     important_services: tuple[str, ...]
+    enable_device_registry: bool
+    device_registry_path: Path
+    device_api_host: str
+    device_api_port: int
+    device_api_shared_token: str | None
+    device_heartbeat_ttl_seconds: int
 
     @property
     def session_idle_ttl_seconds(self) -> int:
@@ -124,6 +130,17 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("MAX_WATCHED_REPOS_PER_USER", "5"),
         "MAX_WATCHED_REPOS_PER_USER",
     )
+    enable_device_registry = _parse_bool(os.getenv("ENABLE_DEVICE_REGISTRY", "false"))
+    device_registry_path = Path(
+        os.getenv("DEVICE_REGISTRY_PATH", str(codex_work_dir / "codi-devices.json"))
+    ).expanduser().resolve()
+    device_api_host = (os.getenv("DEVICE_API_HOST", "127.0.0.1").strip() or "127.0.0.1")
+    device_api_port = _parse_port(os.getenv("DEVICE_API_PORT", "8787"), "DEVICE_API_PORT")
+    device_api_shared_token = (os.getenv("DEVICE_API_SHARED_TOKEN") or "").strip() or None
+    device_heartbeat_ttl_seconds = _parse_positive_int(
+        os.getenv("DEVICE_HEARTBEAT_TTL_SECONDS", "90"),
+        "DEVICE_HEARTBEAT_TTL_SECONDS",
+    )
     important_services = tuple(
         item.strip()
         for item in _split_csv(os.getenv("IMPORTANT_SERVICES", "codex-agent.service"))
@@ -150,6 +167,10 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         raise ConfigError("CODEX_WORK_DIR must be inside ALLOWED_WORK_DIRS.")
     if max_sessions_per_user > max_active_sessions:
         raise ConfigError("MAX_SESSIONS_PER_USER cannot exceed MAX_ACTIVE_SESSIONS.")
+    if enable_device_registry and not device_api_shared_token:
+        raise ConfigError(
+            "DEVICE_API_SHARED_TOKEN is required when ENABLE_DEVICE_REGISTRY is enabled."
+        )
 
     return Settings(
         assistant_name=assistant_name,
@@ -175,6 +196,12 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         repo_watch_poll_seconds=repo_watch_poll_seconds,
         max_watched_repos_per_user=max_watched_repos_per_user,
         important_services=important_services,
+        enable_device_registry=enable_device_registry,
+        device_registry_path=device_registry_path,
+        device_api_host=device_api_host,
+        device_api_port=device_api_port,
+        device_api_shared_token=device_api_shared_token,
+        device_heartbeat_ttl_seconds=device_heartbeat_ttl_seconds,
     )
 
 
@@ -214,6 +241,13 @@ def _parse_non_negative_int(raw: str, name: str) -> int:
         raise ConfigError(f"{name} must be an integer.") from exc
     if value < 0:
         raise ConfigError(f"{name} must be 0 or greater.")
+    return value
+
+
+def _parse_port(raw: str, name: str) -> int:
+    value = _parse_positive_int(raw, name)
+    if value > 65535:
+        raise ConfigError(f"{name} must be between 1 and 65535.")
     return value
 
 

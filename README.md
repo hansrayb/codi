@@ -3,7 +3,7 @@ Bot Telegram minimalis bernama Codi untuk menjalankan task Codex melalui chat bi
 
 ## Fitur
 
-- Command minimal: `/start`, `/help`, `/status`, `/done`, `/reset`
+- Command minimal: `/start`, `/help`, `/status`, `/devices`, `/done`, `/reset`
 - Semua pesan biasa diperlakukan sebagai task
 - Routing role otomatis: `builder`, `reviewer`, `debugger`, `ops`, `general`
 - Case manager v1: satu konteks kerja aktif per user, konteks repo bertahan lintas prompt sampai `/done`
@@ -16,6 +16,7 @@ Bot Telegram minimalis bernama Codi untuk menjalankan task Codex melalui chat bi
 - Repo watch: Codi bisa memantau repo Git dan mengirim notifikasi saat branch, HEAD, atau status kerja berubah
 - Observability host langsung: Codi bisa merangkum aplikasi desktop aktif, background process penting, dan log runtime terbaru
 - Bantuan workflow Git ringan: Codi bisa bantu ringkas diff lokal, menyusun commit message, judul PR, dan deskripsi PR berbasis perubahan yang benar-benar ada
+- Fase 1 multi-device: bot pusat bisa menyimpan registry device, menerima heartbeat agent, dan menampilkan device online/offline dari Telegram
 - Auth whitelist dan rate limiting sederhana
 
 ## Setup
@@ -37,6 +38,18 @@ Opsi yang disarankan untuk UX Telegram:
 
 - `CODEX_REASONING_EFFORT=medium`
 
+Opsi tambahan untuk fase 1 multi-device:
+
+- `ENABLE_DEVICE_REGISTRY=true`
+- `DEVICE_API_SHARED_TOKEN=...`
+- `DEVICE_API_HOST=0.0.0.0` jika bot pusat perlu menerima heartbeat dari host lain
+- `DEVICE_API_PORT=8787`
+
+Dokumen lanjutan:
+
+- roadmap produk: [ROADMAP.md](./ROADMAP.md)
+- arsitektur multi-device yang aman: [MULTI_DEVICE_ARCHITECTURE.md](./MULTI_DEVICE_ARCHITECTURE.md)
+
 ## Desktop Action
 
 Saat ini Codi mendukung aksi desktop eksplisit untuk membuka aplikasi GUI langsung dari nama app, dengan profile khusus untuk aplikasi tertentu seperti `LibreOffice Writer` dan `Firefox`.
@@ -56,6 +69,9 @@ Contoh prompt:
 - `kirim screenshot laptop sekarang dan ringkas isi layar`
 - `kirim screenshot monitor aktif`
 - `kirim screenshot jendela aktif sekarang`
+- `device yang online apa saja`
+- `status semua device`
+- `detail device laptop-kerja`
 - `mode saya apa`
 - `mode aman`
 - `mode ops`
@@ -110,6 +126,38 @@ Catatan:
 - `cek health semua service penting` akan membaca daftar dari `IMPORTANT_SERVICES` di `.env`.
 - Shortcut backend akan mencoba script `package.json`, target `Makefile`, atau tooling Python yang umum seperti `uv`, `poetry`, dan `pytest`.
 - `rollback ke tag ...` memakai `git revert`, jadi lebih aman karena tidak mereset history branch secara destruktif.
+
+## Multi-Device Phase 1
+
+Yang sudah ada di fase ini:
+
+- bot pusat bisa menerima `register` dan `heartbeat` dari agent device
+- registry device disimpan di file lokal `codi-devices.json`
+- Telegram bisa menampilkan daftar device online/offline
+- query natural yang didukung:
+  - `device yang online apa saja`
+  - `status semua device`
+  - `detail device laptop-kerja`
+  - `/devices`
+
+Cara menjalankan agent sederhana di device lain:
+
+```bash
+export CODI_CENTER_URL=http://IP-ATAU-DOMAIN-BOT-PUSAT:8787
+export CODI_DEVICE_API_TOKEN=replace_with_shared_secret
+export CODI_DEVICE_ID=laptop-kerja
+export CODI_DEVICE_LABEL="Laptop Kerja"
+export CODI_DEVICE_TYPE=desktop
+export CODI_DEVICE_CAPABILITIES=shell,repo,system_activity,screenshot,desktop
+
+python -m agent.main
+```
+
+Catatan:
+
+- fase ini baru mencakup `registry + heartbeat`, belum task routing lintas device
+- untuk host lain, port `DEVICE_API_PORT` harus bisa diakses dari agent
+- gunakan secret yang kuat pada `DEVICE_API_SHARED_TOKEN`
 
 ## Commit / PR Assistant
 

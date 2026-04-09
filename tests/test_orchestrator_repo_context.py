@@ -64,6 +64,16 @@ class _AsyncNoop:
         return False
 
 
+class _DeviceRegistryStub:
+    @staticmethod
+    def classify_message(text: str):
+        return None
+
+    @staticmethod
+    def get_stats():
+        return SimpleNamespace(registered_devices=0, online_devices=0)
+
+
 class _EditApprovalStub(_AsyncNoop):
     def classify_control_message(self, text: str):
         return None
@@ -103,6 +113,7 @@ class OrchestratorRepoContextTests(unittest.IsolatedAsyncioTestCase):
             session_manager=self.session_manager,
             repo_resolver=self.repo_resolver,
             repo_watch_manager=SimpleNamespace(),
+            device_registry_manager=_DeviceRegistryStub(),
             self_maintenance_manager=SimpleNamespace(),
             desktop_action_manager=SimpleNamespace(),
             desktop_screenshot_service=SimpleNamespace(),

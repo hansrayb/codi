@@ -4,7 +4,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from handlers.messages import handle_text_message
 from handlers.status import status_command
-from handlers.system import done_command, help_command, reset_command, start_command
+from handlers.system import (
+    devices_command,
+    done_command,
+    help_command,
+    reset_command,
+    start_command,
+)
 
 
 def register_handlers(application: Application) -> None:
@@ -13,6 +19,7 @@ def register_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("devices", devices_command))
     application.add_handler(CommandHandler("done", done_command))
     application.add_handler(CommandHandler("reset", reset_command))
     application.add_handler(

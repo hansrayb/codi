@@ -41,6 +41,12 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
             repo_watch_poll_seconds=30,
             max_watched_repos_per_user=5,
             important_services=("codex-agent.service",),
+            enable_device_registry=False,
+            device_registry_path=workspace / "codi-devices.json",
+            device_api_host="127.0.0.1",
+            device_api_port=8787,
+            device_api_shared_token=None,
+            device_heartbeat_ttl_seconds=90,
         )
         self.manager = SessionManager(self.settings)
 

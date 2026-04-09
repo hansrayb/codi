@@ -14,6 +14,8 @@ from telegram.ext import Application, ApplicationBuilder
 
 from config import ConfigError, Settings, load_settings
 from core.case_manager import CaseManager
+from core.device_api import DeviceApiServer
+from core.device_registry import DeviceRegistryManager
 from core.desktop_actions import DesktopActionManager
 from core.desktop_screenshot import DesktopScreenshotService
 from core.edit_approval import EditApprovalManager
@@ -39,6 +41,19 @@ def build_application(settings: Settings) -> Application:
     session_manager = SessionManager(settings)
     repo_resolver = RepoResolver(settings)
     repo_watch_manager = RepoWatchManager(settings)
+    device_registry_manager = DeviceRegistryManager(
+        registry_path=settings.device_registry_path,
+        heartbeat_ttl_seconds=settings.device_heartbeat_ttl_seconds,
+        assistant_name=settings.assistant_name,
+        logger=logger,
+    )
+    device_api_server = DeviceApiServer(
+        host=settings.device_api_host,
+        port=settings.device_api_port,
+        shared_token=settings.device_api_shared_token or "",
+        registry=device_registry_manager,
+        logger=logger,
+    )
     desktop_action_manager = DesktopActionManager()
     desktop_screenshot_service = DesktopScreenshotService()
     local_shell_service = LocalShellService(
@@ -76,6 +91,7 @@ def build_application(settings: Settings) -> Application:
         session_manager,
         repo_resolver,
         repo_watch_manager,
+        device_registry_manager,
         self_maintenance_manager,
         desktop_action_manager,
         desktop_screenshot_service,
@@ -102,6 +118,8 @@ def build_application(settings: Settings) -> Application:
             "session_manager": session_manager,
             "repo_resolver": repo_resolver,
             "repo_watch_manager": repo_watch_manager,
+            "device_registry_manager": device_registry_manager,
+            "device_api_server": device_api_server,
             "desktop_action_manager": desktop_action_manager,
             "desktop_screenshot_service": desktop_screenshot_service,
             "local_shell_service": local_shell_service,
@@ -121,9 +139,17 @@ async def _post_init(application: Application) -> None:
     """Start background services after Telegram polling is initialized."""
 
     logger = application.bot_data["logger"]
+    settings: Settings = application.bot_data["settings"]
     self_maintenance_manager: SelfMaintenanceManager = application.bot_data[
         "self_maintenance_manager"
     ]
+    device_api_server: DeviceApiServer = application.bot_data["device_api_server"]
+    if settings.enable_device_registry:
+        try:
+            device_api_server.start()
+        except Exception:
+            logger.exception("action=device_api_start_failed")
+
     restart_notice = self_maintenance_manager.consume_restart_notice()
     if restart_notice is not None:
         chat_id, text = restart_notice
@@ -146,6 +172,9 @@ async def _post_shutdown(application: Application) -> None:
     self_maintenance_manager = application.bot_data.get("self_maintenance_manager")
     if self_maintenance_manager is not None:
         self_maintenance_manager.cancel_restart()
+    device_api_server = application.bot_data.get("device_api_server")
+    if device_api_server is not None:
+        device_api_server.stop()
 
     watch_task = application.bot_data.pop("repo_watch_task", None)
     if watch_task is None:

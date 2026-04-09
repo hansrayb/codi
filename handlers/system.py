@@ -70,6 +70,22 @@ async def done_command(
     await message.reply_text(payload.text, parse_mode=payload.parse_mode)
 
 
+@require_auth
+async def devices_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """List registered devices known by the central bot."""
+
+    message = update.effective_message
+    if message is None:
+        return
+
+    registry = context.application.bot_data["device_registry_manager"]
+    payload = registry.render_list_payload()
+    await message.reply_text(payload.text, parse_mode=payload.parse_mode)
+
+
 def _build_help_text(context: ContextTypes.DEFAULT_TYPE) -> str:
     assistant_name = context.application.bot_data["settings"].assistant_name
     return f"""{assistant_name} aktif.
@@ -87,6 +103,9 @@ Contoh:
 - pantau repo ini
 - stop pantau repo ini
 - repo yang dipantau apa
+- device yang online apa saja
+- status semua device
+- detail device laptop-kerja
 - Codi laptop ku sedang menjalankan aplikasi apa
 - tampilkan log Codi terbaru
 - kirim screenshot laptop sekarang
@@ -147,6 +166,7 @@ Kalau repo aktif adalah repo Codi sendiri, setelah apply Codi akan cek test loka
 
 Commands:
 /status - cek status {assistant_name.lower()} dan sistem
+/devices - lihat device yang terdaftar di bot pusat
 /done - akhiri konteks kerja aktif dan session terkait
 /reset - reset seluruh konteks kerja aktif kamu
 /help - tampilkan bantuan

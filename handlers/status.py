@@ -50,6 +50,7 @@ async def status_command(
         f"Repo aktif      : {active_workspace}",
         f"Path repo aktif : {active_repo_path}",
         f"Repo dipantau   : {snapshot['watched_repos']}",
+        f"Device online   : {snapshot['online_devices']} / {snapshot['registered_devices']}",
         f"Task antre      : {snapshot['queued_tasks']}",
         f"Mode keamanan   : {snapshot['safety_mode']} / {snapshot['safety_max_mode']}",
         f"Pending sensitif: {safety_pending}",

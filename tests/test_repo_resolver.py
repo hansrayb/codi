@@ -45,6 +45,12 @@ class RepoResolverTests(unittest.TestCase):
             repo_watch_poll_seconds=30,
             max_watched_repos_per_user=5,
             important_services=("codex-agent.service",),
+            enable_device_registry=False,
+            device_registry_path=self.workspace / "codi-devices.json",
+            device_api_host="127.0.0.1",
+            device_api_port=8787,
+            device_api_shared_token=None,
+            device_heartbeat_ttl_seconds=90,
         )
         self.resolver = RepoResolver(self.settings, refresh_interval_seconds=0)
 
@@ -155,6 +161,12 @@ class RepoResolverTests(unittest.TestCase):
                 repo_watch_poll_seconds=30,
                 max_watched_repos_per_user=5,
                 important_services=("codex-agent.service",),
+                enable_device_registry=False,
+                device_registry_path=other_workspace / "codi-devices.json",
+                device_api_host="127.0.0.1",
+                device_api_port=8787,
+                device_api_shared_token=None,
+                device_heartbeat_ttl_seconds=90,
             )
             resolver = RepoResolver(unique_settings, refresh_interval_seconds=0)
 
