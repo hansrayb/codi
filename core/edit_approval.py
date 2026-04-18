@@ -54,7 +54,7 @@ class EditApprovalError(RuntimeError):
     """Raised when the approval flow cannot continue safely."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FileChange:
     """A single file-level change prepared for approval."""
 
@@ -64,7 +64,7 @@ class FileChange:
     after_hash: str | None
 
 
-@dataclass(slots=True)
+@dataclass
 class PendingApproval:
     """An edit proposal waiting for the user to approve or reject."""
 
@@ -85,7 +85,7 @@ class PendingApproval:
         return current - self.created_at > timedelta(minutes=ttl_minutes)
 
 
-@dataclass(slots=True)
+@dataclass
 class DraftWorkspace:
     """A persistent draft workspace that lives for the duration of a case."""
 

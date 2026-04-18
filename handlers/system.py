@@ -35,6 +35,19 @@ async def help_command(
 
 
 @require_auth
+async def ping_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Return a lightweight liveness response."""
+
+    message = update.effective_message
+    if message is None:
+        return
+    await message.reply_text("Pong! Codi aktif.")
+
+
+@require_auth
 async def reset_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -112,6 +125,18 @@ Contoh:
 - kirim screenshot laptop sekarang dan ringkas isi layar
 - kirim screenshot monitor aktif
 - kirim screenshot jendela aktif sekarang
+- /screenshot
+- /screenshot monitor
+- /screenshot jendela
+- /screenshot ringkas
+- tambah fitur /ping ke kamu
+- perbaiki help text kamu
+- tambahkan command /version ke codi
+- ubah timeout codex jadi 900
+- apakah kamu bisa memodifikasi dirimu sendiri
+- ai backend saat ini
+- pakai claude
+- pakai codex
 - mode saya apa
 - mode aman
 - mode ops
@@ -161,11 +186,18 @@ Contoh:
 	Kamu bisa pindah mode dengan `mode aman`, `mode ops`, atau `mode admin`,
 	lalu balas `lanjutkan aksi` atau `batal aksi` saat diminta konfirmasi 2 langkah.
 
-Konteks kerja sekarang lebih lengket karena session Codex dijaga per session Codi.
+Konteks kerja sekarang lebih lengket karena session AI dijaga per session Codi.
 Kalau repo aktif adalah repo Codi sendiri, setelah apply Codi akan cek test lokal lalu restart otomatis bila aman.
 
+Kamu bisa ganti AI backend kapan saja:
+- <code>pakai claude</code> - pakai Claude Code CLI
+- <code>pakai codex</code> - pakai Codex CLI (default)
+- <code>ai backend saat ini</code> - cek backend yang aktif
+
 Commands:
+/ping - cek cepat apakah Codi aktif
 /status - cek status {assistant_name.lower()} dan sistem
+/screenshot - ambil screenshot desktop saat ini
 /devices - lihat device yang terdaftar di bot pusat
 /done - akhiri konteks kerja aktif dan session terkait
 /reset - reset seluruh konteks kerja aktif kamu

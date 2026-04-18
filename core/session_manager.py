@@ -29,7 +29,7 @@ class SessionInvalidatedError(SessionError):
     """Raised when a session disappears while a task is waiting for it."""
 
 
-@dataclass(slots=True)
+@dataclass
 class SessionLease:
     """Reservation returned when a task acquires a session."""
 
@@ -48,7 +48,7 @@ class SessionLease:
         self.released = True
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SessionStats:
     """Status snapshot for `/status` and diagnostics."""
 

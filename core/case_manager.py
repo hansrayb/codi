@@ -20,7 +20,7 @@ CASE_CLOSE_WORDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CaseStats:
     """Status snapshot for the active case."""
 

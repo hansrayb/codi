@@ -169,21 +169,16 @@ def format_edit_approval_payload(
                 escape("\n".join(preview_lines)),
             ]
         )
-    text_parts.extend(
-        [
-            "",
-            (
-                "Balas <code>lanjutkan</code> untuk apply checkpoint ini, "
-                "atau <code>batal</code> untuk membuang revisi terakhir dan kembali ke kondisi repo saat ini."
-            ),
-        ]
-    )
     diff_text = pending.diff_text or "(Tidak ada diff tekstual. Perubahan mungkin file biner atau metadata.)"
     return MessagePayload(
         text="\n".join(text_parts),
         parse_mode=ParseMode.HTML,
         attachment_filename=f"{pending.approval_id}-proposal.patch",
         attachment_bytes=diff_text.encode("utf-8"),
+        inline_buttons=(
+            ("✅ Lanjutkan", "edit:approve"),
+            ("❌ Batal", "edit:reject"),
+        ),
     )
 
 

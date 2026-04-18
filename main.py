@@ -9,10 +9,11 @@ from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import Application, ApplicationBuilder
 
 from config import ConfigError, Settings, load_settings
+from core.alert_targets import AlertTargetRegistry
 from core.case_manager import CaseManager
 from core.device_api import DeviceApiServer
 from core.device_registry import DeviceRegistryManager
@@ -23,6 +24,7 @@ from core.local_shell import LocalShellService
 from core.orchestrator import Orchestrator
 from core.repo_resolver import RepoResolver
 from core.repo_watch import RepoWatchManager
+from core.service_watch import ServiceWatchManager
 from core.router import IntentRouter
 from core.safety import SafetyManager
 from core.self_maintenance import SelfMaintenanceManager
@@ -41,6 +43,11 @@ def build_application(settings: Settings) -> Application:
     session_manager = SessionManager(settings)
     repo_resolver = RepoResolver(settings)
     repo_watch_manager = RepoWatchManager(settings)
+    alert_target_registry = AlertTargetRegistry(settings.alert_targets_path)
+    service_watch_manager = ServiceWatchManager(
+        settings,
+        alert_targets=alert_target_registry,
+    )
     device_registry_manager = DeviceRegistryManager(
         registry_path=settings.device_registry_path,
         heartbeat_ttl_seconds=settings.device_heartbeat_ttl_seconds,
@@ -118,6 +125,8 @@ def build_application(settings: Settings) -> Application:
             "session_manager": session_manager,
             "repo_resolver": repo_resolver,
             "repo_watch_manager": repo_watch_manager,
+            "alert_target_registry": alert_target_registry,
+            "service_watch_manager": service_watch_manager,
             "device_registry_manager": device_registry_manager,
             "device_api_server": device_api_server,
             "desktop_action_manager": desktop_action_manager,
@@ -150,6 +159,22 @@ async def _post_init(application: Application) -> None:
         except Exception:
             logger.exception("action=device_api_start_failed")
 
+    assistant_name = settings.assistant_name
+    try:
+        await application.bot.set_my_commands([
+            BotCommand("start", f"Mulai dan lihat panduan {assistant_name}"),
+            BotCommand("help", f"Lihat daftar lengkap kemampuan {assistant_name}"),
+            BotCommand("ping", f"Cek cepat apakah {assistant_name} aktif"),
+            BotCommand("status", f"Cek status {assistant_name} dan sistem"),
+            BotCommand("screenshot", "Ambil screenshot desktop saat ini"),
+            BotCommand("cekrepo", "List repo yang tersedia dan pilih yang aktif"),
+            BotCommand("done", "Tutup konteks kerja aktif"),
+            BotCommand("reset", "Reset semua session aktif"),
+            BotCommand("devices", "Lihat device yang terdaftar"),
+        ])
+    except Exception:
+        logger.exception("action=set_my_commands_failed")
+
     restart_notice = self_maintenance_manager.consume_restart_notice()
     if restart_notice is not None:
         chat_id, text = restart_notice
@@ -163,7 +188,9 @@ async def _post_init(application: Application) -> None:
             logger.exception("action=restart_notice_failed | chat_id=%s", chat_id)
 
     watch_task = asyncio.create_task(_repo_watch_loop(application))
+    service_watch_task = asyncio.create_task(_service_watch_loop(application))
     application.bot_data["repo_watch_task"] = watch_task
+    application.bot_data["service_watch_task"] = service_watch_task
 
 
 async def _post_shutdown(application: Application) -> None:
@@ -176,12 +203,13 @@ async def _post_shutdown(application: Application) -> None:
     if device_api_server is not None:
         device_api_server.stop()
 
-    watch_task = application.bot_data.pop("repo_watch_task", None)
-    if watch_task is None:
-        return
-    watch_task.cancel()
-    with suppress(asyncio.CancelledError):
-        await watch_task
+    for task_name in ("repo_watch_task", "service_watch_task"):
+        watch_task = application.bot_data.pop(task_name, None)
+        if watch_task is None:
+            continue
+        watch_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await watch_task
 
 
 async def _repo_watch_loop(application: Application) -> None:
@@ -210,6 +238,34 @@ async def _repo_watch_loop(application: Application) -> None:
         except Exception:
             logger.exception("action=repo_watch_loop_failed")
         await asyncio.sleep(settings.repo_watch_poll_seconds)
+
+
+async def _service_watch_loop(application: Application) -> None:
+    """Send Telegram notifications when a monitored service or PM2 app changes state."""
+
+    settings: Settings = application.bot_data["settings"]
+    logger = application.bot_data["logger"]
+    manager: ServiceWatchManager = application.bot_data["service_watch_manager"]
+
+    while True:
+        try:
+            alerts = await manager.scan_once(assistant_name=settings.assistant_name)
+            for alert in alerts:
+                logger.info(
+                    "user_id=%s | action=service_watch_alert | chat_id=%s",
+                    alert.user_id,
+                    alert.chat_id,
+                )
+                await application.bot.send_message(
+                    chat_id=alert.chat_id,
+                    text=alert.payload.text,
+                    parse_mode=alert.payload.parse_mode,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("action=service_watch_loop_failed")
+        await asyncio.sleep(settings.service_watch_poll_seconds)
 
 
 def main() -> None:

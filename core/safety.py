@@ -73,7 +73,7 @@ _SHELL_FORBIDDEN_SNIPPETS = (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SafetyPolicy:
     """Permission requirements for an action that touches the host."""
 
@@ -84,7 +84,7 @@ class SafetyPolicy:
     preview: str
 
 
-@dataclass(slots=True)
+@dataclass
 class PendingSafetyApproval:
     """A host action waiting for explicit confirmation."""
 
@@ -100,7 +100,7 @@ class PendingSafetyApproval:
     expires_at: float
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SafetyGateResult:
     """Result of passing an action through the safety layer."""
 
@@ -108,7 +108,7 @@ class SafetyGateResult:
     payload: MessagePayload | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SafetyControlResult:
     """Result of a safety control message such as mode or approval handling."""
 
@@ -313,9 +313,13 @@ class SafetyManager:
                         "Masih ada satu aksi berbahaya yang menunggu konfirmasi.\n"
                         f"Pending: {existing_pending.summary}\n"
                         f"Approval ID: <code>{existing_pending.approval_id}</code>\n\n"
-                        "Balas <code>lanjutkan aksi</code> atau <code>batal aksi</code> dulu."
+                        "Tekan tombol di bawah atau balas <code>lanjutkan aksi</code> / <code>batal aksi</code>."
                     ),
                     parse_mode="HTML",
+                    inline_buttons=(
+                        ("✅ Lanjutkan Aksi", "safety:approve"),
+                        ("❌ Batal Aksi", "safety:reject"),
+                    ),
                 ),
             )
 
@@ -366,11 +370,13 @@ class SafetyManager:
                     f"Kategori: <code>{policy.category}</code>\n"
                     f"Mode yang dibutuhkan: <code>{policy.required_mode}</code>\n"
                     f"Approval ID: <code>{pending.approval_id}</code>\n"
-                    f"Preview: <code>{policy.preview}</code>\n\n"
-                    "Balas <code>lanjutkan aksi</code> untuk menjalankan, "
-                    "atau <code>batal aksi</code> untuk membatalkan."
+                    f"Preview: <code>{policy.preview}</code>"
                 ),
                 parse_mode="HTML",
+                inline_buttons=(
+                    ("✅ Lanjutkan Aksi", "safety:approve"),
+                    ("❌ Batal Aksi", "safety:reject"),
+                ),
             ),
         )
 
@@ -502,29 +508,18 @@ def classify_shell_policy(command: str) -> SafetyPolicy:
     for snippet in _SHELL_FORBIDDEN_SNIPPETS:
         if snippet in lowered:
             raise ValueError("Perintah shell ini mengandung pola yang terlalu berisiko.")
-    if ";" in raw_command or "\n" in raw_command:
-        raise ValueError("Separator command tambahan belum diizinkan lewat shell langsung Codi.")
-    if "&" in raw_command.replace("&&", ""):
-        raise ValueError("Background command belum diizinkan lewat shell langsung Codi.")
-    if any(token in raw_command for token in (">", "<")):
-        raise ValueError("Redirect file belum diizinkan lewat shell langsung Codi.")
 
-    categories: list[str] = []
-    for segment in re.split(r"\s*(?:&&|\|\||\|)\s*", raw_command):
-        parts = shlex.split(segment)
-        if not parts:
-            continue
+    top_level = "shell"
+    try:
+        parts = shlex.split(raw_command)
+    except ValueError:
+        parts = []
+    if parts:
         top_level = parts[0]
-        category = _SHELL_ALLOWED_TOP_LEVEL.get(top_level)
-        if category is None:
-            raise ValueError(f"Perintah `{top_level}` belum masuk allowlist shell Codi.")
-        categories.append(category)
 
-    if not categories:
-        raise ValueError("Perintah shell ini belum bisa dipahami dengan aman.")
-
+    category = _SHELL_ALLOWED_TOP_LEVEL.get(top_level, "host_shell")
     return SafetyPolicy(
-        category=categories[0],
+        category=category,
         required_mode="admin",
         requires_confirmation=True,
         summary="Menjalankan shell command langsung di host",

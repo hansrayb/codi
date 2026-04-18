@@ -27,7 +27,7 @@ class DeviceRegistryError(RuntimeError):
     """Raised when a device registry operation cannot proceed."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DeviceRegistration:
     """A validated device registration or heartbeat payload."""
 
@@ -40,7 +40,7 @@ class DeviceRegistration:
     agent_version: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DeviceQuery:
     """A structured device-related Telegram query."""
 
@@ -48,7 +48,7 @@ class DeviceQuery:
     device_ref: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DeviceRecord:
     """The persisted state of a registered device."""
 
@@ -64,7 +64,7 @@ class DeviceRecord:
     last_ip: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DeviceRegistryStats:
     """A compact online/offline summary of registered devices."""
 

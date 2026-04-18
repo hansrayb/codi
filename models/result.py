@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class MessagePayload:
     """A Telegram-bound response payload."""
 
@@ -16,6 +16,7 @@ class MessagePayload:
     attachment_filename: str | None = None
     attachment_bytes: bytes | None = None
     post_send_action: str | None = None
+    inline_buttons: tuple[tuple[str, str], ...] | None = None
 
     @property
     def has_photo(self) -> bool:

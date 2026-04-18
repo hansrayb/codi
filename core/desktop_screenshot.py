@@ -73,7 +73,7 @@ class DesktopScreenshotError(RuntimeError):
     """Raised when a screenshot cannot be captured."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DesktopScreenshotRequest:
     """A parsed screenshot request from the user."""
 
@@ -81,7 +81,7 @@ class DesktopScreenshotRequest:
     include_summary: bool = False
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ActiveWindowInfo:
     """A lightweight snapshot of the active window, when available."""
 
@@ -91,7 +91,7 @@ class ActiveWindowInfo:
     active_output_name: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DesktopScreenshot:
     """A screenshot captured from the local desktop."""
 
@@ -137,6 +137,16 @@ class DesktopScreenshotService:
                 return DesktopScreenshot(
                     captured_at=datetime.now(timezone.utc),
                     source="import",
+                    mode=request.mode,
+                    image_bytes=output_path.read_bytes(),
+                    filename=output_path.name,
+                    active_window=_read_active_window_info(env),
+                )
+
+            if _try_capture_with_gnome_screenshot(request, output_path, env, errors):
+                return DesktopScreenshot(
+                    captured_at=datetime.now(timezone.utc),
+                    source="gnome-screenshot",
                     mode=request.mode,
                     image_bytes=output_path.read_bytes(),
                     filename=output_path.name,
@@ -214,6 +224,41 @@ def _try_capture_with_spectacle(
 
     stderr = completed.stderr.strip() or completed.stdout.strip() or "unknown error"
     errors.append(f"Spectacle tidak berhasil mengambil screenshot: {stderr}")
+    return False
+
+
+def _try_capture_with_gnome_screenshot(
+    request: DesktopScreenshotRequest,
+    output_path: Path,
+    env: dict[str, str],
+    errors: list[str],
+) -> bool:
+    gnome_bin = shutil.which("gnome-screenshot")
+    if gnome_bin is None:
+        return False
+
+    cmd = [gnome_bin, "--file", str(output_path)]
+    if request.mode == "active_window":
+        cmd.append("--window")
+
+    try:
+        completed = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        errors.append(f"Gagal menjalankan gnome-screenshot: {exc}")
+        return False
+
+    if completed.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+        return True
+
+    stderr = completed.stderr.strip() or completed.stdout.strip() or "unknown error"
+    errors.append(f"gnome-screenshot tidak berhasil mengambil screenshot: {stderr}")
     return False
 
 

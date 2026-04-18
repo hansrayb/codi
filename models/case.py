@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 
-@dataclass(slots=True)
+@dataclass
 class Case:
     """A user-facing work case that can span multiple prompts and roles."""
 

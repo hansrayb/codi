@@ -11,13 +11,14 @@ from dotenv import load_dotenv
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 VALID_ROLES = {"builder", "reviewer", "debugger", "ops", "general"}
 VALID_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
+VALID_BACKENDS = {"codex", "claude"}
 
 
 class ConfigError(ValueError):
     """Raised when the environment configuration is invalid."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Settings:
     """Validated runtime settings for the application."""
 
@@ -26,10 +27,14 @@ class Settings:
     enable_local_shell: bool
     telegram_bot_token: str
     allowed_user_ids: tuple[int, ...]
+    ai_backend: str
     codex_bin: str
     codex_timeout: int
     codex_reasoning_effort: str
+    codex_write_sandbox_mode: str
     codex_work_dir: Path
+    claude_bin: str
+    claude_model: str
     allowed_work_dirs: tuple[Path, ...]
     default_role: str
     max_active_sessions: int
@@ -42,8 +47,11 @@ class Settings:
     log_file: str | None
     max_requests_per_minute: int
     repo_watch_poll_seconds: int
+    service_watch_poll_seconds: int
     max_watched_repos_per_user: int
     important_services: tuple[str, ...]
+    important_pm2_apps: tuple[str, ...]
+    alert_targets_path: Path
     enable_device_registry: bool
     device_registry_path: Path
     device_api_host: str
@@ -77,11 +85,17 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     enable_local_shell = _parse_bool(os.getenv("ENABLE_LOCAL_SHELL", "false"))
     token = _require_env("TELEGRAM_BOT_TOKEN")
     allowed_user_ids = _parse_int_list(_require_env("ALLOWED_USER_IDS"), "ALLOWED_USER_IDS")
+    ai_backend = os.getenv("AI_BACKEND", "codex").strip().lower() or "codex"
     codex_bin = os.getenv("CODEX_BIN", "codex").strip() or "codex"
     codex_timeout = _parse_positive_int(os.getenv("CODEX_TIMEOUT", "600"), "CODEX_TIMEOUT")
     codex_reasoning_effort = (
         os.getenv("CODEX_REASONING_EFFORT", "medium").strip().lower() or "medium"
     )
+    codex_write_sandbox_mode = (
+        os.getenv("CODEX_WRITE_SANDBOX_MODE", "workspace-write").strip() or "workspace-write"
+    )
+    claude_bin = os.getenv("CLAUDE_BIN", "claude").strip() or "claude"
+    claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
     codex_work_dir = _parse_existing_dir(
         os.getenv("CODEX_WORK_DIR", os.getcwd()),
         "CODEX_WORK_DIR",
@@ -126,6 +140,10 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("REPO_WATCH_POLL_SECONDS", "30"),
         "REPO_WATCH_POLL_SECONDS",
     )
+    service_watch_poll_seconds = _parse_positive_int(
+        os.getenv("SERVICE_WATCH_POLL_SECONDS", "30"),
+        "SERVICE_WATCH_POLL_SECONDS",
+    )
     max_watched_repos_per_user = _parse_positive_int(
         os.getenv("MAX_WATCHED_REPOS_PER_USER", "5"),
         "MAX_WATCHED_REPOS_PER_USER",
@@ -143,13 +161,25 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     )
     important_services = tuple(
         item.strip()
-        for item in _split_csv(os.getenv("IMPORTANT_SERVICES", "codex-agent.service"))
+        for item in _split_csv(os.getenv("IMPORTANT_SERVICES", "codi.service"))
         if item.strip()
-    ) or ("codex-agent.service",)
+    ) or ("codi.service",)
+    important_pm2_apps = tuple(
+        item.strip()
+        for item in _split_csv(os.getenv("IMPORTANT_PM2_APPS", ""))
+        if item.strip()
+    )
+    alert_targets_path = Path(
+        os.getenv("ALERT_TARGETS_PATH", str(codex_work_dir / "codi-alert-targets.json"))
+    ).expanduser().resolve()
 
     if default_role not in VALID_ROLES:
         raise ConfigError(
             f"DEFAULT_ROLE must be one of {sorted(VALID_ROLES)}, got {default_role!r}."
+        )
+    if ai_backend not in VALID_BACKENDS:
+        raise ConfigError(
+            f"AI_BACKEND must be one of {sorted(VALID_BACKENDS)}, got {ai_backend!r}."
         )
     if codex_reasoning_effort not in VALID_REASONING_EFFORTS:
         raise ConfigError(
@@ -178,10 +208,14 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         enable_local_shell=enable_local_shell,
         telegram_bot_token=token,
         allowed_user_ids=allowed_user_ids,
+        ai_backend=ai_backend,
         codex_bin=codex_bin,
         codex_timeout=codex_timeout,
         codex_reasoning_effort=codex_reasoning_effort,
+        codex_write_sandbox_mode=codex_write_sandbox_mode,
         codex_work_dir=codex_work_dir,
+        claude_bin=claude_bin,
+        claude_model=claude_model,
         allowed_work_dirs=allowed_work_dirs,
         default_role=default_role,
         max_active_sessions=max_active_sessions,
@@ -194,8 +228,11 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         log_file=log_file,
         max_requests_per_minute=max_requests_per_minute,
         repo_watch_poll_seconds=repo_watch_poll_seconds,
+        service_watch_poll_seconds=service_watch_poll_seconds,
         max_watched_repos_per_user=max_watched_repos_per_user,
         important_services=important_services,
+        important_pm2_apps=important_pm2_apps,
+        alert_targets_path=alert_targets_path,
         enable_device_registry=enable_device_registry,
         device_registry_path=device_registry_path,
         device_api_host=device_api_host,

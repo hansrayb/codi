@@ -93,7 +93,7 @@ STOPWORDS = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RoutingDecision:
     """Decision produced by the rule-based router."""
 

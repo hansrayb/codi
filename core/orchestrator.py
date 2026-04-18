@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -81,6 +82,13 @@ from core.system_activity import (
 from models.result import MessagePayload
 from models.session import Session
 from utils.executor import run_codex_task
+from utils.claude_executor import run_claude_task
+from core.backend_prefs import (
+    BACKEND_LABELS,
+    BackendPrefs,
+    is_backend_query,
+    match_backend_switch,
+)
 from utils.formatter import (
     format_desktop_screenshot_payload,
     format_edit_approval_payload,
@@ -96,6 +104,31 @@ from utils.logger import redact_prompt
 
 ProgressCallback = Callable[[str], Awaitable[None]]
 
+_SELF_MOD_VERBS = re.compile(
+    r"\b(?:tambah\w*|buat\w*|implement\w*|refactor\w*|perbaiki?\w*|ubah\w*|modifik\w*|update\w*|perbarui?\w*|revisi?\w*|edit\w*|hapus\w*|ganti\w*|rename\w*)\b",
+    re.IGNORECASE,
+)
+_SELF_MOD_REFS_TEMPLATE = (
+    r"\b(?:kamu|dirimu|dirinya|diri\s*(?:kamu|mu|sendiri)|bot\s*ini|{name}|"
+    r"repo\s*(?:kamu|{name})|kode\s*(?:kamu|{name}))\b"
+)
+_SELF_CAPABILITY_QUESTION = re.compile(
+    r"(?:apakah|apa|bisa|bisakah|dapatkah|dapat|mampukah|mampu|sanggup|boleh)\b.{0,80}"
+    r"(?:modifik\w*|ngubah\w*|ubah\w*|perbarui?\w*|revisi?\w*|ngedit\w*|edit\w*|update\w*|refactor\w*|"
+    r"membuat\s+fitur|tambah\s+fitur)",
+    re.IGNORECASE,
+)
+
+
+def _is_self_modification_action(text: str, assistant_name: str) -> bool:
+    name = re.escape(assistant_name.lower())
+    refs = re.compile(_SELF_MOD_REFS_TEMPLATE.replace("{name}", name), re.IGNORECASE)
+    return bool(_SELF_MOD_VERBS.search(text)) and bool(refs.search(text))
+
+
+def _is_self_capability_question(text: str, assistant_name: str) -> bool:
+    return bool(_SELF_CAPABILITY_QUESTION.search(text))
+
 
 class OrchestratorUserError(RuntimeError):
     """A user-facing error that can be shown directly in Telegram."""
@@ -105,7 +138,7 @@ class OrchestratorUserError(RuntimeError):
         self.user_message = user_message
 
 
-@dataclass(slots=True)
+@dataclass
 class PreparedDispatch:
     """Prepared execution metadata reserved before Codex is invoked."""
 
@@ -143,6 +176,7 @@ class Orchestrator:
         safety_manager: SafetyManager,
         system_activity_inspector: SystemActivityInspector,
         logger: logging.Logger,
+        backend_prefs: BackendPrefs | None = None,
     ) -> None:
         self._settings = settings
         self._router = router
@@ -159,6 +193,7 @@ class Orchestrator:
         self._safety_manager = safety_manager
         self._system_activity_inspector = system_activity_inspector
         self._logger = logger
+        self._backend_prefs = backend_prefs or BackendPrefs(settings.ai_backend)
 
     async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
         """Route the prompt and reserve a session before execution starts."""
@@ -166,6 +201,75 @@ class Orchestrator:
         normalized_prompt = prompt.strip()
         if not normalized_prompt:
             raise OrchestratorUserError("Kirim task dalam bentuk pesan teks.")
+
+        if _is_self_modification_action(normalized_prompt, self._settings.assistant_name):
+            self_root = self._self_maintenance_manager.project_root
+            if self._settings.is_workdir_allowed(self_root):
+                self._logger.info(
+                    "user_id=%s | action=self_modification_intent | prompt=%r",
+                    user_id,
+                    redact_prompt(normalized_prompt),
+                )
+                active_case = await self._case_manager.get_active_case(user_id)
+                decision = self._router.route(normalized_prompt, await self._session_manager.get_active_session(user_id))
+                if not decision.override_applied or decision.role not in {"builder", "debugger"}:
+                    from core.router import RoutingDecision as _RD
+                    decision = _RD(role="builder", confidence=0.95, reason="self_modification_intent")
+                policy = get_role_policy(decision.role)
+                repo_resolution = RepoResolution(
+                    root=self_root,
+                    label=self_root.name,
+                    confidence=1.0,
+                    reason="self_reference",
+                    explicit=True,
+                )
+                case, created_case = await self._case_manager.open_or_reuse_case(
+                    user_id,
+                    self_root,
+                    prompt=normalized_prompt,
+                    role=decision.role,
+                )
+                try:
+                    lease = await self._session_manager.acquire_session(
+                        user_id,
+                        decision.role,
+                        self_root,
+                        prefer_reuse=False,
+                        case_id=case.case_id,
+                    )
+                except SessionLimitError as exc:
+                    raise OrchestratorUserError("Semua agent sedang sibuk. Coba lagi sebentar.") from exc
+                except QueueFullError as exc:
+                    raise OrchestratorUserError("Session terkait sedang penuh. Coba ulang atau /reset.") from exc
+                except SessionInvalidatedError as exc:
+                    raise OrchestratorUserError("Session sebelumnya berubah saat menunggu. Coba kirim ulang task.") from exc
+                session = lease.session
+                execution_prompt = build_codex_prompt(
+                    role=decision.role,
+                    user_prompt=normalized_prompt,
+                    session_summary=session.summary,
+                    assistant_name=self._settings.assistant_name,
+                    repo_name=self_root.name,
+                    repo_path=str(self_root),
+                )
+                ack_parts = [
+                    f"{self._settings.assistant_name} akan mengerjakan perubahan di repo sendiri.",
+                    self._build_case_ack(case.title, created_case),
+                    "Setelah selesai, Codi akan menampilkan diff dan meminta persetujuan sebelum apply.",
+                ]
+                return PreparedDispatch(
+                    kind="codex",
+                    user_id=user_id,
+                    prompt=normalized_prompt,
+                    role=decision.role,
+                    session=session,
+                    lease=lease,
+                    decision=decision,
+                    ack_text="\n".join(ack_parts),
+                    execution_prompt=execution_prompt,
+                    case_id=case.case_id,
+                    repo_resolution=repo_resolution,
+                )
 
         desktop_request = match_desktop_action(normalized_prompt)
         if desktop_request is not None and self._settings.enable_desktop_actions:
@@ -323,20 +427,33 @@ class Orchestrator:
                     on_progress=on_progress,
                     started=started,
                 )
-            result = await run_codex_task(
-                prompt=prepared.execution_prompt,
-                role=prepared.role,
-                cwd=prepared.session.cwd,
-                timeout=self._settings.codex_timeout,
-                session_id=prepared.session.session_id,
-                codex_bin=self._settings.codex_bin,
-                model_reasoning_effort=self._settings.codex_reasoning_effort,
-                sandbox_mode=policy.sandbox_mode,
-                codex_thread_id=prepared.session.codex_thread_id,
-                persist_session=True,
-                on_progress=on_progress,
-            )
-            prepared.session.codex_thread_id = result.thread_id
+            backend = self._backend_prefs.get(prepared.user_id)
+            if backend == "claude":
+                result = await run_claude_task(
+                    prompt=prepared.execution_prompt,
+                    cwd=prepared.session.cwd,
+                    timeout=self._settings.codex_timeout,
+                    claude_bin=self._settings.claude_bin,
+                    claude_model=self._settings.claude_model,
+                    claude_session_id=prepared.session.claude_session_id,
+                    on_progress=on_progress,
+                )
+                prepared.session.claude_session_id = result.thread_id
+            else:
+                result = await run_codex_task(
+                    prompt=prepared.execution_prompt,
+                    role=prepared.role,
+                    cwd=prepared.session.cwd,
+                    timeout=self._settings.codex_timeout,
+                    session_id=prepared.session.session_id,
+                    codex_bin=self._settings.codex_bin,
+                    model_reasoning_effort=self._settings.codex_reasoning_effort,
+                    sandbox_mode=policy.sandbox_mode,
+                    codex_thread_id=prepared.session.codex_thread_id,
+                    persist_session=True,
+                    on_progress=on_progress,
+                )
+                prepared.session.codex_thread_id = result.thread_id
             duration = time.perf_counter() - started
             self._logger.info(
                 "user_id=%s | session=%s | role=%s | exit_code=%s | duration=%.2fs",
@@ -401,6 +518,14 @@ class Orchestrator:
                     role=prepared.role,
                     prompt=prepared.prompt,
                 )
+
+    def list_indexed_repos(self) -> tuple:
+        """Return all currently indexed repos sorted by name."""
+        return self._repo_resolver._get_indexed_repos()
+
+    async def select_repo(self, user_id: int, repo_path: str) -> "MessagePayload":
+        """Switch the active repo context to the given absolute path."""
+        return await self.try_handle_direct_query(user_id, f"pakai repo {repo_path}")
 
     async def reset_user(self, user_id: int) -> int:
         """Clear session state for a user."""
@@ -536,6 +661,7 @@ class Orchestrator:
             "safety_max_mode": self._safety_manager.get_max_mode(user_id),
             "safety_pending": self._safety_manager.get_pending_summary(user_id),
             "audit_log_path": str(self._safety_manager.get_audit_log_path()),
+            "ai_backend": self._backend_prefs.get(user_id),
         }
 
     async def try_handle_device_message(
@@ -720,6 +846,60 @@ class Orchestrator:
         text: str,
     ) -> MessagePayload | None:
         """Handle runtime host-observability questions directly."""
+
+        if _is_self_modification_action(text, self._settings.assistant_name):
+            return None
+
+        if _is_self_capability_question(text, self._settings.assistant_name):
+            self_root = self._self_maintenance_manager.project_root
+            name = escape(self._settings.assistant_name)
+            return MessagePayload(
+                text=(
+                    f"<b>{name} bisa memodifikasi dirinya sendiri!</b>\n\n"
+                    f"Infrastruktur sudah siap:\n"
+                    f"• AI akan membuat perubahan di draft dulu\n"
+                    f"• {name} menampilkan diff dan meminta persetujuanmu\n"
+                    f"• Setelah kamu setuju, {name} apply perubahan, jalankan test, lalu restart otomatis\n\n"
+                    f"<b>Cara pakainya:</b>\n"
+                    f"Cukup kirim perintah langsung, contoh:\n"
+                    f"<code>tambah fitur /ping ke kamu</code>\n"
+                    f"<code>perbaiki help text kamu</code>\n"
+                    f"<code>tambahkan command /version ke codi</code>\n"
+                    f"<code>ubah timeout codex jadi 900</code>\n\n"
+                    f"Repo: <code>{escape(str(self_root))}</code>"
+                ),
+                parse_mode="HTML",
+            )
+
+        switch_target = match_backend_switch(text)
+        if switch_target is not None:
+            self._backend_prefs.set(user_id, switch_target)
+            label = BACKEND_LABELS[switch_target]
+            self._logger.info(
+                "user_id=%s | action=backend_switch | backend=%s",
+                user_id,
+                switch_target,
+            )
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
+                    f"Backend AI sekarang: <b>{label}</b>.\n"
+                    "Task berikutnya akan diproses menggunakan backend ini."
+                ),
+                parse_mode="HTML",
+            )
+
+        if is_backend_query(text):
+            current = self._backend_prefs.get(user_id)
+            label = BACKEND_LABELS.get(current, current)
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
+                    f"Backend AI aktif: <b>{label}</b>.\n\n"
+                    "Untuk ganti, kirim <code>pakai claude</code> atau <code>pakai codex</code>."
+                ),
+                parse_mode="HTML",
+            )
 
         if is_repo_context_status_query(text):
             active_case = await self._case_manager.get_active_case(user_id)
@@ -1298,19 +1478,31 @@ class Orchestrator:
         )
 
         try:
-            result = await run_codex_task(
-                prompt=execution_prompt,
-                role=prepared.role,
-                cwd=str(draft.draft_root),
-                timeout=self._settings.codex_timeout,
-                session_id=f"{prepared.session.session_id}-proposal",
-                codex_bin=self._settings.codex_bin,
-                model_reasoning_effort=self._settings.codex_reasoning_effort,
-                sandbox_mode=policy.sandbox_mode,
-                codex_thread_id=draft.codex_thread_id,
-                persist_session=True,
-                on_progress=on_progress,
-            )
+            backend = self._backend_prefs.get(prepared.user_id)
+            if backend == "claude":
+                result = await run_claude_task(
+                    prompt=execution_prompt,
+                    cwd=str(draft.draft_root),
+                    timeout=self._settings.codex_timeout,
+                    claude_bin=self._settings.claude_bin,
+                    claude_model=self._settings.claude_model,
+                    claude_session_id=draft.codex_thread_id,
+                    on_progress=on_progress,
+                )
+            else:
+                result = await run_codex_task(
+                    prompt=execution_prompt,
+                    role=prepared.role,
+                    cwd=str(draft.draft_root),
+                    timeout=self._settings.codex_timeout,
+                    session_id=f"{prepared.session.session_id}-proposal",
+                    codex_bin=self._settings.codex_bin,
+                    model_reasoning_effort=self._settings.codex_reasoning_effort,
+                    sandbox_mode=self._settings.codex_write_sandbox_mode,
+                    codex_thread_id=draft.codex_thread_id,
+                    persist_session=True,
+                    on_progress=on_progress,
+                )
             await self._edit_approval_manager.update_draft_thread(
                 prepared.case_id,
                 result.thread_id,

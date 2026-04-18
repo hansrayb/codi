@@ -81,7 +81,7 @@ class RepoResolverError(RuntimeError):
     """Raised when the prompt targets an invalid or ambiguous repository."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RepoResolution:
     """A resolved working location for the upcoming task."""
 
@@ -94,7 +94,7 @@ class RepoResolution:
     used_active_session: bool = False
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class IndexedRepo:
     """Indexed metadata for a repository candidate."""
 

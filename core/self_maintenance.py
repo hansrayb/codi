@@ -12,7 +12,7 @@ _RESTART_NOTICE_CHAT_ID_ENV = "CODI_RESTART_NOTICE_CHAT_ID"
 _RESTART_NOTICE_TEXT_ENV = "CODI_RESTART_NOTICE_TEXT"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SelfCheckResult:
     """Verification summary after applying changes to the Codi repo."""
 
@@ -51,6 +51,10 @@ class SelfMaintenanceManager:
         self._restart_delay_seconds = restart_delay_seconds
         self._restart_scheduled = False
         self._restart_task: asyncio.Task[None] | None = None
+
+    @property
+    def project_root(self) -> Path:
+        return self._project_root
 
     def is_self_repo(self, repo_root: Path) -> bool:
         """Return whether a repo path points at the running Codi project."""

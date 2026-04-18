@@ -11,7 +11,7 @@ class EnvConfigError(RuntimeError):
     """Raised when a `.env` config update cannot be parsed or applied safely."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class EnvConfigUpdateRequest:
     """A structured request to update an allowlisted `.env` setting."""
 
@@ -22,7 +22,7 @@ class EnvConfigUpdateRequest:
     restart_required: bool = True
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class EnvConfigUpdateResult:
     """The result of applying a `.env` config update."""
 

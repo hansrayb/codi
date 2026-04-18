@@ -17,7 +17,7 @@ class DesktopActionError(RuntimeError):
     """Raised when a desktop action cannot be completed."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DesktopAction:
     """A single allowlisted desktop action."""
 
@@ -27,7 +27,7 @@ class DesktopAction:
     command: tuple[str, ...]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DesktopActionRequest:
     """A requested open/close action for an allowlisted app."""
 
@@ -35,7 +35,7 @@ class DesktopActionRequest:
     operation: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class TrackedDesktopProcess:
     """A desktop process group launched by Codi during this runtime."""
 

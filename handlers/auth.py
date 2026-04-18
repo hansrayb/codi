@@ -61,6 +61,11 @@ def require_auth(handler_func: HandlerFunc) -> HandlerFunc:
             await message.reply_text("Terlalu banyak request. Coba lagi sebentar.")
             return
 
+        alert_target_registry = context.application.bot_data.get("alert_target_registry")
+        chat = update.effective_chat
+        if alert_target_registry is not None and chat is not None:
+            await alert_target_registry.register_chat(user_id=user.id, chat_id=chat.id)
+
         await handler_func(update, context)
 
     return wrapper  # type: ignore[return-value]

@@ -48,7 +48,7 @@ class RepoWatchError(RuntimeError):
     """Raised when a repo watch operation cannot proceed."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RepoWatchAlert:
     """An outbound Telegram alert produced by the watch loop."""
 

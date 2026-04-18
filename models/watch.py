@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RepoWatchSnapshot:
     """A compact snapshot of the current git state for a watched repo."""
 
@@ -23,7 +23,7 @@ class RepoWatchSnapshot:
         return self.status_count > 0
 
 
-@dataclass(slots=True)
+@dataclass
 class RepoWatch:
     """A user-owned watch registration for a git repository."""
 
@@ -37,7 +37,7 @@ class RepoWatch:
     last_checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RepoWatchStats:
     """Status snapshot for watched repositories."""
 

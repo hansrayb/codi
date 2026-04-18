@@ -87,7 +87,7 @@ class LocalShellError(RuntimeError):
     """Raised when a local shell command cannot be executed safely."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class LocalShellRequest:
     """A structured local-shell request parsed from a Telegram message."""
 
@@ -95,7 +95,7 @@ class LocalShellRequest:
     command: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RepoShellShortcutRequest:
     """A structured repo-scoped shortcut that maps to a local shell command."""
 
@@ -112,7 +112,7 @@ class RepoShellShortcutRequest:
     stage_all: bool = False
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ServiceShellShortcutRequest:
     """A structured systemd service shortcut mapped to local shell commands."""
 
@@ -122,7 +122,7 @@ class ServiceShellShortcutRequest:
     unit_names: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class LocalShellResult:
     """Normalized result from a local shell invocation."""
 

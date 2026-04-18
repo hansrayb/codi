@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,6 +29,10 @@ async def status_command(
     started_at: datetime = context.application.bot_data["started_at"]
     assistant_name = context.application.bot_data["settings"].assistant_name
     snapshot = await orchestrator.get_status_snapshot(user.id)
+    service_watch_manager = context.application.bot_data["service_watch_manager"]
+    alert_target_registry = context.application.bot_data["alert_target_registry"]
+    service_watch_stats = await service_watch_manager.get_stats()
+    alert_target_stats = await alert_target_registry.get_stats()
     active_cwd = snapshot["active_cwd"]
     active_workspace = Path(active_cwd).name if active_cwd else "-"
     active_case_title = snapshot["active_case_title"] or "-"
@@ -41,15 +46,24 @@ async def status_command(
     host_uptime_seconds = _read_uptime_seconds()
     bot_uptime_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
 
+    ai_backend = snapshot.get("ai_backend", "codex").upper()
     lines = [
         f"Status {assistant_name} - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "",
+        f"AI Backend      : {ai_backend}",
+        f"Versi Python    : {platform.python_version()}",
         f"Konteks aktif   : {active_case_title}",
         f"Session aktif   : {snapshot['active_sessions']} / {snapshot['max_active_sessions']}",
         f"Role aktif      : {snapshot['active_role'] or '-'}",
         f"Repo aktif      : {active_workspace}",
         f"Path repo aktif : {active_repo_path}",
         f"Repo dipantau   : {snapshot['watched_repos']}",
+        (
+            "Monitor host   : "
+            f"svc {service_watch_stats.unhealthy_services}/{service_watch_stats.monitored_services} down, "
+            f"pm2 {service_watch_stats.unhealthy_pm2_apps}/{service_watch_stats.monitored_pm2_apps} down"
+        ),
+        f"Target alert    : {alert_target_stats['registered_targets']} chat",
         f"Device online   : {snapshot['online_devices']} / {snapshot['registered_devices']}",
         f"Task antre      : {snapshot['queued_tasks']}",
         f"Mode keamanan   : {snapshot['safety_mode']} / {snapshot['safety_max_mode']}",

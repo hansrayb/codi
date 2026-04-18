@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import re
 import shutil
 import subprocess
 from collections import Counter, deque
@@ -103,7 +104,7 @@ LOW_SIGNAL_BACKGROUND_NAMES = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SystemActivityRequest:
     """A parsed request for local system activity details."""
 
@@ -112,7 +113,7 @@ class SystemActivityRequest:
     detail_hint: bool = False
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ProcessGroupSummary:
     """A grouped view of related running processes."""
 
@@ -127,7 +128,7 @@ class ProcessGroupSummary:
     tracked_by_codi: bool = False
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class LogSnapshot:
     """A recent log excerpt from the configured runtime source."""
 
@@ -135,7 +136,7 @@ class LogSnapshot:
     lines: tuple[str, ...]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SystemActivityReport:
     """A point-in-time host activity snapshot."""
 
@@ -404,6 +405,36 @@ class SystemActivityInspector:
         return LogSnapshot(source=f"journal:{self._journal_unit}", lines=lines)
 
 
+_ACTIVITY_VERB_RE = re.compile(r"\b(?:jalan|berjalan|running|aktif)\b")
+_QUESTION_STARTERS = re.compile(
+    r"^(?:apa|apakah|berapa|bagaimana|gimana|siapa|kenapa|kapan|cek|tampilkan|lihat|show|tolong\s+cek|tolong\s+tampilkan)\b"
+)
+_QUESTION_PHRASES = (
+    "apa yang", "yang mana", "sedang apa", "lagi apa", "apa saja", "apa aja",
+    "sekarang apa", "saat ini apa", "lagi ngapain", "ngapain aja",
+)
+# Scan anywhere in the prompt — not just at the start — for modification command verbs.
+_TASK_COMMAND_RE = re.compile(
+    r"\b(?:buatkan?|tambahkan?|implementasikan?|refactorkan?|perbaiki(?:kan)?|"
+    r"ubah(?:kan)?|modifikasikan?|updatekan?|perbarui(?:kan)?|revisikan?|"
+    r"hapus(?:kan)?|gantikan?|renamei?|tambahkan?)\b"
+)
+
+
+def _has_query_intent(normalized: str) -> bool:
+    """Return True if the prompt reads as a direct question/observation request."""
+    if "?" in normalized:
+        return True
+    if _QUESTION_STARTERS.search(normalized):
+        return True
+    if any(phrase in normalized for phrase in _QUESTION_PHRASES):
+        return True
+    # If a modification command verb appears anywhere, it's a task, not a query.
+    if _TASK_COMMAND_RE.search(normalized):
+        return False
+    return True
+
+
 def match_system_activity_query(prompt: str) -> SystemActivityRequest | None:
     """Return a structured activity request for direct host-observability prompts."""
 
@@ -415,17 +446,36 @@ def match_system_activity_query(prompt: str) -> SystemActivityRequest | None:
     include_logs = any(hint in normalized for hint in LOG_QUERY_HINTS) and (
         has_host_context or "journal" in normalized
     )
-    include_processes = any(hint in normalized for hint in PROCESS_QUERY_HINTS)
+
+    query_intent = _has_query_intent(normalized)
+
+    # Block 1a: unambiguous explicit phrases — always safe to match
+    _PRECISE_HINTS = {
+        "sedang menjalankan", "sedang berjalan", "running app", "running apps",
+        "running process", "running processes", "aktivitas laptop", "aktivitas komputer",
+        "aktivitas pc", "aplikasi desktop", "background process", "background app",
+    }
+    include_processes = any(hint in normalized for hint in _PRECISE_HINTS)
+
+    # Block 1b: ambiguous explicit phrases — require query intent
+    _AMBIGUOUS_HINTS = {"proses aktif", "aplikasi aktif", "yang berjalan", "yang jalan"}
+    if not include_processes and query_intent:
+        include_processes = any(hint in normalized for hint in _AMBIGUOUS_HINTS)
+
+    # Block 2: noun hints ("aplikasi apa", "proses apa") — inherently question-like
     if not include_processes:
         include_processes = (
             any(hint in normalized for hint in PROCESS_NOUN_HINTS)
-            and (has_host_context or any(token in normalized for token in ("jalan", "berjalan", "running", "aktif")))
+            and (has_host_context or bool(_ACTIVITY_VERB_RE.search(normalized)))
         )
-    if not include_processes:
+
+    # Block 3: loose keyword match — require query intent
+    if not include_processes and query_intent:
         include_processes = (
             any(token in normalized for token in ("aplikasi", "program", "proses", "process"))
-            and any(token in normalized for token in ("jalan", "berjalan", "running", "aktif"))
+            and bool(_ACTIVITY_VERB_RE.search(normalized))
         )
+
     if not include_processes:
         include_processes = (
             "sedang apa" in normalized

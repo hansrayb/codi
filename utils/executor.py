@@ -15,7 +15,7 @@ from pathlib import Path
 ProgressCallback = Callable[[str], Awaitable[None]]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CodexRunResult:
     """Normalized output from a Codex CLI execution."""
 

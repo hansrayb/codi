@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import BytesIO
 
-from telegram import InputFile, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Update
 from telegram.ext import ContextTypes
 
 from core.orchestrator import OrchestratorUserError
@@ -82,7 +82,12 @@ async def handle_text_message(
 
 
 async def _send_payload(message, payload) -> None:
-    await message.reply_text(payload.text, parse_mode=payload.parse_mode)
+    reply_markup = None
+    if payload.inline_buttons:
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(label, callback_data=data) for label, data in payload.inline_buttons]
+        ])
+    await message.reply_text(payload.text, parse_mode=payload.parse_mode, reply_markup=reply_markup)
     if payload.has_photo:
         photo = InputFile(
             BytesIO(payload.photo_bytes or b""),

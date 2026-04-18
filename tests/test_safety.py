@@ -109,21 +109,23 @@ class SafetyManagerTests(unittest.TestCase):
         self.assertIn("batalkan", cancel.payload.text.lower())
         self.assertFalse(self.manager.has_pending(1))
 
-    def test_shell_policy_rejects_unknown_command(self) -> None:
-        with self.assertRaisesRegex(ValueError, "belum masuk allowlist"):
-            classify_shell_policy("whoami")
+    def test_shell_policy_allows_unknown_command_with_admin_approval(self) -> None:
+        policy = classify_shell_policy("whoami")
 
-    def test_shell_policy_rejects_redirect(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Redirect file belum diizinkan"):
-            classify_shell_policy("git status > out.txt")
+        self.assertEqual(policy.required_mode, "admin")
+        self.assertTrue(policy.requires_confirmation)
+        self.assertEqual(policy.category, "host_shell")
 
-    def test_shell_policy_rejects_command_separator(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Separator command tambahan"):
-            classify_shell_policy("git status; pwd")
+    def test_shell_policy_allows_redirects_and_separators(self) -> None:
+        policy = classify_shell_policy("git status; whoami > /tmp/codi-test.txt")
 
-    def test_shell_policy_rejects_background_operator(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Background command belum diizinkan"):
-            classify_shell_policy("git status &")
+        self.assertEqual(policy.required_mode, "admin")
+        self.assertTrue(policy.requires_confirmation)
+        self.assertEqual(policy.category, "repo")
+
+    def test_shell_policy_still_blocks_known_high_risk_snippets(self) -> None:
+        with self.assertRaisesRegex(ValueError, "terlalu berisiko"):
+            classify_shell_policy("shutdown now")
 
     def test_shell_policy_marks_direct_host_shell_as_admin(self) -> None:
         policy = classify_shell_policy("git status --short")
