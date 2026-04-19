@@ -15,6 +15,7 @@ Bot Telegram minimalis bernama Codi untuk menjalankan task Codex melalui chat bi
 - Desktop action aman untuk intent eksplisit seperti membuka aplikasi GUI yang terpasang
 - Repo watch: Codi bisa memantau repo Git dan mengirim notifikasi saat branch, HEAD, atau status kerja berubah
 - Observability host langsung: Codi bisa merangkum aplikasi desktop aktif, background process penting, dan log runtime terbaru
+- Business read-only mode: user `business` bisa memilih project bisnis, membaca schema/query SQLite read-only, dan melihat kandidat file logika bisnis
 - Bantuan workflow Git ringan: Codi bisa bantu ringkas diff lokal, menyusun commit message, judul PR, dan deskripsi PR berbasis perubahan yang benar-benar ada
 - Fase 1 multi-device: bot pusat bisa menyimpan registry device, menerima heartbeat agent, dan menampilkan device online/offline dari Telegram
 - Auth whitelist dan rate limiting sederhana
@@ -44,6 +45,13 @@ Opsi tambahan untuk fase 1 multi-device:
 - `DEVICE_API_SHARED_TOKEN=...`
 - `DEVICE_API_HOST=0.0.0.0` jika bot pusat perlu menerima heartbeat dari host lain
 - `DEVICE_API_PORT=8787`
+
+Opsi tambahan untuk akses bisnis read-only:
+
+- `BUSINESS_USER_IDS=...`
+- `BUSINESS_ALLOWED_DIRS=/path/project-bisnis`
+- `BUSINESS_DATABASE_PATHS=/path/project-bisnis/app.sqlite` jika ingin eksplisit; jika kosong, Codi mencari file `*.db`, `*.sqlite`, dan `*.sqlite3` di project aktif
+- `BUSINESS_DATABASE_URLS=postgresql://readonly:...@host:5432/db,mysql://readonly:...@host:3306/db` untuk PostgreSQL/MySQL; gunakan user database read-only
 
 Dokumen lanjutan:
 
@@ -126,6 +134,28 @@ Catatan:
 - `cek health semua service penting` akan membaca daftar dari `IMPORTANT_SERVICES` di `.env`.
 - Shortcut backend akan mencoba script `package.json`, target `Makefile`, atau tooling Python yang umum seperti `uv`, `poetry`, dan `pytest`.
 - `rollback ke tag ...` memakai `git revert`, jadi lebih aman karena tidak mereset history branch secara destruktif.
+
+## Business Read-Only
+
+Role `business` dirancang untuk baca data dan logika bisnis, bukan operasi host atau edit kode.
+
+Contoh prompt setelah memilih project dengan `/pilih_project`:
+
+- `schema database bisnis`
+- `schema postgresql database`
+- `schema mysql database`
+- `select id, name from customers limit 10`
+- `hitung tabel orders`
+- `lihat tabel products`
+- `baca logika bisnis project ini`
+
+Perilaku v1:
+
+- Database yang didukung adalah SQLite (`.db`, `.sqlite`, `.sqlite3`), PostgreSQL, dan MySQL.
+- PostgreSQL/MySQL dibaca dari `BUSINESS_DATABASE_URLS`; SQLite bisa eksplisit via `BUSINESS_DATABASE_PATHS` atau auto-discovery di project aktif.
+- Query database dibuka dengan koneksi read-only dan hanya menerima `SELECT/WITH`; `PRAGMA` schema aman hanya tersedia untuk SQLite.
+- Untuk logika bisnis, Codi memindai file project yang tampak seperti service, model, controller, route, workflow, policy, rule, validation, schema, atau migration.
+- User business hanya bisa memilih project dari `BUSINESS_ALLOWED_DIRS`; aksi host sensitif tetap tidak tersedia untuk role ini.
 
 ## Multi-Device Phase 1
 

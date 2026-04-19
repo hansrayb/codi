@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.prompts import build_codex_prompt
+from core.prompts import build_chat_prompt, build_codex_prompt
 
 
 class PromptBuilderTests(unittest.TestCase):
@@ -20,6 +20,12 @@ class PromptBuilderTests(unittest.TestCase):
         prompt = build_codex_prompt(role="reviewer", user_prompt="review PR ini")
         self.assertIn("review a diff, commit, or PR", prompt)
         self.assertIn("actual local changes", prompt)
+
+    def test_chat_prompt_stays_non_executing(self) -> None:
+        prompt = build_chat_prompt(user_prompt="bahas ide onboarding")
+        self.assertIn("chat mode", prompt)
+        self.assertIn("Do not modify files", prompt)
+        self.assertIn("send that as a normal message outside /chat", prompt)
 
 
 if __name__ == "__main__":

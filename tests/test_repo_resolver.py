@@ -8,6 +8,7 @@ from pathlib import Path
 
 from config import Settings
 from core.repo_resolver import RepoResolver, RepoResolverError
+from models.case import Case
 from models.session import Session
 
 
@@ -27,10 +28,20 @@ class RepoResolverTests(unittest.TestCase):
             enable_local_shell=True,
             telegram_bot_token="token",
             allowed_user_ids=(1,),
+            admin_user_ids=(),
+            viewer_user_ids=(),
+            business_user_ids=(),
+            business_allowed_dirs=(),
+            business_database_paths=(),
+            business_database_urls=(),
+            ai_backend="codex",
             codex_bin="codex",
             codex_timeout=180,
             codex_reasoning_effort="medium",
+            codex_write_sandbox_mode="workspace-write",
             codex_work_dir=self.workspace,
+            claude_bin="claude",
+            claude_model="claude-sonnet-4-6",
             allowed_work_dirs=(self.workspace,),
             default_role="general",
             max_active_sessions=4,
@@ -104,6 +115,68 @@ class RepoResolverTests(unittest.TestCase):
         self.assertEqual(resolution.root, self.repo_payroll_web)
         self.assertTrue(resolution.used_active_session)
 
+    def test_active_business_case_is_reused_outside_allowed_work_dirs(self) -> None:
+        with tempfile.TemporaryDirectory() as business_tempdir:
+            business_root = Path(business_tempdir).resolve()
+            business_repo = business_root / "sales-dashboard"
+            (business_repo / ".git").mkdir(parents=True)
+            settings = Settings(
+                assistant_name="Codi",
+                enable_desktop_actions=True,
+                enable_local_shell=True,
+                telegram_bot_token="token",
+                allowed_user_ids=(1,),
+                admin_user_ids=(),
+                viewer_user_ids=(),
+                business_user_ids=(1,),
+                business_allowed_dirs=(business_root,),
+                business_database_paths=(),
+                business_database_urls=(),
+                ai_backend="codex",
+                codex_bin="codex",
+                codex_timeout=180,
+                codex_reasoning_effort="medium",
+                codex_write_sandbox_mode="workspace-write",
+                codex_work_dir=self.workspace,
+                claude_bin="claude",
+                claude_model="claude-sonnet-4-6",
+                allowed_work_dirs=(self.workspace,),
+                default_role="general",
+                max_active_sessions=4,
+                max_sessions_per_user=3,
+                session_idle_ttl_minutes=60,
+                max_queue_per_session=1,
+                max_output_length=3000,
+                local_shell_timeout=120,
+                log_level="INFO",
+                log_file=None,
+                max_requests_per_minute=5,
+                repo_watch_poll_seconds=30,
+                service_watch_poll_seconds=30,
+                max_watched_repos_per_user=5,
+                important_services=("codi.service",),
+                important_pm2_apps=(),
+                alert_targets_path=self.workspace / "codi-alert-targets.json",
+                enable_device_registry=False,
+                device_registry_path=self.workspace / "codi-devices.json",
+                device_api_host="127.0.0.1",
+                device_api_port=8787,
+                device_api_shared_token=None,
+                device_heartbeat_ttl_seconds=90,
+            )
+            resolver = RepoResolver(settings, refresh_interval_seconds=0)
+            active_case = Case(
+                case_id="c-01",
+                owner_user_id=1,
+                repo_root=str(business_repo),
+                title="pakai repo sales-dashboard",
+            )
+
+            resolution = resolver.resolve("schema database bisnis", active_case=active_case)
+
+            self.assertEqual(resolution.root, business_repo)
+            self.assertTrue(resolution.used_active_case)
+
     def test_contextual_repo_hint_reuses_active_session(self) -> None:
         active_session = Session(
             session_id="s-02",
@@ -146,10 +219,20 @@ class RepoResolverTests(unittest.TestCase):
                 enable_local_shell=True,
                 telegram_bot_token="token",
                 allowed_user_ids=(1,),
+                admin_user_ids=(),
+                viewer_user_ids=(),
+                business_user_ids=(),
+                business_allowed_dirs=(),
+                business_database_paths=(),
+                business_database_urls=(),
+                ai_backend="codex",
                 codex_bin="codex",
                 codex_timeout=180,
                 codex_reasoning_effort="medium",
+                codex_write_sandbox_mode="workspace-write",
                 codex_work_dir=other_workspace,
+                claude_bin="claude",
+                claude_model="claude-sonnet-4-6",
                 allowed_work_dirs=(other_workspace,),
                 default_role="general",
                 max_active_sessions=4,

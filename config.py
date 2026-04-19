@@ -27,6 +27,12 @@ class Settings:
     enable_local_shell: bool
     telegram_bot_token: str
     allowed_user_ids: tuple[int, ...]
+    admin_user_ids: tuple[int, ...]
+    viewer_user_ids: tuple[int, ...]
+    business_user_ids: tuple[int, ...]
+    business_allowed_dirs: tuple[Path, ...]
+    business_database_paths: tuple[Path, ...]
+    business_database_urls: tuple[str, ...]
     ai_backend: str
     codex_bin: str
     codex_timeout: int
@@ -65,6 +71,41 @@ class Settings:
 
         return self.session_idle_ttl_minutes * 60
 
+    @property
+    def all_search_dirs(self) -> tuple[Path, ...]:
+        """Union of allowed_work_dirs and business_allowed_dirs for repo indexing."""
+        seen: set[Path] = set()
+        result: list[Path] = []
+        for p in (*self.allowed_work_dirs, *self.business_allowed_dirs):
+            if p not in seen:
+                seen.add(p)
+                result.append(p)
+        return tuple(result)
+
+    def is_business_dir(self, path: Path) -> bool:
+        """Return whether the path is within a configured business directory."""
+        resolved = path.resolve()
+        return any(
+            resolved == b or b in resolved.parents
+            for b in self.business_allowed_dirs
+        )
+
+    def is_search_dir_allowed(self, candidate: Path) -> bool:
+        """Return whether the path is inside any indexed work or business directory."""
+
+        resolved = candidate.resolve()
+        return any(
+            resolved == allowed or allowed in resolved.parents
+            for allowed in self.all_search_dirs
+        )
+
+    @property
+    def operator_user_ids(self) -> tuple[int, ...]:
+        """Users with operator role (whitelisted but not admin or viewer)."""
+        admin_set = set(self.admin_user_ids)
+        viewer_set = set(self.viewer_user_ids)
+        return tuple(uid for uid in self.allowed_user_ids if uid not in admin_set and uid not in viewer_set)
+
     def is_workdir_allowed(self, candidate: Path) -> bool:
         """Return whether the path is within the configured allowlist."""
 
@@ -85,6 +126,18 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     enable_local_shell = _parse_bool(os.getenv("ENABLE_LOCAL_SHELL", "false"))
     token = _require_env("TELEGRAM_BOT_TOKEN")
     allowed_user_ids = _parse_int_list(_require_env("ALLOWED_USER_IDS"), "ALLOWED_USER_IDS")
+    admin_user_ids = _parse_int_list_optional(os.getenv("ADMIN_USER_IDS", ""), "ADMIN_USER_IDS")
+    viewer_user_ids = _parse_int_list_optional(os.getenv("VIEWER_USER_IDS", ""), "VIEWER_USER_IDS")
+    business_user_ids = _parse_int_list_optional(os.getenv("BUSINESS_USER_IDS", ""), "BUSINESS_USER_IDS")
+    business_allowed_dirs_raw = os.getenv("BUSINESS_ALLOWED_DIRS", "")
+    business_allowed_dirs = _parse_dir_list_optional(business_allowed_dirs_raw, "BUSINESS_ALLOWED_DIRS")
+    business_database_paths = _parse_path_list_optional(
+        os.getenv("BUSINESS_DATABASE_PATHS", ""),
+        "BUSINESS_DATABASE_PATHS",
+    )
+    business_database_urls = _parse_str_list_optional(
+        os.getenv("BUSINESS_DATABASE_URLS", ""),
+    )
     ai_backend = os.getenv("AI_BACKEND", "codex").strip().lower() or "codex"
     codex_bin = os.getenv("CODEX_BIN", "codex").strip() or "codex"
     codex_timeout = _parse_positive_int(os.getenv("CODEX_TIMEOUT", "600"), "CODEX_TIMEOUT")
@@ -173,6 +226,25 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("ALERT_TARGETS_PATH", str(codex_work_dir / "codi-alert-targets.json"))
     ).expanduser().resolve()
 
+    allowed_set = set(allowed_user_ids)
+    for uid in admin_user_ids:
+        if uid not in allowed_set:
+            raise ConfigError(f"ADMIN_USER_IDS contains {uid} which is not in ALLOWED_USER_IDS.")
+    for uid in viewer_user_ids:
+        if uid not in allowed_set:
+            raise ConfigError(f"VIEWER_USER_IDS contains {uid} which is not in ALLOWED_USER_IDS.")
+    overlap = set(admin_user_ids) & set(viewer_user_ids)
+    if overlap:
+        raise ConfigError(f"User IDs {overlap} appear in both ADMIN_USER_IDS and VIEWER_USER_IDS.")
+    for uid in business_user_ids:
+        if uid not in allowed_set:
+            raise ConfigError(f"BUSINESS_USER_IDS contains {uid} which is not in ALLOWED_USER_IDS.")
+    biz_overlap = set(business_user_ids) & (set(admin_user_ids) | set(viewer_user_ids))
+    if biz_overlap:
+        raise ConfigError(f"User IDs {biz_overlap} appear in BUSINESS_USER_IDS and another role list.")
+    if business_user_ids and not business_allowed_dirs:
+        raise ConfigError("BUSINESS_ALLOWED_DIRS is required when BUSINESS_USER_IDS is set.")
+
     if default_role not in VALID_ROLES:
         raise ConfigError(
             f"DEFAULT_ROLE must be one of {sorted(VALID_ROLES)}, got {default_role!r}."
@@ -208,6 +280,12 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         enable_local_shell=enable_local_shell,
         telegram_bot_token=token,
         allowed_user_ids=allowed_user_ids,
+        admin_user_ids=admin_user_ids,
+        viewer_user_ids=viewer_user_ids,
+        business_user_ids=business_user_ids,
+        business_allowed_dirs=business_allowed_dirs,
+        business_database_paths=business_database_paths,
+        business_database_urls=business_database_urls,
         ai_backend=ai_backend,
         codex_bin=codex_bin,
         codex_timeout=codex_timeout,
@@ -247,6 +325,30 @@ def _require_env(name: str) -> str:
     if not value:
         raise ConfigError(f"{name} is required.")
     return value
+
+
+def _parse_dir_list_optional(raw: str, name: str) -> tuple[Path, ...]:
+    if not raw.strip():
+        return ()
+    return tuple(_parse_existing_dir(item, name) for item in _split_csv(raw))
+
+
+def _parse_path_list_optional(raw: str, name: str) -> tuple[Path, ...]:
+    if not raw.strip():
+        return ()
+    return tuple(Path(item).expanduser().resolve() for item in _split_csv(raw))
+
+
+def _parse_str_list_optional(raw: str) -> tuple[str, ...]:
+    if not raw.strip():
+        return ()
+    return tuple(_split_csv(raw))
+
+
+def _parse_int_list_optional(raw: str, name: str) -> tuple[int, ...]:
+    if not raw.strip():
+        return ()
+    return _parse_int_list(raw, name)
 
 
 def _parse_int_list(raw: str, name: str) -> tuple[int, ...]:

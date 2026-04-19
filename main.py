@@ -71,12 +71,14 @@ def build_application(settings: Settings) -> Application:
     edit_approval_manager = EditApprovalManager(
         draft_ttl_seconds=settings.session_idle_ttl_seconds,
     )
+    _non_readonly_ids = set(settings.allowed_user_ids) - set(settings.viewer_user_ids) - set(settings.business_user_ids)
+    _ops_ids = tuple(uid for uid in settings.allowed_user_ids if uid in _non_readonly_ids)
     safety_manager = SafetyManager(
         assistant_name=settings.assistant_name,
         allowed_user_ids=settings.allowed_user_ids,
         default_mode="ops",
-        admin_user_ids=settings.allowed_user_ids,
-        ops_user_ids=settings.allowed_user_ids,
+        admin_user_ids=settings.admin_user_ids or tuple(_non_readonly_ids),
+        ops_user_ids=_ops_ids or tuple(_non_readonly_ids),
         approval_ttl_seconds=180,
         audit_log_path=settings.codex_work_dir / "codi-audit.log",
         logger=logger,
@@ -165,6 +167,7 @@ async def _post_init(application: Application) -> None:
             BotCommand("start", f"Mulai dan lihat panduan {assistant_name}"),
             BotCommand("help", f"Lihat daftar lengkap kemampuan {assistant_name}"),
             BotCommand("ping", f"Cek cepat apakah {assistant_name} aktif"),
+            BotCommand("chat", "Ngobrol ide dengan backend AI aktif"),
             BotCommand("status", f"Cek status {assistant_name} dan sistem"),
             BotCommand("screenshot", "Ambil screenshot desktop saat ini"),
             BotCommand("cekrepo", "List repo yang tersedia dan pilih yang aktif"),

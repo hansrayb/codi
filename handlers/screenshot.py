@@ -13,7 +13,7 @@ from core.desktop_screenshot import (
     DesktopScreenshotService,
 )
 from core.system_activity import SystemActivityInspector, SystemActivityRequest
-from handlers.auth import require_auth
+from handlers.auth import require_role
 from utils.formatter import format_desktop_screenshot_payload, format_error_payload
 
 SUMMARY_HINTS = (
@@ -39,7 +39,7 @@ MONITOR_HINTS = (
 )
 
 
-@require_auth
+@require_role("operator")
 async def screenshot_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

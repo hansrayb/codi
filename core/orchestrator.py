@@ -7,11 +7,12 @@ import logging
 import re
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path
 
 from config import Settings
+from core.business_data import BusinessDataService
 from core.case_manager import CaseManager
 from core.device_registry import DeviceRegistryManager
 from core.desktop_actions import (
@@ -47,7 +48,7 @@ from core.local_shell import (
     match_restart_self_query,
     match_system_service_shortcut,
 )
-from core.prompts import build_codex_prompt
+from core.prompts import build_chat_prompt, build_codex_prompt
 from core.repo_context import (
     extract_repo_context_selection,
     is_repo_context_status_query,
@@ -156,6 +157,16 @@ class PreparedDispatch:
     desktop_request: DesktopActionRequest | None = None
 
 
+@dataclass
+class ChatSessionState:
+    """Per-user lightweight backend chat state, isolated from work sessions."""
+
+    codex_thread_id: str | None = None
+    claude_session_id: str | None = None
+    summary: str = ""
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
 class Orchestrator:
     """Coordinate routing, session selection, execution, and formatting."""
 
@@ -194,6 +205,8 @@ class Orchestrator:
         self._system_activity_inspector = system_activity_inspector
         self._logger = logger
         self._backend_prefs = backend_prefs or BackendPrefs(settings.ai_backend)
+        self._business_data_service = BusinessDataService(settings)
+        self._chat_sessions: dict[int, ChatSessionState] = {}
 
     async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
         """Route the prompt and reserve a session before execution starts."""
@@ -310,6 +323,16 @@ class Orchestrator:
         except RepoResolverError as exc:
             raise OrchestratorUserError(str(exc)) from exc
 
+        if (
+            user_id in self._settings.business_user_ids
+            and self._settings.business_allowed_dirs
+            and not self._settings.is_business_dir(repo_resolution.root)
+        ):
+            raise OrchestratorUserError(
+                "Kamu hanya bisa mengakses project bisnis yang diizinkan. "
+                "Gunakan /pilih-project untuk memilih project."
+            )
+
         decision = self._router.route(normalized_prompt, active_session)
         policy = get_role_policy(decision.role)
         if (
@@ -418,6 +441,12 @@ class Orchestrator:
                 assistant_name=self._settings.assistant_name,
             )
 
+        if prepared.user_id in self._settings.business_user_ids and policy.allow_write:
+            return format_error_payload(
+                "Role business hanya bisa membaca data. Aksi edit/tulis tidak diizinkan.",
+                assistant_name=self._settings.assistant_name,
+            )
+
         summary_update = self._summarize_session(prepared.session.summary, prepared.prompt)
         try:
             if policy.allow_write and prepared.repo_resolution is not None:
@@ -519,13 +548,167 @@ class Orchestrator:
                     prompt=prepared.prompt,
                 )
 
+    async def run_chat(
+        self,
+        user_id: int,
+        text: str,
+        on_progress: ProgressCallback | None = None,
+    ) -> MessagePayload:
+        """Run a read-only backend chat turn isolated from task sessions."""
+
+        normalized_text = text.strip()
+        if not normalized_text:
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)} mode chat.</b>\n\n"
+                    "Kirim ide setelah command, contoh:\n"
+                    "<code>/chat menurutmu alur onboarding ini sebaiknya dibuat bagaimana?</code>\n\n"
+                    "Mode ini hanya untuk ngobrol ide. Untuk eksekusi task, kirim pesan biasa."
+                ),
+                parse_mode="HTML",
+            )
+
+        state = self._chat_sessions.setdefault(user_id, ChatSessionState())
+        if state.lock.locked():
+            return format_error_payload(
+                "Obrolan /chat sebelumnya masih diproses. Tunggu balasan itu selesai dulu.",
+                assistant_name=self._settings.assistant_name,
+            )
+
+        async with state.lock:
+            started = time.perf_counter()
+            execution_prompt = build_chat_prompt(
+                user_prompt=normalized_text,
+                session_summary=state.summary,
+                assistant_name=self._settings.assistant_name,
+            )
+            try:
+                backend = self._backend_prefs.get(user_id)
+                if backend == "claude":
+                    result = await run_claude_task(
+                        prompt=execution_prompt,
+                        cwd=str(self._settings.codex_work_dir),
+                        timeout=self._settings.codex_timeout,
+                        claude_bin=self._settings.claude_bin,
+                        claude_model=self._settings.claude_model,
+                        claude_session_id=state.claude_session_id,
+                        on_progress=on_progress,
+                    )
+                    state.claude_session_id = result.thread_id
+                else:
+                    result = await run_codex_task(
+                        prompt=execution_prompt,
+                        role="general",
+                        cwd=str(self._settings.codex_work_dir),
+                        timeout=self._settings.codex_timeout,
+                        session_id=f"chat-{user_id}",
+                        codex_bin=self._settings.codex_bin,
+                        model_reasoning_effort=self._settings.codex_reasoning_effort,
+                        sandbox_mode="read-only",
+                        codex_thread_id=state.codex_thread_id,
+                        persist_session=True,
+                        on_progress=on_progress,
+                    )
+                    state.codex_thread_id = result.thread_id
+                duration = time.perf_counter() - started
+                state.summary = self._summarize_session(state.summary, normalized_text)
+                self._logger.info(
+                    "user_id=%s | action=chat | backend=%s | exit_code=%s | duration=%.2fs",
+                    user_id,
+                    backend,
+                    result.exit_code,
+                    duration,
+                )
+                return format_execution_payload(
+                    assistant_name=self._settings.assistant_name,
+                    role="chat",
+                    session_id=f"chat-{user_id}",
+                    exit_code=result.exit_code,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    max_output_length=self._settings.max_output_length,
+                )
+            except FileNotFoundError:
+                self._logger.exception("user_id=%s | action=chat_backend_missing", user_id)
+                return format_error_payload(
+                    "Backend AI tidak ditemukan di sistem.",
+                    assistant_name=self._settings.assistant_name,
+                )
+            except asyncio.TimeoutError:
+                self._logger.warning(
+                    "user_id=%s | action=chat_timeout | timeout=%ss",
+                    user_id,
+                    self._settings.codex_timeout,
+                )
+                return format_error_payload(
+                    (
+                        f"Mode /chat belum selesai dalam {self._settings.codex_timeout} detik. "
+                        "Coba kirim versi yang lebih pendek."
+                    ),
+                    assistant_name=self._settings.assistant_name,
+                )
+            except Exception:
+                self._logger.exception("user_id=%s | action=chat_unexpected_error", user_id)
+                return format_error_payload(
+                    "Terjadi kesalahan internal saat memproses /chat.",
+                    assistant_name=self._settings.assistant_name,
+                )
+
     def list_indexed_repos(self) -> tuple:
         """Return all currently indexed repos sorted by name."""
         return self._repo_resolver._get_indexed_repos()
 
+    def list_business_repos(self) -> tuple:
+        """Return indexed repos that are within business_allowed_dirs."""
+        return tuple(
+            r for r in self._repo_resolver._get_indexed_repos()
+            if self._settings.is_business_dir(r.root)
+        )
+
     async def select_repo(self, user_id: int, repo_path: str) -> "MessagePayload":
         """Switch the active repo context to the given absolute path."""
         return await self.try_handle_direct_query(user_id, f"pakai repo {repo_path}")
+
+    async def _try_handle_business_data_query(
+        self,
+        user_id: int,
+        text: str,
+    ) -> MessagePayload | None:
+        request = self._business_data_service.match(text)
+        if request is None:
+            return None
+
+        active_case = await self._case_manager.get_active_case(user_id)
+        active_session = await self._session_manager.get_active_session(user_id)
+        try:
+            resolution = self._repo_resolver.resolve(text, active_session, active_case)
+        except RepoResolverError as exc:
+            return format_error_payload(
+                str(exc),
+                assistant_name=self._settings.assistant_name,
+            )
+
+        if self._is_business_user(user_id) and not self._settings.is_business_dir(resolution.root):
+            return format_error_payload(
+                "Query bisnis hanya bisa membaca project dari BUSINESS_ALLOWED_DIRS. Gunakan /pilih_project untuk memilih project bisnis.",
+                assistant_name=self._settings.assistant_name,
+            )
+
+        self._logger.info(
+            "user_id=%s | action=business_data_query | kind=%s | repo=%s | prompt=%r",
+            user_id,
+            request.kind,
+            str(resolution.root),
+            redact_prompt(text),
+        )
+        return self._business_data_service.handle(
+            request,
+            resolution.root,
+            assistant_name=self._settings.assistant_name,
+        )
+
+    def _is_business_user(self, user_id: int) -> bool:
+        return user_id in getattr(self._settings, "business_user_ids", ())
 
     async def reset_user(self, user_id: int) -> int:
         """Clear session state for a user."""
@@ -850,6 +1033,10 @@ class Orchestrator:
         if _is_self_modification_action(text, self._settings.assistant_name):
             return None
 
+        business_payload = await self._try_handle_business_data_query(user_id, text)
+        if business_payload is not None:
+            return business_payload
+
         if _is_self_capability_question(text, self._settings.assistant_name):
             self_root = self._self_maintenance_manager.project_root
             name = escape(self._settings.assistant_name)
@@ -923,6 +1110,11 @@ class Orchestrator:
                     str(exc),
                     assistant_name=self._settings.assistant_name,
                 )
+            if self._is_business_user(user_id) and not self._settings.is_business_dir(resolution.root):
+                return format_error_payload(
+                    "Konteks aktif kamu bukan project bisnis yang diizinkan. Gunakan /pilih_project untuk memilih project bisnis.",
+                    assistant_name=self._settings.assistant_name,
+                )
             return MessagePayload(
                 text=(
                     f"<b>{escape(self._settings.assistant_name)} sedang pakai repo ini sebagai konteks aktif.</b>\n\n"
@@ -953,6 +1145,11 @@ class Orchestrator:
                     str(exc),
                     assistant_name=self._settings.assistant_name,
                 )
+            if self._is_business_user(user_id) and not self._settings.is_business_dir(resolution.root):
+                return format_error_payload(
+                    "Role business hanya bisa memilih project dari BUSINESS_ALLOWED_DIRS.",
+                    assistant_name=self._settings.assistant_name,
+                )
 
             case, created_case = await self._case_manager.open_or_reuse_case(
                 user_id,
@@ -975,6 +1172,9 @@ class Orchestrator:
                 ),
                 parse_mode="HTML",
             )
+
+        if self._is_business_user(user_id):
+            return None
 
         if match_restart_self_query(text):
             self._logger.info(

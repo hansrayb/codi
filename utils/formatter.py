@@ -520,6 +520,7 @@ def _build_status_line(assistant_name: str, role: str, exit_code: int) -> str:
         "debugger": f"{assistant_name} selesai menelusuri masalah ini",
         "ops": f"{assistant_name} selesai mengecek kondisi sistem",
         "general": f"{assistant_name} selesai memproses permintaanmu",
+        "chat": f"{assistant_name} selesai ngobrol di mode chat",
     }
     return role_lines.get(role, f"{assistant_name} selesai memproses task ini")
 

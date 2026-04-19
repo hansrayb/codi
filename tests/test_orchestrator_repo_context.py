@@ -102,6 +102,7 @@ class OrchestratorRepoContextTests(unittest.IsolatedAsyncioTestCase):
             max_output_length=1200,
             important_services=("codex-agent.service",),
             enable_desktop_actions=True,
+            ai_backend="codex",
             codex_timeout=600,
             codex_bin="codex",
             codex_reasoning_effort="medium",

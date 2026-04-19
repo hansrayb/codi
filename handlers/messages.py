@@ -8,11 +8,11 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Upda
 from telegram.ext import ContextTypes
 
 from core.orchestrator import OrchestratorUserError
-from handlers.auth import require_auth
+from handlers.auth import require_role
 from utils.progress import TelegramProgressReporter
 
 
-@require_auth
+@require_role("business")
 async def handle_text_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

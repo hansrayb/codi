@@ -5,12 +5,12 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from handlers.auth import require_auth
+from handlers.auth import require_role
 
 _MAX_CALLBACK_PATH_LEN = 49  # cekrepo:select: = 15, total max 64
 
 
-@require_auth
+@require_role("operator")
 async def cekrepo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     if message is None:

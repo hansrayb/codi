@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Write(/home/odc/ai-agent-telegram/**)",
+      "Edit(/home/odc/ai-agent-telegram/**)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+      "Bash(python3:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(systemctl:*)",
+      "Bash(git:*)"
+    ]
+  }
+}

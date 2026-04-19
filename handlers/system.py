@@ -5,7 +5,7 @@ from __future__ import annotations
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from handlers.auth import require_auth
+from handlers.auth import require_auth, require_role
 
 
 @require_auth
@@ -47,7 +47,7 @@ async def ping_command(
     await message.reply_text("Pong! Codi aktif.")
 
 
-@require_auth
+@require_role("operator")
 async def reset_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -66,7 +66,7 @@ async def reset_command(
     )
 
 
-@require_auth
+@require_role("operator")
 async def done_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -83,7 +83,7 @@ async def done_command(
     await message.reply_text(payload.text, parse_mode=payload.parse_mode)
 
 
-@require_auth
+@require_role("operator")
 async def devices_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -105,6 +105,7 @@ def _build_help_text(context: ContextTypes.DEFAULT_TYPE) -> str:
 
 Kirim pesan biasa untuk menjalankan task.
 Contoh:
+- /chat bahas ide onboarding user tanpa eksekusi task
 - review auth middleware ini
 - buat endpoint login FastAPI
 - kenapa service systemd gagal start
@@ -195,7 +196,9 @@ Kamu bisa ganti AI backend kapan saja:
 - <code>ai backend saat ini</code> - cek backend yang aktif
 
 Commands:
+/pilih_project - pilih project bisnis sebagai konteks aktif
 /ping - cek cepat apakah Codi aktif
+/chat - ngobrol ide dengan backend AI aktif tanpa eksekusi task
 /status - cek status {assistant_name.lower()} dan sistem
 /screenshot - ambil screenshot desktop saat ini
 /devices - lihat device yang terdaftar di bot pusat

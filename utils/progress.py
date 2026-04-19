@@ -12,6 +12,7 @@ ROLE_PROGRESS_TEXT = {
     "debugger": ("sedang menelusuri masalah ini", "sudah selesai menelusuri masalah ini"),
     "ops": ("sedang mengecek kondisi sistem", "sudah selesai mengecek kondisi sistem"),
     "general": ("sedang memproses permintaanmu", "sudah selesai memproses permintaanmu"),
+    "chat": ("sedang ngobrol di mode chat", "sudah selesai ngobrol di mode chat"),
 }
 
 

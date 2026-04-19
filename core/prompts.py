@@ -75,3 +75,45 @@ def build_codex_prompt(
         ]
     )
     return "\n\n".join(sections)
+
+
+def build_chat_prompt(
+    user_prompt: str,
+    session_summary: str = "",
+    assistant_name: str = "Codi",
+) -> str:
+    """Build a prompt for lightweight idea discussion without task execution."""
+
+    sections = [
+        (
+            "You are in chat mode. The user wants to talk through ideas with the "
+            "currently selected AI backend, not start an implementation task."
+        ),
+        f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural.",
+        "Respond in the same language as the user whenever possible.",
+        (
+            "Keep the answer conversational, concise, and useful for brainstorming. "
+            "Do not modify files, run shell commands, inspect the workspace, create plans that "
+            "assume execution has started, or ask for approval flows. If the user asks you to "
+            "actually implement, debug, review, deploy, or operate something, tell them to send "
+            "that as a normal message outside /chat."
+        ),
+        (
+            "This answer will be sent through Telegram. Prefer short paragraphs or flat bullets. "
+            "Avoid raw logs, long code blocks, and heavy formatting."
+        ),
+    ]
+    if session_summary.strip():
+        sections.extend(
+            [
+                "Recent chat context:",
+                session_summary.strip(),
+            ]
+        )
+    sections.extend(
+        [
+            "User chat message:",
+            user_prompt.strip(),
+        ]
+    )
+    return "\n\n".join(sections)

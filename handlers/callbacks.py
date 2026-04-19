@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path as from_path
+
 from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from core.orchestrator import OrchestratorUserError
-from handlers.auth import require_auth
+from handlers.auth import get_user_role, require_role
 from handlers.messages import _send_payload
 
 
-@require_auth
+@require_role("business")
 async def handle_callback_query(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -26,7 +28,15 @@ async def handle_callback_query(
 
     data = query.data or ""
     orchestrator = context.application.bot_data["orchestrator"]
-    assistant_name = context.application.bot_data["settings"].assistant_name
+    settings = context.application.bot_data["settings"]
+    assistant_name = settings.assistant_name
+    user_role = get_user_role(user.id, settings)
+    if user_role == "business" and not data.startswith("pilihproject:select:"):
+        await query.edit_message_text(
+            f"<b>{assistant_name}</b>\n\nRole business hanya bisa memilih project bisnis dan membaca data.",
+            parse_mode="HTML",
+        )
+        return
 
     if data.startswith("cekrepo:select:"):
         repo_path = data[len("cekrepo:select:"):]
@@ -35,6 +45,28 @@ async def handle_callback_query(
         except Exception as exc:
             await query.edit_message_text(
                 f"<b>{assistant_name}</b>\n\nGagal set repo: {exc}",
+                parse_mode="HTML",
+            )
+            return
+        await query.edit_message_text(
+            payload.text,
+            parse_mode=payload.parse_mode,
+        )
+        return
+
+    if data.startswith("pilihproject:select:"):
+        repo_path = data[len("pilihproject:select:"):]
+        if not settings.is_business_dir(from_path(repo_path)):
+            await query.edit_message_text(
+                f"<b>{assistant_name}</b>\n\nPath ini bukan bagian dari project bisnis yang diizinkan.",
+                parse_mode="HTML",
+            )
+            return
+        try:
+            payload = await orchestrator.select_repo(user.id, repo_path)
+        except Exception as exc:
+            await query.edit_message_text(
+                f"<b>{assistant_name}</b>\n\nGagal set project: {exc}",
                 parse_mode="HTML",
             )
             return

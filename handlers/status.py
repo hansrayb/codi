@@ -10,10 +10,10 @@ import psutil
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from handlers.auth import require_auth
+from handlers.auth import require_role
 
 
-@require_auth
+@require_role("operator")
 async def status_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

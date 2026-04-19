@@ -183,7 +183,7 @@ class RepoResolver:
     ) -> RepoResolution | None:
         if active_case is not None:
             active_root = Path(active_case.repo_root).resolve()
-            if self._settings.is_workdir_allowed(active_root):
+            if self._settings.is_search_dir_allowed(active_root):
                 return RepoResolution(
                     root=active_root,
                     label=active_root.name or str(active_root),
@@ -193,7 +193,7 @@ class RepoResolver:
                 )
         if active_session is not None:
             active_root = Path(active_session.cwd).resolve()
-            if self._settings.is_workdir_allowed(active_root):
+            if self._settings.is_search_dir_allowed(active_root):
                 return RepoResolution(
                     root=active_root,
                     label=active_root.name or str(active_root),
@@ -213,7 +213,7 @@ class RepoResolver:
                     continue
                 candidate = corrected
             resolved = candidate.resolve()
-            if not self._settings.is_workdir_allowed(resolved):
+            if not self._settings.is_search_dir_allowed(resolved):
                 raise RepoResolverError(
                     f"Path {resolved} ada, tapi di luar workspace yang diizinkan untuk Codi."
                 )
@@ -328,7 +328,7 @@ class RepoResolver:
             return self._indexed_repos
 
         repos: dict[Path, IndexedRepo] = {}
-        for allowed_root in self._settings.allowed_work_dirs:
+        for allowed_root in self._settings.all_search_dirs:
             for repo_path in self._walk_repos(allowed_root):
                 name = repo_path.name or str(repo_path)
                 normalized_name = _normalize(name)
