@@ -160,7 +160,7 @@ class DeviceApiServerTests(unittest.TestCase):
             device_id="vps-hestia",
             requested_by=1,
             kind="host_status",
-            payload={},
+            payload={"cwd": "/srv/absen"},
         )
         poll_response = self._post(
             "/api/device/tasks/poll",
@@ -175,6 +175,7 @@ class DeviceApiServerTests(unittest.TestCase):
         )
 
         self.assertEqual(poll_response["task"]["task_id"], task.task_id)
+        self.assertEqual(poll_response["task"]["payload"]["cwd"], "/srv/absen")
 
         result_response = self._post(
             "/api/device/tasks/result",

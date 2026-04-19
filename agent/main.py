@@ -147,10 +147,10 @@ def _execute_task(kind: str, payload: dict[str, object]) -> dict[str, object]:
     if kind == "host_status":
         return {"output": _host_status()}
     if kind == "sqlite_schema":
-        return {"output": _sqlite_schema()}
+        return {"output": _sqlite_schema(_payload_cwd(payload))}
     if kind == "sqlite_query":
         sql = str(payload.get("sql") or "").strip()
-        return {"output": _sqlite_query(sql)}
+        return {"output": _sqlite_query(sql, _payload_cwd(payload))}
     raise RuntimeError(f"Task kind tidak didukung agent ini: {kind}")
 
 
@@ -179,8 +179,8 @@ def _read_uptime() -> str:
     return f"{days}d {hours}h {minutes}m"
 
 
-def _sqlite_schema() -> str:
-    db_path = _resolve_sqlite_path()
+def _sqlite_schema(cwd: str | None = None) -> str:
+    db_path = _resolve_sqlite_path(cwd)
     lines = [f"SQLite: {db_path}"]
     with _connect_sqlite_readonly(db_path) as conn:
         tables = conn.execute(
@@ -198,10 +198,10 @@ def _sqlite_schema() -> str:
     return "\n".join(lines)
 
 
-def _sqlite_query(sql: str) -> str:
+def _sqlite_query(sql: str, cwd: str | None = None) -> str:
     if not _is_readonly_sql(sql):
         raise RuntimeError("Remote SQLite hanya menerima SELECT/WITH.")
-    db_path = _resolve_sqlite_path()
+    db_path = _resolve_sqlite_path(cwd)
     with _connect_sqlite_readonly(db_path) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(sql)
@@ -224,13 +224,34 @@ def _sqlite_query(sql: str) -> str:
     return "\n".join(lines)
 
 
-def _resolve_sqlite_path() -> str:
+def _resolve_sqlite_path(cwd: str | None = None) -> str:
     raw_paths = os.getenv("CODI_BUSINESS_DATABASE_PATHS") or os.getenv("BUSINESS_DATABASE_PATHS") or ""
     for raw_path in raw_paths.split(","):
         candidate = raw_path.strip()
         if candidate and os.path.isfile(candidate):
             return candidate
-    raise RuntimeError("CODI_BUSINESS_DATABASE_PATHS atau BUSINESS_DATABASE_PATHS belum menunjuk file SQLite yang valid.")
+    if cwd:
+        discovered = _discover_sqlite_path(cwd)
+        if discovered:
+            return discovered
+    raise RuntimeError("CODI_BUSINESS_DATABASE_PATHS atau BUSINESS_DATABASE_PATHS belum menunjuk file SQLite yang valid, dan repo context tidak punya file SQLite.")
+
+
+def _discover_sqlite_path(cwd: str) -> str | None:
+    if not os.path.isdir(cwd):
+        return None
+    skip_dirs = {".git", ".venv", "venv", "node_modules", "dist", "build", "__pycache__"}
+    for dirpath, dirnames, filenames in os.walk(cwd):
+        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in skip_dirs)
+        for filename in sorted(filenames):
+            if filename.lower().endswith((".db", ".sqlite", ".sqlite3")):
+                return os.path.join(dirpath, filename)
+    return None
+
+
+def _payload_cwd(payload: dict[str, object]) -> str | None:
+    cwd = str(payload.get("cwd") or "").strip()
+    return cwd or None
 
 
 def _connect_sqlite_readonly(db_path: str) -> sqlite3.Connection:

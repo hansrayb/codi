@@ -193,6 +193,12 @@ Catatan:
   - `di device absen-server, schema database bisnis`
   - `di device absen-server, select * from absensi limit 10`
   - `hasil task dt-xxxxxxxx`
+- fase 3 awal mencakup device context per user:
+  - `pakai device absen-server`
+  - `device aktif apa`
+  - `di device absen-server, pakai repo /srv/absen`
+  - `pakai repo /srv/absen` setelah device aktif dipilih
+  - `konteks device absen-server`
 - untuk host lain, port `DEVICE_API_PORT` harus bisa diakses dari agent
 - gunakan secret yang kuat pada `DEVICE_API_SHARED_TOKEN`
 - agent device melakukan polling outbound ke bot pusat; device selain pusat tetap tidak memakai `TELEGRAM_BOT_TOKEN`

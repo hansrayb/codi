@@ -16,10 +16,15 @@ from core.business_data import BusinessDataService
 from core.case_manager import CaseManager
 from core.device_registry import DeviceRegistryManager
 from core.device_tasks import (
+    DeviceContextStore,
     DeviceTaskQueue,
     classify_device_task,
+    is_active_device_query,
     parse_explicit_device_request,
+    parse_device_context_status_request,
+    parse_device_repo_request,
     parse_task_status_request,
+    parse_use_device_request,
 )
 from core.desktop_actions import (
     DesktopActionManager,
@@ -195,6 +200,7 @@ class Orchestrator:
         logger: logging.Logger,
         backend_prefs: BackendPrefs | None = None,
         device_task_queue: DeviceTaskQueue | None = None,
+        device_context_store: DeviceContextStore | None = None,
     ) -> None:
         self._settings = settings
         self._router = router
@@ -214,6 +220,7 @@ class Orchestrator:
         self._backend_prefs = backend_prefs or BackendPrefs(settings.ai_backend)
         self._business_data_service = BusinessDataService(settings)
         self._device_task_queue = device_task_queue
+        self._device_context_store = device_context_store
         self._chat_sessions: dict[int, ChatSessionState] = {}
 
     async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
@@ -869,9 +876,29 @@ class Orchestrator:
                 assistant_name=self._settings.assistant_name,
             )
 
+        use_device_ref = parse_use_device_request(text)
+        if use_device_ref is not None:
+            return self._set_active_device(user_id, use_device_ref)
+
+        if is_active_device_query(text):
+            return self._render_active_device(user_id)
+
+        repo_request = parse_device_repo_request(text)
+        if repo_request is not None:
+            device_ref, repo_path = repo_request
+            return self._set_device_repo(user_id, device_ref, repo_path)
+
+        context_device_ref = parse_device_context_status_request(text)
+        if context_device_ref is not None:
+            return self._render_device_context(user_id, context_device_ref)
+
         explicit_request = parse_explicit_device_request(text)
         if explicit_request is not None:
-            return self._handle_explicit_device_task(user_id, explicit_request.device_ref, explicit_request.task_text)
+            return self._handle_explicit_device_task(
+                user_id,
+                explicit_request.device_ref,
+                explicit_request.task_text,
+            )
 
         query = self._device_registry_manager.classify_message(text)
         if query is None:
@@ -881,6 +908,91 @@ class Orchestrator:
         if query.action == "detail" and query.device_ref:
             return self._device_registry_manager.render_detail_payload(query.device_ref)
         return None
+
+    def _set_active_device(self, user_id: int, device_ref: str) -> MessagePayload:
+        if self._device_context_store is None:
+            return format_error_payload("Device context store belum aktif.", assistant_name=self._settings.assistant_name)
+        device = self._device_registry_manager.resolve_device(device_ref)
+        if device is None:
+            return format_error_payload(
+                f"Saya belum menemukan device '{device_ref}'.",
+                assistant_name=self._settings.assistant_name,
+            )
+        self._device_context_store.set_active_device(user_id, device.device_id)
+        context = self._device_context_store.get_context(user_id, device.device_id)
+        repo_line = f"\nRepo aktif: <code>{escape(context.active_repo)}</code>" if context.active_repo else ""
+        return MessagePayload(
+            text=(
+                f"<b>{escape(self._settings.assistant_name)} memakai device aktif.</b>\n\n"
+                f"Device: <code>{escape(device.label)}</code> (<code>{escape(device.device_id)}</code>){repo_line}"
+            ),
+            parse_mode="HTML",
+        )
+
+    def _render_active_device(self, user_id: int) -> MessagePayload:
+        if self._device_context_store is None:
+            return format_error_payload("Device context store belum aktif.", assistant_name=self._settings.assistant_name)
+        device_id = self._device_context_store.get_active_device(user_id)
+        if not device_id:
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
+                    "Belum ada device aktif. Gunakan <code>pakai device absen-server</code>."
+                ),
+                parse_mode="HTML",
+            )
+        return self._render_device_context(user_id, device_id)
+
+    def _set_device_repo(
+        self,
+        user_id: int,
+        device_ref: str | None,
+        repo_path: str,
+    ) -> MessagePayload:
+        if self._device_context_store is None:
+            return format_error_payload("Device context store belum aktif.", assistant_name=self._settings.assistant_name)
+        resolved_device_ref = device_ref or self._device_context_store.get_active_device(user_id)
+        if not resolved_device_ref:
+            return format_error_payload(
+                "Pilih device dulu dengan <code>pakai device absen-server</code>, atau tulis <code>di device absen-server, pakai repo /path</code>.",
+                assistant_name=self._settings.assistant_name,
+            )
+        device = self._device_registry_manager.resolve_device(resolved_device_ref)
+        if device is None:
+            return format_error_payload(
+                f"Saya belum menemukan device '{resolved_device_ref}'.",
+                assistant_name=self._settings.assistant_name,
+            )
+        context = self._device_context_store.set_active_repo(user_id, device.device_id, repo_path)
+        return MessagePayload(
+            text=(
+                f"<b>{escape(self._settings.assistant_name)} menyimpan konteks repo device.</b>\n\n"
+                f"Device: <code>{escape(device.label)}</code> (<code>{escape(device.device_id)}</code>)\n"
+                f"Repo aktif: <code>{escape(context.active_repo or '-')}</code>"
+            ),
+            parse_mode="HTML",
+        )
+
+    def _render_device_context(self, user_id: int, device_ref: str) -> MessagePayload:
+        if self._device_context_store is None:
+            return format_error_payload("Device context store belum aktif.", assistant_name=self._settings.assistant_name)
+        device = self._device_registry_manager.resolve_device(device_ref)
+        if device is None:
+            return format_error_payload(
+                f"Saya belum menemukan device '{device_ref}'.",
+                assistant_name=self._settings.assistant_name,
+            )
+        context = self._device_context_store.get_context(user_id, device.device_id)
+        status = "online" if self._device_registry_manager.is_online_record(device) else "offline"
+        return MessagePayload(
+            text=(
+                f"<b>Konteks device {escape(device.label)}</b>\n\n"
+                f"ID: <code>{escape(device.device_id)}</code>\n"
+                f"Status: {escape(status)}\n"
+                f"Repo aktif: <code>{escape(context.active_repo or '-')}</code>"
+            ),
+            parse_mode="HTML",
+        )
 
     def _handle_explicit_device_task(
         self,
@@ -904,10 +1016,18 @@ class Orchestrator:
                 f"Device {device.label} sedang offline.",
                 assistant_name=self._settings.assistant_name,
             )
-        classified = classify_device_task(task_text)
+        context = (
+            self._device_context_store.get_context(user_id, device.device_id)
+            if self._device_context_store is not None
+            else None
+        )
+        classified = classify_device_task(
+            task_text,
+            active_repo=context.active_repo if context is not None else None,
+        )
         if classified is None:
             return format_error_payload(
-                "Task device fase 2 baru mendukung: status host, schema database SQLite, dan query SELECT/WITH SQLite.",
+                "Task device fase 3 baru mendukung: status host, schema database SQLite, dan query SELECT/WITH SQLite.",
                 assistant_name=self._settings.assistant_name,
             )
         kind, payload = classified
@@ -929,7 +1049,8 @@ class Orchestrator:
                 f"<b>{escape(self._settings.assistant_name)} mengirim task ke device.</b>\n\n"
                 f"Device: <code>{escape(device.label)}</code> (<code>{escape(device.device_id)}</code>)\n"
                 f"Task: <code>{escape(task.task_id)}</code>\n"
-                f"Jenis: <code>{escape(kind)}</code>\n\n"
+                f"Jenis: <code>{escape(kind)}</code>\n"
+                f"Repo context: <code>{escape(payload.get('cwd') or '-')}</code>\n\n"
                 f"Cek hasil dengan <code>hasil task {escape(task.task_id)}</code>."
             ),
             parse_mode="HTML",

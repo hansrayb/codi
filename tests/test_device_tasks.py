@@ -8,10 +8,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from core.device_tasks import (
+    DeviceContextStore,
     DeviceTaskQueue,
     classify_device_task,
+    is_active_device_query,
+    parse_device_context_status_request,
     parse_explicit_device_request,
+    parse_device_repo_request,
     parse_task_status_request,
+    parse_use_device_request,
 )
 
 
@@ -31,9 +36,45 @@ class DeviceTaskParsingTests(unittest.TestCase):
         self.assertEqual(classify_device_task("status host"), ("host_status", {}))
         self.assertEqual(classify_device_task("schema database bisnis"), ("sqlite_schema", {}))
         self.assertEqual(
+            classify_device_task("schema database bisnis", active_repo="/srv/absen"),
+            ("sqlite_schema", {"cwd": "/srv/absen"}),
+        )
+        self.assertEqual(
             classify_device_task("select * from absensi"),
             ("sqlite_query", {"sql": "select * from absensi"}),
         )
+
+    def test_parse_context_prompts(self) -> None:
+        self.assertEqual(parse_use_device_request("pakai device absen-server"), "absen-server")
+        self.assertTrue(is_active_device_query("device aktif apa"))
+        self.assertEqual(
+            parse_device_repo_request("di device absen-server, pakai repo /srv/absen"),
+            ("absen-server", "/srv/absen"),
+        )
+        self.assertEqual(parse_device_repo_request("pakai repo /srv/absen"), (None, "/srv/absen"))
+        self.assertEqual(parse_device_context_status_request("konteks device absen-server"), "absen-server")
+
+
+class DeviceContextStoreTests(unittest.TestCase):
+    """Validate persisted active device and per-device repo context."""
+
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.context_path = Path(self.tempdir.name) / "contexts.json"
+        self.logger = SimpleNamespace(exception=lambda *args, **kwargs: None)
+        self.store = DeviceContextStore(context_path=self.context_path, logger=self.logger)
+
+    def tearDown(self) -> None:
+        self.tempdir.cleanup()
+
+    def test_active_device_and_repo_are_persisted(self) -> None:
+        self.store.set_active_device(1, "absen-server")
+        self.store.set_active_repo(1, "absen-server", "/srv/absen")
+
+        reloaded = DeviceContextStore(context_path=self.context_path, logger=self.logger)
+
+        self.assertEqual(reloaded.get_active_device(1), "absen-server")
+        self.assertEqual(reloaded.get_context(1, "absen-server").active_repo, "/srv/absen")
 
 
 class DeviceTaskQueueTests(unittest.TestCase):

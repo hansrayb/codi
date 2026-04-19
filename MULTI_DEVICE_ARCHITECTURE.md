@@ -280,6 +280,23 @@ Target:
 
 Baru setelah ini, fitur repo lintas device mulai aman dibangun.
 
+Status repo saat ini:
+
+- active device tersimpan per user
+- active repo tersimpan per `user + device`
+- prompt awal yang didukung:
+  - `pakai device absen-server`
+  - `device aktif apa`
+  - `di device absen-server, pakai repo /srv/absen`
+  - `pakai repo /srv/absen`
+  - `konteks device absen-server`
+- task SQLite remote menerima repo context sebagai `cwd` dan agent bisa auto-discover SQLite di repo itu
+
+Belum selesai:
+
+- Codex session/case penuh belum dipindahkan ke storage device-aware
+- approval sensitif lintas device belum device-aware
+
 ### Fase 4: Safety Layer Multi-Device
 
 Target:
