@@ -35,6 +35,34 @@ from handlers import register_handlers
 from utils.logger import configure_logging
 
 
+def _git_head_info(project_root: Path) -> str:
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["git", "log", "-1", "--pretty=format:%h %s"],
+            capture_output=True, text=True, cwd=str(project_root), timeout=5,
+        )
+        return result.stdout.strip() or "-"
+    except Exception:
+        return "-"
+
+
+def _make_notify_fn(bot, settings, loop, logger):
+    from html import escape as _escape
+
+    async def _send(text: str) -> None:
+        for uid in settings.admin_user_ids:
+            try:
+                await bot.send_message(chat_id=uid, text=text, parse_mode="HTML")
+            except Exception:
+                logger.exception("action=notify_admin_failed | uid=%s", uid)
+
+    def notify_fn(text: str) -> None:
+        asyncio.run_coroutine_threadsafe(_send(text), loop)
+
+    return notify_fn
+
+
 def build_application(settings: Settings) -> Application:
     """Build and wire the Telegram application."""
 
@@ -175,6 +203,11 @@ async def _post_init(application: Application) -> None:
         except Exception:
             logger.exception("action=device_api_start_failed")
 
+        loop = asyncio.get_running_loop()
+        device_api_server.set_notify_fn(
+            _make_notify_fn(application.bot, settings, loop, logger)
+        )
+
     assistant_name = settings.assistant_name
     try:
         await application.bot.set_my_commands([
@@ -203,6 +236,19 @@ async def _post_init(application: Application) -> None:
             )
         except Exception:
             logger.exception("action=restart_notice_failed | chat_id=%s", chat_id)
+
+    git_info = _git_head_info(Path(__file__).parent)
+    started_at = application.bot_data["started_at"].strftime("%Y-%m-%d %H:%M UTC")
+    startup_text = (
+        f"✅ <b>{assistant_name} aktif</b>\n\n"
+        f"Commit: <code>{git_info}</code>\n"
+        f"Waktu: {started_at}"
+    )
+    for uid in settings.admin_user_ids:
+        try:
+            await application.bot.send_message(chat_id=uid, text=startup_text, parse_mode="HTML")
+        except Exception:
+            logger.exception("action=startup_notice_failed | uid=%s", uid)
 
     watch_task = asyncio.create_task(_repo_watch_loop(application))
     service_watch_task = asyncio.create_task(_service_watch_loop(application))

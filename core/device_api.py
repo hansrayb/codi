@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import threading
+from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Callable
 
 from core.device_registry import (
     DeviceRegistryError,
@@ -36,6 +38,12 @@ class DeviceApiServer:
         self._logger = logger
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._notify_fn_cell: list[Callable[[str], None] | None] = [None]
+
+    def set_notify_fn(self, fn: Callable[[str], None]) -> None:
+        """Set a thread-safe callback to send Telegram notifications."""
+
+        self._notify_fn_cell[0] = fn
 
     def start(self) -> None:
         """Start the device API server in a background thread."""
@@ -86,6 +94,7 @@ class DeviceApiServer:
         task_queue = self._task_queue
         logger = self._logger
         shared_token = self._shared_token
+        notify_fn_cell = self._notify_fn_cell
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "CodiDeviceAPI/1.0"
@@ -246,6 +255,8 @@ class DeviceApiServer:
                     task.task_id,
                     task.status,
                 )
+                if task.kind == "self_update":
+                    _notify_self_update(task, registry, notify_fn_cell[0])
                 self._send_json(HTTPStatus.OK, {"ok": True, "task_id": task.task_id, "status": task.status})
 
             def _handle_task_enqueue(self) -> None:
@@ -321,3 +332,29 @@ class DeviceApiServer:
                 self.wfile.write(body)
 
         return Handler
+
+
+def _notify_self_update(task, registry: DeviceRegistryManager, notify_fn: Callable[[str], None] | None) -> None:
+    if notify_fn is None:
+        return
+    device_record = registry.resolve_device(task.device_id)
+    label = escape(device_record.label if device_record else task.device_id)
+    device_id = escape(task.device_id)
+    if task.status == "completed":
+        output = str((task.result or {}).get("output") or "").strip()
+        output_line = f"\n\n<code>{escape(output[:500])}</code>" if output else ""
+        text = (
+            f"🔄 <b>Agent diperbarui</b>\n\n"
+            f"Device: <b>{label}</b> (<code>{device_id}</code>){output_line}"
+        )
+    else:
+        error = escape((task.error or "error tidak diketahui")[:300])
+        text = (
+            f"❌ <b>Agent gagal diperbarui</b>\n\n"
+            f"Device: <b>{label}</b> (<code>{device_id}</code>)\n"
+            f"Error: <code>{error}</code>"
+        )
+    try:
+        notify_fn(text)
+    except Exception:
+        pass
