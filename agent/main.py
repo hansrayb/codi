@@ -106,11 +106,16 @@ def _post_json_for_response(url: str, payload: dict[str, object], shared_token: 
 
 
 def _poll_task(center_url: str, registration_payload: dict[str, object], shared_token: str) -> dict[str, object] | None:
-    response = _post_json_for_response(
-        f"{center_url}/api/device/tasks/poll",
-        registration_payload,
-        shared_token,
-    )
+    try:
+        response = _post_json_for_response(
+            f"{center_url}/api/device/tasks/poll",
+            registration_payload,
+            shared_token,
+        )
+    except SystemExit as exc:
+        if "HTTP 404" in str(exc):
+            return None
+        raise
     task = response.get("task")
     return task if isinstance(task, dict) else None
 
@@ -146,6 +151,8 @@ def _run_and_submit_task(
 def _execute_task(kind: str, payload: dict[str, object]) -> dict[str, object]:
     if kind == "host_status":
         return {"output": _host_status()}
+    if kind == "late_this_month":
+        return {"output": _late_this_month(_payload_cwd(payload))}
     if kind == "sqlite_schema":
         return {"output": _sqlite_schema(_payload_cwd(payload))}
     if kind == "sqlite_query":
@@ -230,6 +237,62 @@ def _sqlite_query(sql: str, cwd: str | None = None) -> str:
         lines.append(f"{row_index}. " + " | ".join(values))
     if len(rows) > 20:
         lines.append("... hasil dipotong ke 20 baris pertama.")
+    return "\n".join(lines)
+
+
+def _late_this_month(cwd: str | None = None) -> str:
+    db_path = _resolve_sqlite_path(cwd)
+    sql = """
+        SELECT
+            user_id,
+            user_name,
+            COUNT(*) AS late_days,
+            MIN(attendance_date) AS first_late,
+            MAX(attendance_date) AS last_late
+        FROM attendance
+        WHERE date(attendance_date) >= date('now', 'localtime', 'start of month')
+          AND date(attendance_date) < date('now', 'localtime', 'start of month', '+1 month')
+          AND (
+            upper(coalesce(status, '')) LIKE '%LATE%'
+            OR upper(coalesce(status, '')) LIKE '%TERLAMBAT%'
+            OR upper(coalesce(status, '')) LIKE '%TELAT%'
+            OR time(check_in_time) > '09:00:59'
+          )
+        GROUP BY user_id, user_name
+        ORDER BY late_days DESC, user_name COLLATE NOCASE
+    """
+    conn = _connect_sqlite_readonly(db_path)
+    cursor = None
+    try:
+        cursor = conn.execute(sql)
+        rows = [dict(zip([item[0] for item in cursor.description or []], row)) for row in cursor.fetchall()]
+    finally:
+        if cursor is not None:
+            cursor.close()
+        conn.close()
+
+    if not rows:
+        return (
+            f"SQLite: {db_path}\n"
+            "Tidak ada karyawan telat bulan ini."
+        )
+
+    total_late_days = sum(int(row["late_days"] or 0) for row in rows)
+    lines = [
+        f"SQLite: {db_path}",
+        "Periode: bulan berjalan",
+        "Definisi telat: status berisi LATE/TERLAMBAT/TELAT atau jam masuk > 09:00:59.",
+        f"Jumlah karyawan telat: {len(rows)}",
+        f"Total kejadian telat: {total_late_days}",
+        "",
+    ]
+    for index, row in enumerate(rows[:50], start=1):
+        lines.append(
+            f"{index}. {row['user_name']} "
+            f"({row['late_days']} hari; {row['first_late']} s.d. {row['last_late']})"
+        )
+    if len(rows) > 50:
+        lines.append(f"... +{len(rows) - 50} karyawan lain.")
     return "\n".join(lines)
 
 

@@ -411,6 +411,15 @@ def classify_device_task(
     normalized = " ".join(task_text.strip().lower().split())
     if normalized in {"status host", "cek status host", "host status", "status server"}:
         return "host_status", {}
+    if (
+        ("telat" in normalized or "terlambat" in normalized or "late" in normalized)
+        and "bulan ini" in normalized
+        and ("karyawan" in normalized or "pegawai" in normalized or "employee" in normalized)
+    ):
+        payload = {}
+        if active_repo:
+            payload["cwd"] = active_repo
+        return "late_this_month", payload
     if "schema" in normalized and ("database" in normalized or "db" in normalized):
         payload: dict[str, object] = {}
         if active_repo:
@@ -439,7 +448,7 @@ def _extract_sql(text: str) -> str | None:
 def _required_capability(kind: str) -> str:
     if kind == "host_status":
         return "system_activity"
-    if kind in {"sqlite_schema", "sqlite_query"}:
+    if kind in {"sqlite_schema", "sqlite_query", "late_this_month"}:
         return "business_readonly"
     return kind
 

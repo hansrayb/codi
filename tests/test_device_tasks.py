@@ -43,6 +43,10 @@ class DeviceTaskParsingTests(unittest.TestCase):
             classify_device_task("select * from absensi"),
             ("sqlite_query", {"sql": "select * from absensi"}),
         )
+        self.assertEqual(
+            classify_device_task("berapa karyawan yang telat bulan ini dan siapa namanya", active_repo="/srv/payroll"),
+            ("late_this_month", {"cwd": "/srv/payroll"}),
+        )
 
     def test_parse_context_prompts(self) -> None:
         self.assertEqual(parse_use_device_request("pakai device absen-server"), "absen-server")
