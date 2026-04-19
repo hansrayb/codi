@@ -17,6 +17,7 @@ from core.device_registry import (
     DeviceRegistration,
     parse_device_registration,
 )
+from core.device_tasks import DeviceTaskQueue
 
 
 class DeviceRegistryManagerTests(unittest.TestCase):
@@ -104,12 +105,17 @@ class DeviceApiServerTests(unittest.TestCase):
             assistant_name="Codi",
             logger=logger,
         )
+        self.task_queue = DeviceTaskQueue(
+            queue_path=Path(self.tempdir.name) / "tasks.json",
+            logger=logger,
+        )
         self.server = DeviceApiServer(
             host="127.0.0.1",
             port=0,
             shared_token="secret-token",
             registry=self.registry,
             logger=logger,
+            task_queue=self.task_queue,
         )
         self.server.start()
         time.sleep(0.05)
@@ -148,6 +154,40 @@ class DeviceApiServerTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, 401)
         ctx.exception.close()
+
+    def test_agent_can_poll_and_submit_task_result(self) -> None:
+        task = self.task_queue.enqueue(
+            device_id="vps-hestia",
+            requested_by=1,
+            kind="host_status",
+            payload={},
+        )
+        poll_response = self._post(
+            "/api/device/tasks/poll",
+            {
+                "device_id": "vps-hestia",
+                "label": "VPS Hestia",
+                "device_type": "server",
+                "hostname": "vps-01",
+                "platform": "Linux",
+                "capabilities": ["system_activity"],
+            },
+        )
+
+        self.assertEqual(poll_response["task"]["task_id"], task.task_id)
+
+        result_response = self._post(
+            "/api/device/tasks/result",
+            {
+                "device_id": "vps-hestia",
+                "task_id": task.task_id,
+                "ok": True,
+                "result": {"output": "host ok"},
+            },
+        )
+
+        self.assertEqual(result_response["status"], "completed")
+        self.assertIn("host ok", self.task_queue.render_task_payload(task.task_id, assistant_name="Codi").text)
 
     def _post(self, path: str, payload: dict[str, object]) -> dict[str, object]:
         req = request.Request(

@@ -178,16 +178,24 @@ export CODI_DEVICE_API_TOKEN=replace_with_shared_secret
 export CODI_DEVICE_ID=laptop-kerja
 export CODI_DEVICE_LABEL="Laptop Kerja"
 export CODI_DEVICE_TYPE=desktop
-export CODI_DEVICE_CAPABILITIES=shell,repo,system_activity,screenshot,desktop
+export CODI_DEVICE_CAPABILITIES=shell,repo,system_activity,screenshot,desktop,business_readonly
+# Hanya diperlukan kalau device ini akan menjalankan query SQLite bisnis.
+export CODI_BUSINESS_DATABASE_PATHS=/path/project-absen/database/absen.sqlite3
 
 python -m agent.main
 ```
 
 Catatan:
 
-- fase ini baru mencakup `registry + heartbeat`, belum task routing lintas device
+- fase 1 mencakup `registry + heartbeat`
+- fase 2 awal mencakup explicit device targeting untuk task read-only sederhana:
+  - `di device absen-server, status host`
+  - `di device absen-server, schema database bisnis`
+  - `di device absen-server, select * from absensi limit 10`
+  - `hasil task dt-xxxxxxxx`
 - untuk host lain, port `DEVICE_API_PORT` harus bisa diakses dari agent
 - gunakan secret yang kuat pada `DEVICE_API_SHARED_TOKEN`
+- agent device melakukan polling outbound ke bot pusat; device selain pusat tetap tidak memakai `TELEGRAM_BOT_TOKEN`
 
 ## Commit / PR Assistant
 

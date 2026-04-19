@@ -212,6 +212,16 @@ class DeviceRegistryManager:
             lines.append(f"IP terakhir: <code>{escape(record.last_ip)}</code>")
         return MessagePayload(text="\n".join(lines), parse_mode="HTML")
 
+    def resolve_device(self, device_ref: str) -> DeviceRecord | None:
+        """Return a matching device record by ID or label."""
+
+        return self._resolve_device(device_ref)
+
+    def is_online_record(self, record: DeviceRecord) -> bool:
+        """Return whether a device record is currently online."""
+
+        return self._is_online(record)
+
     def _upsert_device(
         self,
         registration: DeviceRegistration,

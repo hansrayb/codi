@@ -260,6 +260,16 @@ Belum perlu:
 - self-update
 - approval kompleks lintas device
 
+Status repo saat ini:
+
+- task queue JSON lokal untuk central bot sudah tersedia
+- agent melakukan polling outbound ke pusat
+- task awal yang didukung:
+  - `status host`
+  - schema SQLite bisnis read-only
+  - query SQLite `SELECT/WITH` read-only
+- hasil task dicek manual dari Telegram dengan `hasil task dt-xxxxxxxx`
+
 ### Fase 3: Device Session dan Context
 
 Target:

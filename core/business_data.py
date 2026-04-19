@@ -106,6 +106,10 @@ SKIP_DIR_NAMES = {
 }
 SELECT_SQL = re.compile(r"^\s*(?:select|with)\b", re.IGNORECASE | re.DOTALL)
 PRAGMA_SQL = re.compile(r"^\s*pragma\s+(?:table_info|table_xinfo|index_list|foreign_key_list)\s*\(", re.IGNORECASE)
+FORBIDDEN_SQL = re.compile(
+    r"\b(?:insert|update|delete|drop|alter|create|replace|truncate|attach|detach|vacuum|reindex)\b",
+    re.IGNORECASE,
+)
 COUNT_INTENT = re.compile(r"\b(?:hitung|jumlah|count)\s+(?:data\s+)?(?:di\s+)?(?:tabel\s+|table\s+)?(?P<table>[a-zA-Z_][a-zA-Z0-9_]*)\b", re.IGNORECASE)
 SHOW_TABLE_INTENT = re.compile(r"\b(?:lihat|tampilkan|show|preview)\s+(?:data\s+)?(?:tabel\s+|table\s+)(?P<table>[a-zA-Z_][a-zA-Z0-9_]*)\b", re.IGNORECASE)
 
@@ -375,6 +379,8 @@ def _extract_engine_hint(normalized_text: str) -> str | None:
 
 def _is_readonly_sql(sql: str, target_kind: str) -> bool:
     if ";" in sql.rstrip(";"):
+        return False
+    if FORBIDDEN_SQL.search(sql):
         return False
     if target_kind == "sqlite" and PRAGMA_SQL.match(sql):
         return True

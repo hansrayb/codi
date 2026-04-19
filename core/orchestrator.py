@@ -15,6 +15,12 @@ from config import Settings
 from core.business_data import BusinessDataService
 from core.case_manager import CaseManager
 from core.device_registry import DeviceRegistryManager
+from core.device_tasks import (
+    DeviceTaskQueue,
+    classify_device_task,
+    parse_explicit_device_request,
+    parse_task_status_request,
+)
 from core.desktop_actions import (
     DesktopActionManager,
     DesktopActionError,
@@ -188,6 +194,7 @@ class Orchestrator:
         system_activity_inspector: SystemActivityInspector,
         logger: logging.Logger,
         backend_prefs: BackendPrefs | None = None,
+        device_task_queue: DeviceTaskQueue | None = None,
     ) -> None:
         self._settings = settings
         self._router = router
@@ -206,6 +213,7 @@ class Orchestrator:
         self._logger = logger
         self._backend_prefs = backend_prefs or BackendPrefs(settings.ai_backend)
         self._business_data_service = BusinessDataService(settings)
+        self._device_task_queue = device_task_queue
         self._chat_sessions: dict[int, ChatSessionState] = {}
 
     async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
@@ -854,7 +862,17 @@ class Orchestrator:
     ) -> MessagePayload | None:
         """Handle device-registry queries without invoking Codex."""
 
-        del user_id
+        task_status_id = parse_task_status_request(text)
+        if task_status_id is not None and self._device_task_queue is not None:
+            return self._device_task_queue.render_task_payload(
+                task_status_id,
+                assistant_name=self._settings.assistant_name,
+            )
+
+        explicit_request = parse_explicit_device_request(text)
+        if explicit_request is not None:
+            return self._handle_explicit_device_task(user_id, explicit_request.device_ref, explicit_request.task_text)
+
         query = self._device_registry_manager.classify_message(text)
         if query is None:
             return None
@@ -863,6 +881,59 @@ class Orchestrator:
         if query.action == "detail" and query.device_ref:
             return self._device_registry_manager.render_detail_payload(query.device_ref)
         return None
+
+    def _handle_explicit_device_task(
+        self,
+        user_id: int,
+        device_ref: str,
+        task_text: str,
+    ) -> MessagePayload:
+        if self._device_task_queue is None:
+            return format_error_payload(
+                "Device task queue belum aktif di bot pusat ini.",
+                assistant_name=self._settings.assistant_name,
+            )
+        device = self._device_registry_manager.resolve_device(device_ref)
+        if device is None:
+            return format_error_payload(
+                f"Saya belum menemukan device '{device_ref}'. Cek daftar dengan /devices.",
+                assistant_name=self._settings.assistant_name,
+            )
+        if not self._device_registry_manager.is_online_record(device):
+            return format_error_payload(
+                f"Device {device.label} sedang offline.",
+                assistant_name=self._settings.assistant_name,
+            )
+        classified = classify_device_task(task_text)
+        if classified is None:
+            return format_error_payload(
+                "Task device fase 2 baru mendukung: status host, schema database SQLite, dan query SELECT/WITH SQLite.",
+                assistant_name=self._settings.assistant_name,
+            )
+        kind, payload = classified
+        task = self._device_task_queue.enqueue(
+            device_id=device.device_id,
+            requested_by=user_id,
+            kind=kind,
+            payload=payload,
+        )
+        self._logger.info(
+            "user_id=%s | action=device_task_enqueued | device=%s | task=%s | kind=%s",
+            user_id,
+            device.device_id,
+            task.task_id,
+            kind,
+        )
+        return MessagePayload(
+            text=(
+                f"<b>{escape(self._settings.assistant_name)} mengirim task ke device.</b>\n\n"
+                f"Device: <code>{escape(device.label)}</code> (<code>{escape(device.device_id)}</code>)\n"
+                f"Task: <code>{escape(task.task_id)}</code>\n"
+                f"Jenis: <code>{escape(kind)}</code>\n\n"
+                f"Cek hasil dengan <code>hasil task {escape(task.task_id)}</code>."
+            ),
+            parse_mode="HTML",
+        )
 
     @staticmethod
     def _summarize_session(existing_summary: str, prompt: str) -> str:

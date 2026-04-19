@@ -71,6 +71,7 @@ class BusinessDataServiceTests(unittest.TestCase):
         self.assertTrue(_is_readonly_sql("with recent as (select 1) select * from recent", "mysql"))
         self.assertFalse(_is_readonly_sql("pragma table_info(customers)", "postgresql"))
         self.assertFalse(_is_readonly_sql("select 1; delete from customers", "mysql"))
+        self.assertFalse(_is_readonly_sql("with old as (select 1) delete from customers", "sqlite"))
 
     def test_business_logic_summary_lists_candidate_files(self) -> None:
         service_file = self.root / "app" / "services" / "order_service.py"

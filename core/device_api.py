@@ -12,6 +12,7 @@ from core.device_registry import (
     DeviceRegistryManager,
     parse_device_registration,
 )
+from core.device_tasks import DeviceTaskError, DeviceTaskQueue
 
 
 class DeviceApiServer:
@@ -25,11 +26,13 @@ class DeviceApiServer:
         shared_token: str,
         registry: DeviceRegistryManager,
         logger,
+        task_queue: DeviceTaskQueue | None = None,
     ) -> None:
         self._host = host
         self._port = port
         self._shared_token = shared_token
         self._registry = registry
+        self._task_queue = task_queue
         self._logger = logger
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -80,6 +83,7 @@ class DeviceApiServer:
 
     def _build_handler_class(self):
         registry = self._registry
+        task_queue = self._task_queue
         logger = self._logger
         shared_token = self._shared_token
 
@@ -98,6 +102,13 @@ class DeviceApiServer:
                         HTTPStatus.UNAUTHORIZED,
                         {"ok": False, "error": "unauthorized"},
                     )
+                    return
+
+                if self.path == "/api/device/tasks/poll":
+                    self._handle_task_poll()
+                    return
+                if self.path == "/api/device/tasks/result":
+                    self._handle_task_result()
                     return
 
                 if self.path not in {"/api/device/register", "/api/device/heartbeat"}:
@@ -153,6 +164,86 @@ class DeviceApiServer:
                         "label": record.label,
                     },
                 )
+
+            def _handle_task_poll(self) -> None:
+                if task_queue is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "task_queue_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    registration = parse_device_registration(payload)
+                    registry.record_heartbeat(
+                        registration,
+                        remote_addr=self.client_address[0] if self.client_address else None,
+                    )
+                    task = task_queue.poll(
+                        device_id=registration.device_id,
+                        capabilities=registration.capabilities,
+                    )
+                except DeviceRegistryError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                    return
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=device_task_poll_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "internal_error"})
+                    return
+
+                if task is None:
+                    self._send_json(HTTPStatus.OK, {"ok": True, "task": None})
+                    return
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        "task": {
+                            "task_id": task.task_id,
+                            "kind": task.kind,
+                            "payload": task.payload,
+                        },
+                    },
+                )
+
+            def _handle_task_result(self) -> None:
+                if task_queue is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "task_queue_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    device_id = str(payload.get("device_id") or "").strip()
+                    task_id = str(payload.get("task_id") or "").strip()
+                    ok = bool(payload.get("ok"))
+                    result = payload.get("result")
+                    error_text = payload.get("error")
+                    if not device_id or not task_id:
+                        raise DeviceTaskError("device_id dan task_id wajib diisi.")
+                    task = task_queue.complete(
+                        device_id=device_id,
+                        task_id=task_id,
+                        ok=ok,
+                        result=result if isinstance(result, dict) else {},
+                        error=str(error_text) if error_text else None,
+                    )
+                except DeviceTaskError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                    return
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=device_task_result_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "internal_error"})
+                    return
+
+                logger.info(
+                    "action=device_task_result | device_id=%s | task=%s | status=%s",
+                    task.device_id,
+                    task.task_id,
+                    task.status,
+                )
+                self._send_json(HTTPStatus.OK, {"ok": True, "task_id": task.task_id, "status": task.status})
 
             def log_message(self, fmt: str, *args) -> None:
                 return

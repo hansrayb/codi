@@ -17,6 +17,7 @@ from core.alert_targets import AlertTargetRegistry
 from core.case_manager import CaseManager
 from core.device_api import DeviceApiServer
 from core.device_registry import DeviceRegistryManager
+from core.device_tasks import DeviceTaskQueue
 from core.desktop_actions import DesktopActionManager
 from core.desktop_screenshot import DesktopScreenshotService
 from core.edit_approval import EditApprovalManager
@@ -54,11 +55,16 @@ def build_application(settings: Settings) -> Application:
         assistant_name=settings.assistant_name,
         logger=logger,
     )
+    device_task_queue = DeviceTaskQueue(
+        queue_path=settings.codex_work_dir / "codi-device-tasks.json",
+        logger=logger,
+    )
     device_api_server = DeviceApiServer(
         host=settings.device_api_host,
         port=settings.device_api_port,
         shared_token=settings.device_api_shared_token or "",
         registry=device_registry_manager,
+        task_queue=device_task_queue,
         logger=logger,
     )
     desktop_action_manager = DesktopActionManager()
@@ -109,6 +115,7 @@ def build_application(settings: Settings) -> Application:
         safety_manager,
         system_activity_inspector,
         logger,
+        device_task_queue=device_task_queue,
     )
 
     application = (
@@ -130,6 +137,7 @@ def build_application(settings: Settings) -> Application:
             "alert_target_registry": alert_target_registry,
             "service_watch_manager": service_watch_manager,
             "device_registry_manager": device_registry_manager,
+            "device_task_queue": device_task_queue,
             "device_api_server": device_api_server,
             "desktop_action_manager": desktop_action_manager,
             "desktop_screenshot_service": desktop_screenshot_service,
