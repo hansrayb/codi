@@ -1,0 +1,57 @@
+name: Codi Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - Codi CI
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codi-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-center:
+    name: Deploy Codi center
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: >
+      vars.CODI_DEPLOY_ENABLED == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      )
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_DIR: ${{ secrets.CODI_APP_DIR }}
+          SERVICE_NAME: ${{ secrets.CODI_SERVICE_NAME }}
+        with:
+          host: ${{ secrets.CODI_DEPLOY_HOST }}
+          username: ${{ secrets.CODI_DEPLOY_USER }}
+          key: ${{ secrets.CODI_DEPLOY_SSH_KEY }}
+          port: ${{ secrets.CODI_DEPLOY_PORT || 22 }}
+          envs: APP_DIR,SERVICE_NAME
+          script_stop: true
+          script: |
+            set -eu
+            cd "$APP_DIR"
+            git fetch --prune origin
+            git checkout main
+            git pull --ff-only origin main
+            .venv/bin/python -m pip install -r requirements.txt
+            .venv/bin/python -m compileall config.py main.py handlers core models utils tests agent
+            .venv/bin/python -m unittest discover -s tests -v
+            systemctl --user restart "$SERVICE_NAME"
+            systemctl --user --no-pager status "$SERVICE_NAME"

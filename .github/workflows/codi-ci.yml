@@ -1,0 +1,65 @@
+name: Codi CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - ".github/workflows/**"
+      - "agent/**"
+      - "core/**"
+      - "handlers/**"
+      - "models/**"
+      - "scripts/**"
+      - "tests/**"
+      - "utils/**"
+      - "config.py"
+      - "main.py"
+      - "requirements.txt"
+      - "codi-alert-targets.json"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "agent/**"
+      - "core/**"
+      - "handlers/**"
+      - "models/**"
+      - "scripts/**"
+      - "tests/**"
+      - "utils/**"
+      - "config.py"
+      - "main.py"
+      - "requirements.txt"
+      - "codi-alert-targets.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Compile and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile Python files
+        run: python -m compileall config.py main.py handlers core models utils tests agent
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
