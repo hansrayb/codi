@@ -286,10 +286,18 @@ class DeviceTaskQueue:
             output = str(task.result.get("output") or "").strip()
             if output:
                 lines.extend(["", escape(output[:3500])])
-        if task.status not in TERMINAL_STATES:
+        is_terminal = task.status in TERMINAL_STATES
+        if not is_terminal:
             lines.append("")
             lines.append(f"Cek lagi dengan <code>hasil task {escape(task.task_id)}</code>.")
-        return MessagePayload(text="\n".join(lines), parse_mode="HTML")
+        refresh_button: tuple[tuple[str, str], ...] | None = None
+        if not is_terminal:
+            refresh_button = (("🔄 Refresh Hasil", f"device:task:{task.task_id}"),)
+        return MessagePayload(
+            text="\n".join(lines),
+            parse_mode="HTML",
+            inline_buttons=refresh_button,
+        )
 
     def _expire_old_locked(self, now: float) -> None:
         for task in tuple(self._tasks.values()):
@@ -446,7 +454,7 @@ def _extract_sql(text: str) -> str | None:
 
 
 def _required_capability(kind: str) -> str:
-    if kind == "host_status":
+    if kind in {"host_status", "self_update", "natural_query"}:
         return "system_activity"
     if kind in {"sqlite_schema", "sqlite_query", "late_this_month"}:
         return "business_readonly"

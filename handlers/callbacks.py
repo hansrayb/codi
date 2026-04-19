@@ -38,6 +38,26 @@ async def handle_callback_query(
         )
         return
 
+    if data.startswith("device:task:"):
+        task_id = data[len("device:task:"):]
+        task_queue = context.application.bot_data.get("device_task_queue")
+        if task_queue is None:
+            await query.answer("Task queue tidak aktif.")
+            return
+        payload = task_queue.render_task_payload(task_id, assistant_name=assistant_name)
+        new_markup: InlineKeyboardMarkup | None = None
+        if payload.inline_buttons:
+            from telegram import InlineKeyboardButton
+            new_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton(label, callback_data=cb) for label, cb in payload.inline_buttons]
+            ])
+        await query.edit_message_text(
+            payload.text,
+            parse_mode=payload.parse_mode,
+            reply_markup=new_markup,
+        )
+        return
+
     if data.startswith("cekrepo:select:"):
         repo_path = data[len("cekrepo:select:"):]
         try:

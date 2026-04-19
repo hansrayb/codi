@@ -110,6 +110,9 @@ class DeviceApiServer:
                 if self.path == "/api/device/tasks/result":
                     self._handle_task_result()
                     return
+                if self.path == "/api/device/tasks/enqueue":
+                    self._handle_task_enqueue()
+                    return
 
                 if self.path not in {"/api/device/register", "/api/device/heartbeat"}:
                     self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
@@ -244,6 +247,50 @@ class DeviceApiServer:
                     task.status,
                 )
                 self._send_json(HTTPStatus.OK, {"ok": True, "task_id": task.task_id, "status": task.status})
+
+            def _handle_task_enqueue(self) -> None:
+                if task_queue is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "task_queue_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    device_id_raw = str(payload.get("device_id") or "").strip()
+                    kind = str(payload.get("kind") or "").strip()
+                    task_payload = payload.get("payload", {})
+                    if not device_id_raw or not kind:
+                        raise DeviceTaskError("device_id dan kind wajib diisi.")
+                    if not isinstance(task_payload, dict):
+                        task_payload = {}
+                    if device_id_raw == "all":
+                        device_ids = registry.get_all_device_ids()
+                    else:
+                        device_ids = [device_id_raw]
+                    created = []
+                    for dev_id in device_ids:
+                        task = task_queue.enqueue(
+                            device_id=dev_id,
+                            requested_by=0,
+                            kind=kind,
+                            payload=task_payload,
+                        )
+                        created.append({"device_id": dev_id, "task_id": task.task_id})
+                        logger.info(
+                            "action=device_task_enqueue_api | device_id=%s | task=%s | kind=%s",
+                            dev_id,
+                            task.task_id,
+                            kind,
+                        )
+                except DeviceTaskError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+                    return
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=device_task_enqueue_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "internal_error"})
+                    return
+                self._send_json(HTTPStatus.OK, {"ok": True, "tasks": created})
 
             def log_message(self, fmt: str, *args) -> None:
                 return

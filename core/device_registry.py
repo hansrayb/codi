@@ -217,6 +217,12 @@ class DeviceRegistryManager:
 
         return self._resolve_device(device_ref)
 
+    def get_all_device_ids(self) -> list[str]:
+        """Return a list of all registered device IDs."""
+
+        with self._lock:
+            return list(self._devices.keys())
+
     def is_online_record(self, record: DeviceRecord) -> bool:
         """Return whether a device record is currently online."""
 

@@ -146,11 +146,20 @@ def _run_and_submit_task(
         }
     _post_json(f"{center_url}/api/device/tasks/result", body, shared_token)
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] task {task_id} submitted", flush=True)
+    if kind == "self_update" and body.get("ok"):
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] self_update selesai, agent restart.", flush=True)
+        sys.exit(0)
 
 
 def _execute_task(kind: str, payload: dict[str, object]) -> dict[str, object]:
     if kind == "host_status":
         return {"output": _host_status()}
+    if kind == "self_update":
+        return {"output": _self_update()}
+    if kind == "natural_query":
+        query = str(payload.get("query") or "").strip()
+        cwd = _payload_cwd(payload)
+        return {"output": _natural_query(query, cwd)}
     if kind == "late_this_month":
         return {"output": _late_this_month(_payload_cwd(payload))}
     if kind == "sqlite_schema":
@@ -173,6 +182,65 @@ def _host_status() -> str:
             f"Load average: {loadavg}",
         )
     )
+
+
+def _self_update() -> str:
+    import subprocess
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    result = subprocess.run(
+        ["git", "-C", repo_root, "pull"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    output = (result.stdout + result.stderr).strip()
+    if result.returncode != 0:
+        raise RuntimeError(f"git pull gagal (exit {result.returncode}):\n{output}")
+    return output or "Already up to date."
+
+
+def _natural_query(query: str, cwd: str | None) -> str:
+    import subprocess
+
+    if not query:
+        raise RuntimeError("Query tidak boleh kosong.")
+
+    try:
+        schema = _sqlite_schema(cwd)
+    except Exception as exc:
+        schema = f"(schema tidak tersedia: {exc})"
+
+    try:
+        db_path = _resolve_sqlite_path(cwd)
+    except Exception:
+        db_path = "(tidak ditemukan)"
+
+    prompt = (
+        f"Kamu adalah asisten analis data bisnis.\n"
+        f"Database SQLite tersedia di: {db_path}\n\n"
+        f"Schema database:\n{schema}\n\n"
+        f"Pertanyaan: {query}\n\n"
+        f"Gunakan Bash untuk menjalankan query SQL ke database tersebut, "
+        f"kemudian berikan jawaban dalam Bahasa Indonesia yang jelas dan ringkas. "
+        f"Jangan tampilkan SQL mentah dalam jawaban akhir."
+    )
+
+    work_dir = cwd if cwd and os.path.isdir(cwd) else None
+    result = subprocess.run(
+        ["claude", "--print", "--allowedTools", "Bash"],
+        input=prompt,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        cwd=work_dir,
+        encoding="utf-8",
+    )
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise RuntimeError(f"claude CLI gagal (exit {result.returncode}): {stderr[:400]}")
+
+    return result.stdout.strip() or "(tidak ada jawaban)"
 
 
 def _read_uptime() -> str:

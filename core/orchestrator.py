@@ -901,12 +901,25 @@ class Orchestrator:
             )
 
         query = self._device_registry_manager.classify_message(text)
-        if query is None:
+        if query is not None:
+            if query.action == "list":
+                return self._device_registry_manager.render_list_payload()
+            if query.action == "detail" and query.device_ref:
+                return self._device_registry_manager.render_detail_payload(query.device_ref)
             return None
-        if query.action == "list":
-            return self._device_registry_manager.render_list_payload()
-        if query.action == "detail" and query.device_ref:
-            return self._device_registry_manager.render_detail_payload(query.device_ref)
+
+        if (
+            self._device_context_store is not None
+            and self._device_task_queue is not None
+        ):
+            active_device_id = self._device_context_store.get_active_device(user_id)
+            if active_device_id:
+                device = self._device_registry_manager.resolve_device(active_device_id)
+                if device is not None and self._device_registry_manager.is_online_record(device):
+                    ctx = self._device_context_store.get_context(user_id, active_device_id)
+                    if ctx.active_repo:
+                        return self._handle_natural_device_query(user_id, device, text, ctx)
+
         return None
 
     def _set_active_device(self, user_id: int, device_ref: str) -> MessagePayload:
@@ -1021,21 +1034,18 @@ class Orchestrator:
             if self._device_context_store is not None
             else None
         )
-        classified = classify_device_task(
-            task_text,
-            active_repo=context.active_repo if context is not None else None,
-        )
+        active_repo = context.active_repo if context is not None else None
+        classified = classify_device_task(task_text, active_repo=active_repo)
         if classified is None:
-            return format_error_payload(
-                "Task device fase 3 baru mendukung: status host, schema database SQLite, dan query SELECT/WITH SQLite.",
-                assistant_name=self._settings.assistant_name,
-            )
-        kind, payload = classified
+            kind = "natural_query"
+            task_payload: dict[str, object] = {"query": task_text, "cwd": active_repo or ""}
+        else:
+            kind, task_payload = classified
         task = self._device_task_queue.enqueue(
             device_id=device.device_id,
             requested_by=user_id,
             kind=kind,
-            payload=payload,
+            payload=task_payload,
         )
         self._logger.info(
             "user_id=%s | action=device_task_enqueued | device=%s | task=%s | kind=%s",
@@ -1044,17 +1054,57 @@ class Orchestrator:
             task.task_id,
             kind,
         )
+        return self._device_task_queued_payload(device, task, kind, task_payload)
+
+    def _device_task_queued_payload(
+        self,
+        device,
+        task,
+        kind: str,
+        task_payload: dict[str, object],
+    ) -> MessagePayload:
+        cwd_label = str(task_payload.get("cwd") or task_payload.get("query") or "-")
+        if kind == "natural_query":
+            query_preview = str(task_payload.get("query") or "")
+            if len(query_preview) > 80:
+                query_preview = query_preview[:77] + "..."
+            detail_line = f"Pertanyaan: <i>{escape(query_preview)}</i>"
+        else:
+            detail_line = f"Repo context: <code>{escape(cwd_label)}</code>"
         return MessagePayload(
             text=(
                 f"<b>{escape(self._settings.assistant_name)} mengirim task ke device.</b>\n\n"
                 f"Device: <code>{escape(device.label)}</code> (<code>{escape(device.device_id)}</code>)\n"
                 f"Task: <code>{escape(task.task_id)}</code>\n"
                 f"Jenis: <code>{escape(kind)}</code>\n"
-                f"Repo context: <code>{escape(payload.get('cwd') or '-')}</code>\n\n"
+                f"{detail_line}\n\n"
                 f"Cek hasil dengan <code>hasil task {escape(task.task_id)}</code>."
             ),
             parse_mode="HTML",
+            inline_buttons=(("🔄 Cek Hasil", f"device:task:{task.task_id}"),),
         )
+
+    def _handle_natural_device_query(
+        self,
+        user_id: int,
+        device,
+        query_text: str,
+        context,
+    ) -> MessagePayload:
+        if self._device_task_queue is None:
+            return format_error_payload("Device task queue belum aktif.", assistant_name=self._settings.assistant_name)
+        task_payload: dict[str, object] = {"query": query_text, "cwd": context.active_repo or ""}
+        task = self._device_task_queue.enqueue(
+            device_id=device.device_id,
+            requested_by=user_id,
+            kind="natural_query",
+            payload=task_payload,
+        )
+        self._logger.info(
+            "user_id=%s | action=natural_query_enqueued | device=%s | task=%s",
+            user_id, device.device_id, task.task_id,
+        )
+        return self._device_task_queued_payload(device, task, "natural_query", task_payload)
 
     @staticmethod
     def _summarize_session(existing_summary: str, prompt: str) -> str:
