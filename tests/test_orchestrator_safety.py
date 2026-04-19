@@ -85,6 +85,7 @@ class OrchestratorSafetyTests(unittest.IsolatedAsyncioTestCase):
             codex_timeout=600,
             codex_bin="codex",
             codex_reasoning_effort="medium",
+            ai_backend="codex",
         )
         self.orchestrator = Orchestrator(
             settings,
