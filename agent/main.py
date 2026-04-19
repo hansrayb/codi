@@ -182,7 +182,8 @@ def _read_uptime() -> str:
 def _sqlite_schema(cwd: str | None = None) -> str:
     db_path = _resolve_sqlite_path(cwd)
     lines = [f"SQLite: {db_path}"]
-    with _connect_sqlite_readonly(db_path) as conn:
+    conn = _connect_sqlite_readonly(db_path)
+    try:
         tables = conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' "
             "AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -195,6 +196,8 @@ def _sqlite_schema(cwd: str | None = None) -> str:
             if len(columns) > 12:
                 column_text += f", +{len(columns) - 12} kolom"
             lines.append(f"- {table_name}: {column_text or '-'}")
+    finally:
+        conn.close()
     return "\n".join(lines)
 
 
@@ -202,11 +205,17 @@ def _sqlite_query(sql: str, cwd: str | None = None) -> str:
     if not _is_readonly_sql(sql):
         raise RuntimeError("Remote SQLite hanya menerima SELECT/WITH.")
     db_path = _resolve_sqlite_path(cwd)
-    with _connect_sqlite_readonly(db_path) as conn:
+    conn = _connect_sqlite_readonly(db_path)
+    cursor = None
+    try:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(sql)
-        rows = cursor.fetchmany(21)
         columns = [description[0] for description in cursor.description or []]
+        rows = [dict(row) for row in cursor.fetchmany(21)]
+    finally:
+        if cursor is not None:
+            cursor.close()
+        conn.close()
     if not columns:
         return "Query selesai tanpa hasil tabular."
     if not rows:
@@ -287,8 +296,8 @@ def _default_device_type() -> str:
 
 def _default_capabilities(device_type: str) -> str:
     if device_type == "server":
-        return "shell,repo,systemd"
-    return "shell,repo,system_activity,screenshot,desktop"
+        return "system_activity"
+    return "system_activity"
 
 
 def _require_env(name: str) -> str:
