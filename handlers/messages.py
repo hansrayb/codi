@@ -82,11 +82,7 @@ async def handle_text_message(
 
 
 async def _send_payload(message, payload) -> None:
-    reply_markup = None
-    if payload.inline_buttons:
-        reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton(label, callback_data=data) for label, data in payload.inline_buttons]
-        ])
+    reply_markup = _build_inline_markup(payload.inline_buttons)
     await message.reply_text(payload.text, parse_mode=payload.parse_mode, reply_markup=reply_markup)
     if payload.has_photo:
         photo = InputFile(
@@ -101,6 +97,19 @@ async def _send_payload(message, payload) -> None:
         filename=payload.attachment_filename or "output.txt",
     )
     await message.reply_document(document=document)
+
+
+def _build_inline_markup(inline_buttons):
+    if not inline_buttons:
+        return None
+    rows = []
+    current_row = []
+    for index, (label, data) in enumerate(inline_buttons, start=1):
+        current_row.append(InlineKeyboardButton(label, callback_data=data))
+        if len(current_row) == 2 or index == len(inline_buttons):
+            rows.append(current_row)
+            current_row = []
+    return InlineKeyboardMarkup(rows)
 
 
 async def _handle_post_send_action(

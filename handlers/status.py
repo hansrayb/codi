@@ -38,6 +38,16 @@ async def status_command(
     active_case_title = snapshot["active_case_title"] or "-"
     active_repo_path = snapshot["active_case_repo"] or active_cwd or "-"
     safety_pending = snapshot["safety_pending"] or "-"
+    active_target_kind = snapshot.get("active_target_kind", "host")
+    active_target_device_id = snapshot.get("active_target_device_id")
+    active_target_device_label = snapshot.get("active_target_device_label")
+    if active_target_kind == "device" and active_target_device_id:
+        target_display = (
+            f"device {active_target_device_label or active_target_device_id}"
+            f" ({active_target_device_id})"
+        )
+    else:
+        target_display = "host pusat"
 
     cpu_percent = psutil.cpu_percent(interval=1)
     cpu_count = psutil.cpu_count() or 1
@@ -57,6 +67,7 @@ async def status_command(
         f"Role aktif      : {snapshot['active_role'] or '-'}",
         f"Repo aktif      : {active_workspace}",
         f"Path repo aktif : {active_repo_path}",
+        f"Target aktif    : {target_display}",
         f"Repo dipantau   : {snapshot['watched_repos']}",
         (
             "Monitor host   : "

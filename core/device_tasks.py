@@ -32,6 +32,10 @@ _USE_DEVICE_PATTERN = re.compile(
     r"^\s*(?:pakai|gunakan|set|ganti\s+ke)\s+device\s+(?P<device>[a-zA-Z0-9._:-]+)\s*$",
     re.IGNORECASE,
 )
+_USE_HOST_PATTERN = re.compile(
+    r"^\s*(?:pakai|gunakan|set|ganti\s+ke)\s+(?:host\s+pusat|komputer\s+induk|host|pusat)\s*$",
+    re.IGNORECASE,
+)
 _DEVICE_REPO_PATTERN = re.compile(
     r"^\s*(?:di\s+device\s+(?P<device>[a-zA-Z0-9._:-]+)\s*,?\s+)?(?:pakai|gunakan|set)\s+repo\s+(?P<repo>.+)$",
     re.IGNORECASE,
@@ -82,6 +86,16 @@ class DeviceContext:
     updated_at: float
 
 
+@dataclass(frozen=True)
+class ActiveTarget:
+    """Persisted target selection for one user."""
+
+    user_id: int
+    target_kind: str
+    device_id: str | None
+    updated_at: float
+
+
 class DeviceContextStore:
     """JSON-backed active device and per-device repo context."""
 
@@ -90,21 +104,51 @@ class DeviceContextStore:
         self._logger = logger
         self._lock = threading.RLock()
         self._active_devices: dict[int, str] = {}
+        self._active_targets: dict[int, ActiveTarget] = {}
         self._contexts: dict[tuple[int, str], DeviceContext] = {}
         self._load()
 
     def set_active_device(self, user_id: int, device_id: str) -> None:
         with self._lock:
             self._active_devices[user_id] = device_id
+            self._active_targets[user_id] = ActiveTarget(
+                user_id=user_id,
+                target_kind="device",
+                device_id=device_id,
+                updated_at=time.time(),
+            )
             self._contexts.setdefault(
                 (user_id, device_id),
                 DeviceContext(user_id=user_id, device_id=device_id, active_repo=None, updated_at=time.time()),
             )
             self._save_locked()
 
+    def set_host_target(self, user_id: int) -> None:
+        with self._lock:
+            remembered_device = self._active_devices.get(user_id)
+            self._active_targets[user_id] = ActiveTarget(
+                user_id=user_id,
+                target_kind="host",
+                device_id=remembered_device,
+                updated_at=time.time(),
+            )
+            self._save_locked()
+
     def get_active_device(self, user_id: int) -> str | None:
         with self._lock:
             return self._active_devices.get(user_id)
+
+    def get_active_target(self, user_id: int) -> ActiveTarget:
+        with self._lock:
+            target = self._active_targets.get(user_id)
+            if target is not None:
+                return target
+            return ActiveTarget(
+                user_id=user_id,
+                target_kind="host",
+                device_id=self._active_devices.get(user_id),
+                updated_at=0.0,
+            )
 
     def set_active_repo(self, user_id: int, device_id: str, repo_path: str) -> DeviceContext:
         context = DeviceContext(
@@ -115,6 +159,12 @@ class DeviceContextStore:
         )
         with self._lock:
             self._active_devices[user_id] = device_id
+            self._active_targets[user_id] = ActiveTarget(
+                user_id=user_id,
+                target_kind="device",
+                device_id=device_id,
+                updated_at=time.time(),
+            )
             self._contexts[(user_id, device_id)] = context
             self._save_locked()
         return context
@@ -139,6 +189,22 @@ class DeviceContextStore:
                 int(user_id): str(device_id)
                 for user_id, device_id in dict(payload.get("active_devices", {})).items()
             }
+            active_targets: dict[int, ActiveTarget] = {}
+            for raw in payload.get("active_targets", []):
+                try:
+                    target_kind = str(raw.get("target_kind") or "host").strip().lower() or "host"
+                    if target_kind not in {"host", "device"}:
+                        target_kind = "host"
+                    target = ActiveTarget(
+                        user_id=int(raw["user_id"]),
+                        target_kind=target_kind,
+                        device_id=str(raw["device_id"]) if raw.get("device_id") else None,
+                        updated_at=float(raw.get("updated_at", 0.0)),
+                    )
+                except Exception:
+                    self._logger.exception("action=device_target_record_invalid | path=%s", self._context_path)
+                    continue
+                active_targets[target.user_id] = target
             contexts: dict[tuple[int, str], DeviceContext] = {}
             for raw in payload.get("contexts", []):
                 try:
@@ -152,12 +218,27 @@ class DeviceContextStore:
                     self._logger.exception("action=device_context_record_invalid | path=%s", self._context_path)
                     continue
                 contexts[(context.user_id, context.device_id)] = context
+            for user_id, device_id in self._active_devices.items():
+                active_targets.setdefault(
+                    user_id,
+                    ActiveTarget(
+                        user_id=user_id,
+                        target_kind="host",
+                        device_id=device_id,
+                        updated_at=0.0,
+                    ),
+                )
+            self._active_targets = active_targets
             self._contexts = contexts
 
     def _save_locked(self) -> None:
         payload = {
             "version": 1,
             "active_devices": {str(user_id): device_id for user_id, device_id in sorted(self._active_devices.items())},
+            "active_targets": [
+                asdict(target)
+                for target in sorted(self._active_targets.values(), key=lambda item: item.user_id)
+            ],
             "contexts": [
                 asdict(context)
                 for context in sorted(self._contexts.values(), key=lambda item: (item.user_id, item.device_id))
@@ -391,6 +472,12 @@ def parse_use_device_request(text: str) -> str | None:
     return match.group("device").strip()
 
 
+def parse_use_host_request(text: str) -> bool:
+    """Parse prompts like `pakai host pusat`."""
+
+    return bool(_USE_HOST_PATTERN.match(text.strip()))
+
+
 def parse_device_repo_request(text: str) -> tuple[str | None, str] | None:
     """Parse prompts like `di device x, pakai repo /srv/app` or `pakai repo /srv/app`."""
 
@@ -454,8 +541,16 @@ def _extract_sql(text: str) -> str | None:
 
 
 def _required_capability(kind: str) -> str:
-    if kind in {"host_status", "self_update", "natural_query"}:
+    return required_capability_for_task(kind)
+
+
+def required_capability_for_task(kind: str) -> str:
+    """Return the device capability required to execute a task kind."""
+
+    if kind in {"host_status", "self_update"}:
         return "system_activity"
+    if kind == "natural_query":
+        return "natural_query"
     if kind in {"sqlite_schema", "sqlite_query", "late_this_month"}:
         return "business_readonly"
     return kind

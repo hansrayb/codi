@@ -147,12 +147,7 @@ class DeviceRegistryManager:
     def render_list_payload(self) -> MessagePayload:
         """Render a Telegram payload listing known devices and their status."""
 
-        with self._lock:
-            devices = sorted(
-                self._devices.values(),
-                key=lambda item: (not self._is_online(item), item.label.lower(), item.device_id),
-            )
-
+        devices = self.list_records()
         if not devices:
             return MessagePayload(
                 text=(
@@ -178,6 +173,16 @@ class DeviceRegistryManager:
                 )
             )
         return MessagePayload(text="\n".join(lines), parse_mode="HTML")
+
+    def list_records(self) -> tuple[DeviceRecord, ...]:
+        """Return all known devices sorted by online status and label."""
+
+        with self._lock:
+            devices = tuple(sorted(
+                self._devices.values(),
+                key=lambda item: (not self._is_online(item), item.label.lower(), item.device_id),
+            ))
+        return devices
 
     def render_detail_payload(self, device_ref: str) -> MessagePayload:
         """Render a Telegram payload with the full detail of one device."""

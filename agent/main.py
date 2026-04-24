@@ -6,10 +6,12 @@ import json
 import os
 import platform
 import re
+import shutil
 import socket
 import sqlite3
 import sys
 import time
+from pathlib import Path
 from urllib import error, request
 
 
@@ -395,9 +397,8 @@ def _payload_cwd(payload: dict[str, object]) -> str | None:
 
 
 def _connect_sqlite_readonly(db_path: str) -> sqlite3.Connection:
-    from urllib.parse import quote
-
-    return sqlite3.connect(f"file:{quote(db_path, safe='/')}?mode=ro", uri=True)
+    db_uri = Path(db_path).resolve().as_uri()
+    return sqlite3.connect(f"{db_uri}?mode=ro", uri=True)
 
 
 def _is_readonly_sql(sql: str) -> bool:
@@ -426,9 +427,10 @@ def _default_device_type() -> str:
 
 
 def _default_capabilities(device_type: str) -> str:
-    if device_type == "server":
-        return "system_activity"
-    return "system_activity"
+    capabilities = ["system_activity", "business_readonly"]
+    if shutil.which("claude"):
+        capabilities.append("natural_query")
+    return ",".join(capabilities)
 
 
 def _require_env(name: str) -> str:

@@ -9,7 +9,7 @@ from telegram.ext import ContextTypes
 
 from core.orchestrator import OrchestratorUserError
 from handlers.auth import get_user_role, require_role
-from handlers.messages import _send_payload
+from handlers.messages import _build_inline_markup, _send_payload
 
 
 @require_role("business")
@@ -45,16 +45,20 @@ async def handle_callback_query(
             await query.answer("Task queue tidak aktif.")
             return
         payload = task_queue.render_task_payload(task_id, assistant_name=assistant_name)
-        new_markup: InlineKeyboardMarkup | None = None
-        if payload.inline_buttons:
-            from telegram import InlineKeyboardButton
-            new_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton(label, callback_data=cb) for label, cb in payload.inline_buttons]
-            ])
+        new_markup: InlineKeyboardMarkup | None = _build_inline_markup(payload.inline_buttons)
         await query.edit_message_text(
             payload.text,
             parse_mode=payload.parse_mode,
             reply_markup=new_markup,
+        )
+        return
+
+    if data.startswith("device:panel:") or data.startswith("device:target:") or data.startswith("device:detail:"):
+        payload = orchestrator.handle_device_panel_callback(user.id, data)
+        await query.edit_message_text(
+            payload.text,
+            parse_mode=payload.parse_mode,
+            reply_markup=_build_inline_markup(payload.inline_buttons),
         )
         return
 

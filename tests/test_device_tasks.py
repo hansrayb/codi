@@ -17,6 +17,8 @@ from core.device_tasks import (
     parse_device_repo_request,
     parse_task_status_request,
     parse_use_device_request,
+    parse_use_host_request,
+    required_capability_for_task,
 )
 
 
@@ -50,6 +52,7 @@ class DeviceTaskParsingTests(unittest.TestCase):
 
     def test_parse_context_prompts(self) -> None:
         self.assertEqual(parse_use_device_request("pakai device absen-server"), "absen-server")
+        self.assertTrue(parse_use_host_request("pakai host pusat"))
         self.assertTrue(is_active_device_query("device aktif apa"))
         self.assertEqual(
             parse_device_repo_request("di device absen-server, pakai repo /srv/absen"),
@@ -79,6 +82,16 @@ class DeviceContextStoreTests(unittest.TestCase):
 
         self.assertEqual(reloaded.get_active_device(1), "absen-server")
         self.assertEqual(reloaded.get_context(1, "absen-server").active_repo, "/srv/absen")
+        self.assertEqual(reloaded.get_active_target(1).target_kind, "device")
+
+    def test_host_target_is_persisted_without_losing_last_device(self) -> None:
+        self.store.set_active_device(1, "absen-server")
+        self.store.set_host_target(1)
+
+        reloaded = DeviceContextStore(context_path=self.context_path, logger=self.logger)
+
+        self.assertEqual(reloaded.get_active_target(1).target_kind, "host")
+        self.assertEqual(reloaded.get_active_device(1), "absen-server")
 
 
 class DeviceTaskQueueTests(unittest.TestCase):
@@ -129,6 +142,18 @@ class DeviceTaskQueueTests(unittest.TestCase):
 
         self.assertIsNone(self.queue.poll(device_id="absen-server", capabilities=("system_activity",)))
         self.assertIsNotNone(self.queue.poll(device_id="absen-server", capabilities=("business_readonly",)))
+
+    def test_natural_query_requires_explicit_capability(self) -> None:
+        self.queue.enqueue(
+            device_id="absen-server",
+            requested_by=1,
+            kind="natural_query",
+            payload={"query": "cek database"},
+        )
+
+        self.assertEqual(required_capability_for_task("natural_query"), "natural_query")
+        self.assertIsNone(self.queue.poll(device_id="absen-server", capabilities=("system_activity",)))
+        self.assertIsNotNone(self.queue.poll(device_id="absen-server", capabilities=("natural_query",)))
 
 
 if __name__ == "__main__":

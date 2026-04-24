@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from handlers.auth import require_auth, require_role
+from handlers.messages import _build_inline_markup
 
 
 @require_auth
@@ -91,12 +92,17 @@ async def devices_command(
     """List registered devices known by the central bot."""
 
     message = update.effective_message
-    if message is None:
+    user = update.effective_user
+    if message is None or user is None:
         return
 
-    registry = context.application.bot_data["device_registry_manager"]
-    payload = registry.render_list_payload()
-    await message.reply_text(payload.text, parse_mode=payload.parse_mode)
+    orchestrator = context.application.bot_data["orchestrator"]
+    payload = orchestrator.render_devices_panel(user.id)
+    await message.reply_text(
+        payload.text,
+        parse_mode=payload.parse_mode,
+        reply_markup=_build_inline_markup(payload.inline_buttons),
+    )
 
 
 def _build_help_text(context: ContextTypes.DEFAULT_TYPE) -> str:
@@ -120,6 +126,8 @@ Contoh:
 - device yang online apa saja
 - status semua device
 - detail device laptop-kerja
+- pakai host pusat
+- pakai device absen-server
 - Codi laptop ku sedang menjalankan aplikasi apa
 - tampilkan log Codi terbaru
 - kirim screenshot laptop sekarang

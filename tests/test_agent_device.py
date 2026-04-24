@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent.main import _resolve_sqlite_path, _sqlite_query
+from agent.main import _default_capabilities, _resolve_sqlite_path, _sqlite_query
 
 
 class AgentDeviceExecutionTests(unittest.TestCase):
@@ -29,14 +29,33 @@ class AgentDeviceExecutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             db_path = root / "absen.sqlite3"
-            with sqlite3.connect(db_path) as conn:
+            conn = sqlite3.connect(db_path)
+            try:
                 conn.execute("CREATE TABLE absensi (id INTEGER PRIMARY KEY, nama TEXT)")
                 conn.execute("INSERT INTO absensi (nama) VALUES ('Ayu')")
+                conn.commit()
+            finally:
+                conn.close()
 
             with mock.patch.dict(os.environ, {"CODI_BUSINESS_DATABASE_PATHS": ""}, clear=False):
                 output = _sqlite_query("select nama from absensi", str(root))
 
             self.assertIn("Ayu", output)
+
+    def test_default_capabilities_advertise_available_handlers(self) -> None:
+        with mock.patch("agent.main.shutil.which", return_value="/usr/bin/claude"):
+            capabilities = _default_capabilities("server").split(",")
+
+        self.assertIn("system_activity", capabilities)
+        self.assertIn("business_readonly", capabilities)
+        self.assertIn("natural_query", capabilities)
+
+    def test_default_capabilities_skip_natural_query_without_claude(self) -> None:
+        with mock.patch("agent.main.shutil.which", return_value=None):
+            capabilities = _default_capabilities("server").split(",")
+
+        self.assertIn("business_readonly", capabilities)
+        self.assertNotIn("natural_query", capabilities)
 
 
 if __name__ == "__main__":
