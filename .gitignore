@@ -4,3 +4,4 @@ __pycache__/
 codi-runtime.log
 codi-audit.log
 codi-devices.json
+logs/*.log

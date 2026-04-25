@@ -19,6 +19,22 @@ foreach ($name in $envNames) {
     }
 }
 
+$capabilityMap = @{}
+$rawCapabilities = $env:CODI_DEVICE_CAPABILITIES
+if (-not $rawCapabilities) {
+    $rawCapabilities = ''
+}
+foreach ($item in ($rawCapabilities -split ',')) {
+    $normalized = $item.Trim().ToLowerInvariant()
+    if ($normalized) {
+        $capabilityMap[$normalized] = $true
+    }
+}
+$capabilityMap['natural_query'] = $true
+if ($capabilityMap.Count -gt 0) {
+    $env:CODI_DEVICE_CAPABILITIES = (($capabilityMap.Keys | Sort-Object) -join ',')
+}
+
 $repo = 'C:\ai-agent-telegram'
 $logDir = Join-Path $repo 'logs'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
