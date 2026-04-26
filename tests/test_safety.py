@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from core.safety import (
     SafetyManager,
+    classify_pm2_shortcut_policy,
     classify_restart_policy,
     classify_shell_policy,
 )
@@ -133,6 +134,26 @@ class SafetyManagerTests(unittest.TestCase):
         self.assertEqual(policy.required_mode, "admin")
         self.assertTrue(policy.requires_confirmation)
         self.assertEqual(policy.category, "repo")
+
+    def test_pm2_restart_shortcut_requires_ops_confirmation(self) -> None:
+        policy = classify_pm2_shortcut_policy(
+            "pm2_restart",
+            "pm2 restart rotasi-front-staging",
+        )
+
+        self.assertEqual(policy.required_mode, "ops")
+        self.assertTrue(policy.requires_confirmation)
+        self.assertEqual(policy.category, "process_control")
+
+    def test_pm2_status_shortcut_is_read_only(self) -> None:
+        policy = classify_pm2_shortcut_policy(
+            "pm2_status",
+            "pm2 status rotasi-front-staging",
+        )
+
+        self.assertEqual(policy.required_mode, "aman")
+        self.assertFalse(policy.requires_confirmation)
+        self.assertEqual(policy.category, "process_observe")
 
     def _read_audit_records(self) -> list[dict[str, object]]:
         content = self.audit_log_path.read_text(encoding="utf-8")

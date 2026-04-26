@@ -19,6 +19,7 @@ from core.device_tasks import (
     DeviceContextStore,
     DeviceTaskQueue,
     classify_device_task,
+    classify_device_task_for_dispatch,
     is_active_device_query,
     parse_explicit_device_request,
     parse_device_context_status_request,
@@ -42,6 +43,7 @@ from core.desktop_screenshot import (
 from core.edit_approval import (
     EditApprovalError,
     EditApprovalManager,
+    PendingApproval,
     rewrite_workspace_paths,
 )
 from core.env_config import (
@@ -53,10 +55,16 @@ from core.env_config import (
 from core.local_shell import (
     LocalShellError,
     LocalShellRequest,
+    LocalShellResult,
     LocalShellService,
+    Pm2ShellShortcutRequest,
+    RepoShellShortcutRequest,
+    build_shell_request_for_pm2_shortcut,
     build_shell_request_for_repo_shortcut,
     build_shell_request_for_service_shortcut,
     match_local_shell_query,
+    match_post_approval_shell_plan,
+    match_pm2_shortcut,
     match_repo_shell_shortcut,
     match_restart_self_query,
     match_system_service_shortcut,
@@ -75,6 +83,7 @@ from core.safety import (
     SafetyManager,
     SafetyPolicy,
     classify_env_config_policy,
+    classify_pm2_shortcut_policy,
     classify_repo_shortcut_policy,
     classify_restart_policy,
     classify_service_shortcut_policy,
@@ -1141,12 +1150,10 @@ class Orchestrator:
             else None
         )
         active_repo = context.active_repo if context is not None else None
-        classified = classify_device_task(task_text, active_repo=active_repo)
-        if classified is None:
-            kind = "natural_query"
-            task_payload: dict[str, object] = {"query": task_text, "cwd": active_repo or ""}
-        else:
-            kind, task_payload = classified
+        kind, task_payload = classify_device_task_for_dispatch(
+            task_text,
+            active_repo=active_repo,
+        )
         unsupported_payload = self._device_capability_error_payload(device, kind)
         if unsupported_payload is not None:
             return unsupported_payload
@@ -1173,11 +1180,14 @@ class Orchestrator:
         task_payload: dict[str, object],
     ) -> MessagePayload:
         cwd_label = str(task_payload.get("cwd") or task_payload.get("query") or "-")
-        if kind == "natural_query":
+        if kind in {"natural_query", "repo_readonly_query"}:
             query_preview = str(task_payload.get("query") or "")
             if len(query_preview) > 80:
                 query_preview = query_preview[:77] + "..."
-            detail_line = f"Pertanyaan: <i>{escape(query_preview)}</i>"
+            repo_line = ""
+            if kind == "repo_readonly_query":
+                repo_line = f"\nRepo: <code>{escape(str(task_payload.get('cwd') or '-'))}</code>"
+            detail_line = f"Pertanyaan: <i>{escape(query_preview)}</i>{repo_line}"
         else:
             detail_line = f"Repo context: <code>{escape(cwd_label)}</code>"
         return MessagePayload(
@@ -1202,12 +1212,10 @@ class Orchestrator:
     ) -> MessagePayload:
         if self._device_task_queue is None:
             return format_error_payload("Device task queue belum aktif.", assistant_name=self._settings.assistant_name)
-        classified = classify_device_task(query_text, active_repo=context.active_repo)
-        if classified is None:
-            kind = "natural_query"
-            task_payload: dict[str, object] = {"query": query_text, "cwd": context.active_repo or ""}
-        else:
-            kind, task_payload = classified
+        kind, task_payload = classify_device_task_for_dispatch(
+            query_text,
+            active_repo=context.active_repo,
+        )
         unsupported_payload = self._device_capability_error_payload(device, kind)
         if unsupported_payload is not None:
             return unsupported_payload
@@ -1368,6 +1376,12 @@ class Orchestrator:
                             max_output_length=self._settings.max_output_length,
                             restart_scheduled=restart_scheduled,
                         )
+                    post_apply_payload = await self._run_post_approval_shell_plan(
+                        user_id,
+                        pending,
+                    )
+                    if post_apply_payload is not None:
+                        return post_apply_payload
                     return format_edit_approval_result(
                         assistant_name=self._settings.assistant_name,
                         approved=True,
@@ -1672,6 +1686,45 @@ class Orchestrator:
                 policy=policy,
                 failure_message="Codi belum berhasil menjalankan shortcut service itu.",
                 log_action="service_shell_shortcut_failed",
+            )
+
+        pm2_shortcut = match_pm2_shortcut(text)
+        if pm2_shortcut is not None:
+            self._logger.info(
+                "user_id=%s | action=pm2_shell_shortcut | shortcut=%s | prompt=%r",
+                user_id,
+                pm2_shortcut.action,
+                redact_prompt(text),
+            )
+            try:
+                shell_request = build_shell_request_for_pm2_shortcut(pm2_shortcut)
+            except LocalShellError as exc:
+                return format_error_payload(
+                    str(exc),
+                    assistant_name=self._settings.assistant_name,
+                )
+            policy = classify_pm2_shortcut_policy(
+                pm2_shortcut.action,
+                shell_request.command,
+            )
+            gate = self._safety_manager.evaluate_action(
+                user_id=user_id,
+                kind="local_shell",
+                payload={
+                    "request": shell_request,
+                    "cwd": str(self._settings.codex_work_dir),
+                },
+                policy=policy,
+            )
+            if not gate.allowed:
+                return gate.payload
+            return await self._run_local_shell_with_audit(
+                user_id,
+                shell_request,
+                cwd=self._settings.codex_work_dir,
+                policy=policy,
+                failure_message="Codi belum berhasil menjalankan shortcut PM2 itu.",
+                log_action="pm2_shell_shortcut_failed",
             )
 
         repo_shortcut = match_repo_shell_shortcut(text)
@@ -2020,6 +2073,199 @@ class Orchestrator:
             max_output_length=self._settings.max_output_length,
         )
 
+    async def _run_local_shell_result_with_audit(
+        self,
+        user_id: int,
+        request: LocalShellRequest,
+        *,
+        cwd: Path,
+        policy,
+        log_action: str,
+        approval_id: str | None = None,
+    ) -> LocalShellResult:
+        try:
+            result = await self._local_shell_service.run(request, cwd=cwd)
+        except Exception:
+            self._logger.exception("user_id=%s | action=%s", user_id, log_action)
+            self._safety_manager.record_audit_event(
+                user_id=user_id,
+                event="executed",
+                category=policy.category,
+                mode=self._safety_manager.get_current_mode(user_id),
+                required_mode=policy.required_mode,
+                summary=policy.summary,
+                preview=policy.preview,
+                outcome="failed",
+                approval_id=approval_id,
+            )
+            raise
+
+        self._safety_manager.record_audit_event(
+            user_id=user_id,
+            event="executed",
+            category=policy.category,
+            mode=self._safety_manager.get_current_mode(user_id),
+            required_mode=policy.required_mode,
+            summary=policy.summary,
+            preview=policy.preview,
+            outcome="success" if result.exit_code == 0 else "failed",
+            approval_id=approval_id,
+            exit_code=result.exit_code,
+        )
+        return result
+
+    async def _run_post_approval_shell_plan(
+        self,
+        user_id: int,
+        pending: PendingApproval,
+    ) -> MessagePayload | None:
+        plan = match_post_approval_shell_plan(
+            pending.prompt,
+            important_pm2_apps=self._settings.important_pm2_apps,
+        )
+        if plan is None:
+            return None
+
+        try:
+            build_request = build_shell_request_for_repo_shortcut(
+                RepoShellShortcutRequest(
+                    action="node_build",
+                    repo_hint="repo ini",
+                    original_prompt=pending.prompt,
+                ),
+                pending.repo_root,
+            )
+        except LocalShellError as exc:
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)} sudah meng-apply perubahan.</b>\n\n"
+                    f"Repo: <code>{escape(str(pending.repo_root))}</code>\n"
+                    f"Total file: {len(pending.changes)}\n\n"
+                    "<b>Post-approval ops:</b>\n"
+                    f"Build: gagal disiapkan. {escape(str(exc))}\n"
+                    "PM2 restart: dilewati."
+                ),
+                parse_mode="HTML",
+            )
+        build_policy = classify_repo_shortcut_policy("node_build", build_request.command)
+        try:
+            build_result = await self._run_local_shell_result_with_audit(
+                user_id,
+                build_request,
+                cwd=pending.repo_root,
+                policy=build_policy,
+                approval_id=pending.approval_id,
+                log_action="post_approval_build_failed",
+            )
+        except Exception as exc:
+            return MessagePayload(
+                text=(
+                    f"<b>{escape(self._settings.assistant_name)} sudah meng-apply perubahan.</b>\n\n"
+                    f"Repo: <code>{escape(str(pending.repo_root))}</code>\n"
+                    f"Total file: {len(pending.changes)}\n\n"
+                    "<b>Post-approval ops:</b>\n"
+                    f"Build: gagal dijalankan. {escape(str(exc))}\n"
+                    "PM2 restart: dilewati."
+                ),
+                parse_mode="HTML",
+            )
+
+        pm2_result: LocalShellResult | None = None
+        pm2_error: str | None = None
+        if build_result.exit_code == 0:
+            if plan.pm2_app_name:
+                pm2_request = build_shell_request_for_pm2_shortcut(
+                    Pm2ShellShortcutRequest(
+                        action="pm2_restart",
+                        app_name=plan.pm2_app_name,
+                        original_prompt=pending.prompt,
+                    )
+                )
+                pm2_policy = classify_pm2_shortcut_policy("pm2_restart", pm2_request.command)
+                try:
+                    pm2_result = await self._run_local_shell_result_with_audit(
+                        user_id,
+                        pm2_request,
+                        cwd=self._settings.codex_work_dir,
+                        policy=pm2_policy,
+                        approval_id=pending.approval_id,
+                        log_action="post_approval_pm2_restart_failed",
+                    )
+                except Exception as exc:
+                    pm2_error = f"gagal dijalankan. {exc}"
+            else:
+                pm2_error = (
+                    "Nama aplikasi PM2 belum terbaca dari prompt, jadi restart PM2 saya lewati."
+                )
+
+        return self._format_post_approval_shell_result(
+            pending=pending,
+            build_result=build_result,
+            pm2_result=pm2_result,
+            pm2_error=pm2_error,
+        )
+
+    def _format_post_approval_shell_result(
+        self,
+        *,
+        pending: PendingApproval,
+        build_result: LocalShellResult,
+        pm2_result: LocalShellResult | None,
+        pm2_error: str | None,
+    ) -> MessagePayload:
+        lines = [
+            f"<b>{escape(self._settings.assistant_name)} sudah meng-apply perubahan.</b>",
+            "",
+            f"Repo: <code>{escape(str(pending.repo_root))}</code>",
+            f"Total file: {len(pending.changes)}",
+            "",
+            "<b>Post-approval ops:</b>",
+            (
+                "Build: berhasil"
+                if build_result.exit_code == 0
+                else f"Build: gagal (exit {build_result.exit_code})"
+            ),
+        ]
+        if build_result.exit_code != 0:
+            lines.append("PM2 restart: dilewati karena build gagal.")
+        elif pm2_error is not None:
+            lines.append(f"PM2 restart: {escape(pm2_error)}")
+        elif pm2_result is not None:
+            lines.append(
+                "PM2 restart: berhasil"
+                if pm2_result.exit_code == 0
+                else f"PM2 restart: gagal (exit {pm2_result.exit_code})"
+            )
+
+        detail_text = _build_post_approval_detail_text(build_result, pm2_result, pm2_error)
+        if len(detail_text) > self._settings.max_output_length:
+            return MessagePayload(
+                text="\n".join(lines + ["", "Detail build/restart saya kirim sebagai file."]),
+                parse_mode="HTML",
+                attachment_filename=f"{pending.approval_id}-post-approval-ops.txt",
+                attachment_bytes=detail_text.encode("utf-8"),
+            )
+
+        lines.extend(["", "<b>Detail:</b>", f"<pre>{escape(detail_text)}</pre>"])
+        return MessagePayload(text="\n".join(lines), parse_mode="HTML")
+
+    def _build_post_approval_note(self, pending: PendingApproval) -> str | None:
+        plan = match_post_approval_shell_plan(
+            pending.prompt,
+            important_pm2_apps=self._settings.important_pm2_apps,
+        )
+        if plan is None:
+            return None
+        if plan.pm2_app_name:
+            return (
+                "Codi akan menjalankan build project. Jika build berhasil, "
+                f"Codi akan restart PM2 app `{plan.pm2_app_name}`."
+            )
+        return (
+            "Codi akan menjalankan build project. Prompt meminta PM2 restart, "
+            "tetapi nama app PM2 belum terbaca; restart akan dilewati jika tetap tidak ada target."
+        )
+
     async def _run_write_task_with_approval(
         self,
         prepared: PreparedDispatch,
@@ -2126,6 +2372,7 @@ class Orchestrator:
             return format_edit_approval_payload(
                 assistant_name=self._settings.assistant_name,
                 pending=pending,
+                post_approval_note=self._build_post_approval_note(pending),
             )
         except asyncio.TimeoutError:
             await self._edit_approval_manager.discard_draft_changes(prepared.case_id)
@@ -2133,3 +2380,36 @@ class Orchestrator:
         except Exception:
             await self._edit_approval_manager.discard_draft_changes(prepared.case_id)
             raise
+
+
+def _build_post_approval_detail_text(
+    build_result: LocalShellResult,
+    pm2_result: LocalShellResult | None,
+    pm2_error: str | None,
+) -> str:
+    sections = [
+        _format_shell_result_detail("Build", build_result),
+    ]
+    if pm2_result is not None:
+        sections.append(_format_shell_result_detail("PM2 restart", pm2_result))
+    elif pm2_error is not None:
+        sections.append(f"PM2 restart\nError: {pm2_error}")
+    else:
+        sections.append("PM2 restart\nTidak dijalankan.")
+    return "\n\n".join(sections).strip()
+
+
+def _format_shell_result_detail(label: str, result: LocalShellResult) -> str:
+    parts = [
+        label,
+        f"Command: {result.command}",
+        f"CWD: {result.cwd}",
+        f"Exit: {result.exit_code}",
+    ]
+    if result.timed_out:
+        parts.append("Timed out: yes")
+    if result.stdout.strip():
+        parts.extend(["STDOUT:", result.stdout.strip()])
+    if result.stderr.strip():
+        parts.extend(["STDERR:", result.stderr.strip()])
+    return "\n".join(parts)

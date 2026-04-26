@@ -162,6 +162,10 @@ def _execute_task(kind: str, payload: dict[str, object]) -> dict[str, object]:
         query = str(payload.get("query") or "").strip()
         cwd = _payload_cwd(payload)
         return {"output": _natural_query(query, cwd)}
+    if kind == "repo_readonly_query":
+        query = str(payload.get("query") or "").strip()
+        cwd = _payload_cwd(payload)
+        return {"output": _repo_readonly_query(query, cwd)}
     if kind == "late_this_month":
         return {"output": _late_this_month(_payload_cwd(payload))}
     if kind == "sqlite_schema":
@@ -235,6 +239,60 @@ def _natural_query(query: str, cwd: str | None) -> str:
         text=True,
         timeout=180,
         cwd=work_dir,
+        encoding="utf-8",
+    )
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise RuntimeError(f"claude CLI gagal (exit {result.returncode}): {stderr[:400]}")
+
+    return result.stdout.strip() or "(tidak ada jawaban)"
+
+
+def _repo_readonly_query(query: str, cwd: str | None) -> str:
+    import subprocess
+
+    if not query:
+        raise RuntimeError("Query tidak boleh kosong.")
+    if not cwd or not os.path.isdir(cwd):
+        raise RuntimeError("Repo context device belum diset atau folder repo tidak valid.")
+
+    repo_snapshot = _repo_readonly_snapshot(cwd)
+    try:
+        schema = _sqlite_schema(cwd)
+    except Exception as exc:
+        schema = f"(schema SQLite tidak tersedia: {exc})"
+    try:
+        db_path = _resolve_sqlite_path(cwd)
+    except Exception:
+        db_path = "(tidak ditemukan)"
+
+    prompt = (
+        "Kamu adalah read-only analyst agent untuk repo dashboard HR di device remote.\n"
+        "Tugasmu menjawab pertanyaan user dengan membaca repo dan database secara aman.\n\n"
+        "Aturan wajib:\n"
+        "- Jangan mengubah file apa pun.\n"
+        "- Jangan menjalankan command write/destructive seperti rm, mv, cp, chmod, git commit, npm install, migration, deploy, restart, atau redirect output ke file.\n"
+        "- Jangan menampilkan secret/token/password dari file konfigurasi. Kalau perlu, sebutkan hanya nama key yang relevan.\n"
+        "- Query database hanya boleh SELECT/WITH/read-only dan batasi hasil seperlunya.\n"
+        "- Jika data tidak ditemukan, jelaskan data/sumber apa yang kurang.\n"
+        "- Jawab dalam Bahasa Indonesia yang jelas dan ringkas.\n\n"
+        f"Repo aktif: {cwd}\n"
+        f"Database SQLite terdeteksi: {db_path}\n\n"
+        f"Ringkasan file repo:\n{repo_snapshot}\n\n"
+        f"Schema SQLite jika tersedia:\n{schema}\n\n"
+        f"Pertanyaan user:\n{query}\n\n"
+        "Silakan inspeksi repo dengan command read-only seperti pwd, find, rg, sed -n, head, tail, dan sqlite3 SELECT jika tersedia. "
+        "Akhiri dengan summary final untuk Telegram."
+    )
+
+    result = subprocess.run(
+        ["claude", "--print", "--allowedTools", "Bash"],
+        input=prompt,
+        capture_output=True,
+        text=True,
+        timeout=240,
+        cwd=cwd,
         encoding="utf-8",
     )
 
@@ -391,6 +449,52 @@ def _discover_sqlite_path(cwd: str) -> str | None:
     return None
 
 
+def _repo_readonly_snapshot(cwd: str) -> str:
+    root = Path(cwd)
+    skip_dirs = {
+        ".git",
+        ".next",
+        ".venv",
+        "venv",
+        "node_modules",
+        "dist",
+        "build",
+        "coverage",
+        "__pycache__",
+    }
+    interesting_suffixes = {
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".json",
+        ".prisma",
+        ".sql",
+        ".py",
+        ".php",
+        ".env",
+        ".example",
+        ".md",
+    }
+    files: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(cwd):
+        rel_dir = os.path.relpath(dirpath, cwd)
+        depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
+        if depth >= 4:
+            dirnames[:] = []
+        else:
+            dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in skip_dirs)
+        for filename in sorted(filenames):
+            path = Path(dirpath) / filename
+            rel_path = path.relative_to(root).as_posix()
+            if len(files) >= 160:
+                files.append("... daftar file dipotong.")
+                return "\n".join(files)
+            if filename in {"package.json", "prisma.schema"} or path.suffix.lower() in interesting_suffixes:
+                files.append(f"- {rel_path}")
+    return "\n".join(files) if files else "(tidak ada file relevan yang terdeteksi)"
+
+
 def _payload_cwd(payload: dict[str, object]) -> str | None:
     cwd = str(payload.get("cwd") or "").strip()
     return cwd or None
@@ -430,6 +534,7 @@ def _default_capabilities(device_type: str) -> str:
     capabilities = ["system_activity", "business_readonly"]
     if shutil.which("claude"):
         capabilities.append("natural_query")
+        capabilities.append("repo_readonly")
     return ",".join(capabilities)
 
 

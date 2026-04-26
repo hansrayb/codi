@@ -126,6 +126,7 @@ def format_edit_approval_payload(
     *,
     assistant_name: str,
     pending: PendingApproval,
+    post_approval_note: str | None = None,
 ) -> MessagePayload:
     """Return a Telegram message asking the user to approve prepared edits."""
 
@@ -167,6 +168,14 @@ def format_edit_approval_payload(
                 "",
                 "Preview file:",
                 escape("\n".join(preview_lines)),
+            ]
+        )
+    if post_approval_note:
+        text_parts.extend(
+            [
+                "",
+                "<b>Setelah approval:</b>",
+                escape(post_approval_note),
             ]
         )
     diff_text = pending.diff_text or "(Tidak ada diff tekstual. Perubahan mungkin file biner atau metadata.)"

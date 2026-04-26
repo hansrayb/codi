@@ -12,11 +12,16 @@ from core.local_shell import (
     LocalShellRequest,
     LocalShellService,
     LocalShellError,
+    Pm2ShellShortcutRequest,
+    PostApprovalShellPlan,
     RepoShellShortcutRequest,
     ServiceShellShortcutRequest,
+    build_shell_request_for_pm2_shortcut,
     build_shell_request_for_repo_shortcut,
     build_shell_request_for_service_shortcut,
     match_local_shell_query,
+    match_post_approval_shell_plan,
+    match_pm2_shortcut,
     match_repo_shell_shortcut,
     match_restart_self_query,
     match_system_service_shortcut,
@@ -361,6 +366,56 @@ class LocalShellQueryTests(unittest.TestCase):
                 original_prompt="lihat log service web dashboard payroll",
             ),
         )
+
+    def test_pm2_restart_shortcut_is_detected(self) -> None:
+        request = match_pm2_shortcut("restart pm2 rotasi-front-staging")
+        self.assertEqual(
+            request,
+            Pm2ShellShortcutRequest(
+                action="pm2_restart",
+                app_name="rotasi-front-staging",
+                original_prompt="restart pm2 rotasi-front-staging",
+            ),
+        )
+
+    def test_pm2_status_shortcut_is_detected(self) -> None:
+        request = match_pm2_shortcut("pm2 status rotasi-front-staging")
+        self.assertEqual(
+            request,
+            Pm2ShellShortcutRequest(
+                action="pm2_status",
+                app_name="rotasi-front-staging",
+                original_prompt="pm2 status rotasi-front-staging",
+            ),
+        )
+
+    def test_post_approval_plan_detects_build_then_pm2_restart(self) -> None:
+        plan = match_post_approval_shell_plan(
+            "ubah homepage kemudian build ulang dan pm2 restart rotasi-front-staging"
+        )
+        self.assertEqual(
+            plan,
+            PostApprovalShellPlan(
+                run_build=True,
+                pm2_app_name="rotasi-front-staging",
+            ),
+        )
+
+    def test_post_approval_plan_can_use_single_important_pm2_app(self) -> None:
+        plan = match_post_approval_shell_plan(
+            "ubah homepage kemudian npm run build dan pm2 restart",
+            important_pm2_apps=("rotasi-front-staging",),
+        )
+        self.assertEqual(
+            plan,
+            PostApprovalShellPlan(
+                run_build=True,
+                pm2_app_name="rotasi-front-staging",
+            ),
+        )
+
+    def test_post_approval_plan_ignores_plain_edit(self) -> None:
+        self.assertIsNone(match_post_approval_shell_plan("ubah homepage saja"))
 
     def test_non_repo_build_prompt_is_not_treated_as_shell_shortcut(self) -> None:
         self.assertIsNone(match_repo_shell_shortcut("build fitur payroll baru"))
@@ -1097,6 +1152,50 @@ class RepoShortcutCommandBuilderTests(unittest.TestCase):
                     action="service_status",
                     original_prompt="status service postgres;rm",
                     unit_name="postgres;rm.service",
+                )
+            )
+
+    def test_pm2_restart_maps_to_pm2_restart_and_status(self) -> None:
+        request = build_shell_request_for_pm2_shortcut(
+            Pm2ShellShortcutRequest(
+                action="pm2_restart",
+                app_name="rotasi-front-staging",
+                original_prompt="restart pm2 rotasi-front-staging",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command="pm2 restart rotasi-front-staging && pm2 status rotasi-front-staging",
+            ),
+        )
+
+    def test_pm2_logs_maps_to_nostream_logs(self) -> None:
+        request = build_shell_request_for_pm2_shortcut(
+            Pm2ShellShortcutRequest(
+                action="pm2_logs",
+                app_name="rotasi-front-staging",
+                original_prompt="log pm2 rotasi-front-staging",
+            )
+        )
+
+        self.assertEqual(
+            request,
+            LocalShellRequest(
+                shell="bash",
+                command="pm2 logs rotasi-front-staging --lines 100 --nostream",
+            ),
+        )
+
+    def test_pm2_shortcut_rejects_unsafe_app_name(self) -> None:
+        with self.assertRaises(LocalShellError):
+            build_shell_request_for_pm2_shortcut(
+                Pm2ShellShortcutRequest(
+                    action="pm2_restart",
+                    app_name="../bad",
+                    original_prompt="restart pm2 ../bad",
                 )
             )
 

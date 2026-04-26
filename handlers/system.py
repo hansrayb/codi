@@ -178,6 +178,9 @@ Contoh:
 - stop service payroll
 - restart service payroll
 - lihat log service payroll
+- pm2 status rotasi-front-staging
+- restart pm2 rotasi-front-staging
+- lihat log pm2 rotasi-front-staging
 - publish build frontend payroll
 - deploy frontend payroll
 - publish backend payroll

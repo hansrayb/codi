@@ -31,6 +31,7 @@ foreach ($item in ($rawCapabilities -split ',')) {
     }
 }
 $capabilityMap['natural_query'] = $true
+$capabilityMap['repo_readonly'] = $true
 if ($capabilityMap.Count -gt 0) {
     $env:CODI_DEVICE_CAPABILITIES = (($capabilityMap.Keys | Sort-Object) -join ',')
 }

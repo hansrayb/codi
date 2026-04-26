@@ -112,6 +112,9 @@ Contoh prompt:
 - `stop service payroll`
 - `restart service payroll`
 - `lihat log service payroll`
+- `pm2 status rotasi-front-staging`
+- `restart pm2 rotasi-front-staging`
+- `lihat log pm2 rotasi-front-staging`
 - `publish build frontend payroll`
 - `deploy frontend payroll`
 - `publish backend payroll`
@@ -131,6 +134,7 @@ Catatan:
 - Codi sekarang punya safety layer untuk aksi host yang sensitif: mode `aman`/`ops`/`admin`, allowlist command, konfirmasi 2 langkah lewat `lanjutkan aksi` atau `batal aksi`, dan audit log lokal di `codi-audit.log`.
 - Untuk pengaturan yang sangat spesifik seperti `ubah codex timeout jadi 600` atau `ubah local shell timeout jadi 600`, Codi sekarang bisa mengubah `.env` lokal langsung tanpa perlu masuk ke flow Codex builder.
 - Shortcut `status/start/stop/restart/log/health service ...` saat ini menarget `systemd --user`, jadi paling cocok untuk service yang memang dijalankan di level user.
+- Shortcut `pm2 status/restart/start/stop/log ...` berjalan lewat local shell host, sehingga bisa mengakses PM2 milik user yang menjalankan service Codi.
 - `cek health semua service penting` akan membaca daftar dari `IMPORTANT_SERVICES` di `.env`.
 - Shortcut backend akan mencoba script `package.json`, target `Makefile`, atau tooling Python yang umum seperti `uv`, `poetry`, dan `pytest`.
 - `rollback ke tag ...` memakai `git revert`, jadi lebih aman karena tidak mereset history branch secara destruktif.
@@ -178,7 +182,7 @@ export CODI_DEVICE_API_TOKEN=replace_with_shared_secret
 export CODI_DEVICE_ID=laptop-kerja
 export CODI_DEVICE_LABEL="Laptop Kerja"
 export CODI_DEVICE_TYPE=desktop
-export CODI_DEVICE_CAPABILITIES=shell,repo,system_activity,screenshot,desktop,business_readonly
+export CODI_DEVICE_CAPABILITIES=shell,repo,system_activity,screenshot,desktop,business_readonly,natural_query,repo_readonly
 # Hanya diperlukan kalau device ini akan menjalankan query SQLite bisnis.
 export CODI_BUSINESS_DATABASE_PATHS=/path/project-absen/database/absen.sqlite3
 
@@ -192,6 +196,10 @@ Catatan:
   - `di device absen-server, status host`
   - `di device absen-server, schema database bisnis`
   - `di device absen-server, select * from absensi limit 10`
+  - `di device absen-server, data gaji bulan ini`
+
+- Jika device punya repo aktif dan capability `repo_readonly`, prompt data/repo yang tidak cocok dengan shortcut spesifik akan dikirim sebagai `repo_readonly_query`.
+  Agent akan memakai Claude CLI di device tersebut untuk membaca repo/database secara read-only, lalu mengembalikan summary ke Telegram.
   - `hasil task dt-xxxxxxxx`
 - fase 3 awal mencakup device context per user:
   - `pakai device absen-server`

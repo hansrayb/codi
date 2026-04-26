@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from core.device_tasks import (
     DeviceContextStore,
     DeviceTaskQueue,
+    classify_device_task_for_dispatch,
     classify_device_task,
     is_active_device_query,
     parse_device_context_status_request,
@@ -48,6 +49,14 @@ class DeviceTaskParsingTests(unittest.TestCase):
         self.assertEqual(
             classify_device_task("berapa karyawan yang telat bulan ini dan siapa namanya", active_repo="/srv/payroll"),
             ("late_this_month", {"cwd": "/srv/payroll"}),
+        )
+        self.assertEqual(
+            classify_device_task_for_dispatch("data gaji bulan ini", active_repo="/srv/hr"),
+            ("repo_readonly_query", {"query": "data gaji bulan ini", "cwd": "/srv/hr"}),
+        )
+        self.assertEqual(
+            classify_device_task_for_dispatch("data gaji bulan ini"),
+            ("natural_query", {"query": "data gaji bulan ini", "cwd": ""}),
         )
 
     def test_parse_context_prompts(self) -> None:
@@ -154,6 +163,18 @@ class DeviceTaskQueueTests(unittest.TestCase):
         self.assertEqual(required_capability_for_task("natural_query"), "natural_query")
         self.assertIsNone(self.queue.poll(device_id="absen-server", capabilities=("system_activity",)))
         self.assertIsNotNone(self.queue.poll(device_id="absen-server", capabilities=("natural_query",)))
+
+    def test_repo_readonly_query_requires_repo_readonly_capability(self) -> None:
+        self.queue.enqueue(
+            device_id="absen-server",
+            requested_by=1,
+            kind="repo_readonly_query",
+            payload={"query": "data gaji", "cwd": "/srv/hr"},
+        )
+
+        self.assertEqual(required_capability_for_task("repo_readonly_query"), "repo_readonly")
+        self.assertIsNone(self.queue.poll(device_id="absen-server", capabilities=("natural_query",)))
+        self.assertIsNotNone(self.queue.poll(device_id="absen-server", capabilities=("repo_readonly",)))
 
 
 if __name__ == "__main__":

@@ -529,6 +529,24 @@ def classify_device_task(
     return None
 
 
+def classify_device_task_for_dispatch(
+    task_text: str,
+    *,
+    active_repo: str | None = None,
+) -> tuple[str, dict[str, object]]:
+    """Classify a device task, preferring repo-aware read-only analysis when possible."""
+
+    classified = classify_device_task(task_text, active_repo=active_repo)
+    if classified is not None:
+        return classified
+    payload: dict[str, object] = {"query": task_text}
+    if active_repo:
+        payload["cwd"] = active_repo
+        return "repo_readonly_query", payload
+    payload["cwd"] = ""
+    return "natural_query", payload
+
+
 def _extract_sql(text: str) -> str | None:
     stripped = text.strip()
     lowered = stripped.lower()
@@ -551,6 +569,8 @@ def required_capability_for_task(kind: str) -> str:
         return "system_activity"
     if kind == "natural_query":
         return "natural_query"
+    if kind == "repo_readonly_query":
+        return "repo_readonly"
     if kind in {"sqlite_schema", "sqlite_query", "late_this_month"}:
         return "business_readonly"
     return kind

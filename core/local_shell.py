@@ -70,6 +70,7 @@ BUILD_LIKE_ACTIONS = {
 SAFE_GIT_REF_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
 SAFE_GIT_COMMIT_PATTERN = re.compile(r"[A-Fa-f0-9]{7,40}")
 SAFE_SYSTEMD_UNIT_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9@._-]{0,127}")
+SAFE_PM2_APP_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9@._:/-]{0,127}")
 SYSTEMD_UNIT_SUFFIXES = (
     ".service",
     ".socket",
@@ -120,6 +121,23 @@ class ServiceShellShortcutRequest:
     original_prompt: str
     unit_name: str | None = None
     unit_names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Pm2ShellShortcutRequest:
+    """A structured PM2 shortcut mapped to local shell commands."""
+
+    action: str
+    original_prompt: str
+    app_name: str
+
+
+@dataclass(frozen=True)
+class PostApprovalShellPlan:
+    """Host-side operations to run after an approved edit is applied."""
+
+    run_build: bool
+    pm2_app_name: str | None
 
 
 @dataclass(frozen=True)
@@ -462,6 +480,105 @@ def build_shell_request_for_service_shortcut(
             command=f"journalctl --user -u {unit_name} -n 100 --no-pager",
         )
     raise LocalShellError("Shortcut service ini belum punya command shell yang cocok.")
+
+
+def match_pm2_shortcut(prompt: str) -> Pm2ShellShortcutRequest | None:
+    """Parse natural PM2 shortcuts like status/restart/log without `shell:`."""
+
+    condensed_prompt = " ".join(prompt.strip().split())
+    if not condensed_prompt:
+        return None
+
+    patterns: tuple[tuple[str, str], ...] = (
+        ("pm2_status", r"^(?:pm2\s+status|status\s+pm2)\s+(.+)$"),
+        (
+            "pm2_restart",
+            r"^(?:pm2\s+restart|restart\s+pm2|mulai\s+ulang\s+pm2|reload\s+pm2)\s+(.+)$",
+        ),
+        (
+            "pm2_start",
+            r"^(?:pm2\s+start|start\s+pm2|jalankan\s+pm2|nyalakan\s+pm2)\s+(.+)$",
+        ),
+        (
+            "pm2_stop",
+            r"^(?:pm2\s+stop|stop\s+pm2|hentikan\s+pm2|matikan\s+pm2)\s+(.+)$",
+        ),
+        (
+            "pm2_logs",
+            r"^(?:pm2\s+logs?|logs?\s+pm2|(?:lihat|tampilkan|cek)\s+logs?\s+pm2)\s+(.+)$",
+        ),
+    )
+    for action, pattern in patterns:
+        match = re.match(pattern, condensed_prompt, re.IGNORECASE)
+        if match:
+            return Pm2ShellShortcutRequest(
+                action=action,
+                original_prompt=condensed_prompt,
+                app_name=_normalize_pm2_app_name(match.group(1)),
+            )
+    return None
+
+
+def build_shell_request_for_pm2_shortcut(shortcut: Pm2ShellShortcutRequest) -> LocalShellRequest:
+    """Translate a PM2 shortcut into a concrete `pm2` call."""
+
+    app_name = _quote_pm2_app_name(shortcut.app_name)
+    if shortcut.action == "pm2_status":
+        return LocalShellRequest(shell="bash", command=f"pm2 status {app_name}")
+    if shortcut.action == "pm2_restart":
+        return LocalShellRequest(
+            shell="bash",
+            command=f"pm2 restart {app_name} && pm2 status {app_name}",
+        )
+    if shortcut.action == "pm2_start":
+        return LocalShellRequest(
+            shell="bash",
+            command=f"pm2 start {app_name} && pm2 status {app_name}",
+        )
+    if shortcut.action == "pm2_stop":
+        return LocalShellRequest(
+            shell="bash",
+            command=f"pm2 stop {app_name} && pm2 status {app_name}",
+        )
+    if shortcut.action == "pm2_logs":
+        return LocalShellRequest(
+            shell="bash",
+            command=f"pm2 logs {app_name} --lines 100 --nostream",
+        )
+    raise LocalShellError("Shortcut PM2 ini belum punya command shell yang cocok.")
+
+
+def match_post_approval_shell_plan(
+    prompt: str,
+    *,
+    important_pm2_apps: tuple[str, ...] = (),
+) -> PostApprovalShellPlan | None:
+    """Return requested build/restart steps that should follow edit approval."""
+
+    normalized = " ".join(prompt.strip().lower().split())
+    if not normalized:
+        return None
+
+    build_requested = bool(
+        re.search(
+            r"\b(?:npm\s+run\s+build|pnpm\s+run\s+build|yarn\s+run\s+build|bun\s+run\s+build|build(?:\s+ulang)?)\b",
+            normalized,
+        )
+    )
+    pm2_requested = bool(
+        re.search(
+            r"\b(?:pm2\s+restart|restart\s+pm2|mulai\s+ulang\s+pm2|reload\s+pm2)\b",
+            normalized,
+        )
+    )
+    if not build_requested or not pm2_requested:
+        return None
+
+    app_name = _extract_pm2_restart_app_name(prompt)
+    if app_name is None and len(important_pm2_apps) == 1:
+        app_name = important_pm2_apps[0]
+
+    return PostApprovalShellPlan(run_build=True, pm2_app_name=app_name)
 
 
 def _build_shell_invocation(shell_name: str, command: str) -> tuple[str, list[str]]:
@@ -922,6 +1039,34 @@ def _normalize_systemd_unit_name(raw_target: str) -> str:
     return candidate
 
 
+def _normalize_pm2_app_name(raw_target: str) -> str:
+    candidate = raw_target.strip()
+    if not candidate:
+        raise LocalShellError("Nama aplikasi PM2 belum terbaca dari prompt.")
+    return candidate
+
+
+def _extract_pm2_restart_app_name(prompt: str) -> str | None:
+    condensed_prompt = " ".join(prompt.strip().split())
+    patterns = (
+        r"\bpm2\s+restart\s+([A-Za-z0-9@._:/-]+)\b",
+        r"\brestart\s+pm2\s+([A-Za-z0-9@._:/-]+)\b",
+        r"\bmulai\s+ulang\s+pm2\s+([A-Za-z0-9@._:/-]+)\b",
+        r"\breload\s+pm2\s+([A-Za-z0-9@._:/-]+)\b",
+    )
+    ignored_words = {"secara", "otomatis", "lagi", "ulang", "setelah", "kemudian"}
+    for pattern in patterns:
+        match = re.search(pattern, condensed_prompt, re.IGNORECASE)
+        if not match:
+            continue
+        candidate = match.group(1).strip()
+        if candidate.lower() in ignored_words:
+            continue
+        _quote_pm2_app_name(candidate)
+        return candidate
+    return None
+
+
 def _quote_systemd_unit(unit_name: str | None) -> str:
     if unit_name is None:
         raise LocalShellError("Nama service belum terbaca dari prompt.")
@@ -933,5 +1078,24 @@ def _quote_systemd_unit(unit_name: str | None) -> str:
     if candidate.startswith((".", "-", "@")) or ".." in candidate or "//" in candidate:
         raise LocalShellError(
             f"Nama service `{unit_name}` tidak aman atau belum didukung untuk shortcut ini."
+        )
+    return shlex.quote(candidate)
+
+
+def _quote_pm2_app_name(app_name: str | None) -> str:
+    if app_name is None:
+        raise LocalShellError("Nama aplikasi PM2 belum terbaca dari prompt.")
+    candidate = app_name.strip()
+    if not candidate or not SAFE_PM2_APP_PATTERN.fullmatch(candidate):
+        raise LocalShellError(
+            f"Nama aplikasi PM2 `{app_name}` tidak aman atau belum didukung untuk shortcut ini."
+        )
+    if candidate.startswith(("-", "/", ".")) or candidate.endswith(("/", ".")):
+        raise LocalShellError(
+            f"Nama aplikasi PM2 `{app_name}` tidak aman atau belum didukung untuk shortcut ini."
+        )
+    if ".." in candidate or "//" in candidate:
+        raise LocalShellError(
+            f"Nama aplikasi PM2 `{app_name}` tidak aman atau belum didukung untuk shortcut ini."
         )
     return shlex.quote(candidate)

@@ -43,6 +43,7 @@ _SHELL_ALLOWED_TOP_LEVEL: dict[str, str] = {
     "ss": "observe",
     "journalctl": "service",
     "systemctl": "service",
+    "pm2": "process",
     "git": "repo",
     "npm": "node",
     "pnpm": "node",
@@ -551,6 +552,28 @@ def classify_service_shortcut_policy(action: str, preview: str) -> SafetyPolicy:
     if action in {"service_start", "service_stop", "service_restart"}:
         return SafetyPolicy("service_control", "ops", True, "Kontrol service host", preview)
     return SafetyPolicy("service_control", "ops", True, "Aksi service host", preview)
+
+
+def classify_pm2_shortcut_policy(action: str, preview: str) -> SafetyPolicy:
+    """Return safety requirements for a PM2 process shortcut action."""
+
+    if action in {"pm2_status", "pm2_logs"}:
+        return SafetyPolicy(
+            "process_observe",
+            "aman",
+            False,
+            "Observasi proses PM2",
+            preview,
+        )
+    if action in {"pm2_start", "pm2_stop", "pm2_restart"}:
+        return SafetyPolicy(
+            "process_control",
+            "ops",
+            True,
+            "Kontrol proses PM2",
+            preview,
+        )
+    return SafetyPolicy("process_control", "ops", True, "Aksi proses PM2", preview)
 
 
 def classify_env_config_policy(key: str, preview: str) -> SafetyPolicy:
