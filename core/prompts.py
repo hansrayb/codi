@@ -40,6 +40,7 @@ def build_codex_prompt(
     assistant_name: str = "Codi",
     repo_name: str | None = None,
     repo_path: str | None = None,
+    memory_context: str = "",
 ) -> str:
     """Build a single prompt string for the non-interactive Codex CLI."""
 
@@ -54,6 +55,8 @@ def build_codex_prompt(
             "flat bullets, and summarize technical findings in plain language first."
         ),
     ]
+    if memory_context.strip():
+        sections.extend(["Persistent memory:", memory_context.strip()])
     if repo_name or repo_path:
         target_lines = ["Target workspace:"]
         if repo_name:
@@ -81,6 +84,7 @@ def build_chat_prompt(
     user_prompt: str,
     session_summary: str = "",
     assistant_name: str = "Codi",
+    memory_context: str = "",
 ) -> str:
     """Build a prompt for lightweight idea discussion without task execution."""
 
@@ -103,6 +107,8 @@ def build_chat_prompt(
             "Avoid raw logs, long code blocks, and heavy formatting."
         ),
     ]
+    if memory_context.strip():
+        sections.extend(["Persistent memory:", memory_context.strip()])
     if session_summary.strip():
         sections.extend(
             [

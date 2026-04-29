@@ -73,6 +73,7 @@ from core.local_shell import (
     match_restart_self_query,
     match_system_service_shortcut,
 )
+from core.memory import MemoryStore, build_memory_context
 from core.prompts import build_chat_prompt, build_codex_prompt
 from core.repo_context import (
     extract_repo_context_selection,
@@ -237,6 +238,7 @@ class Orchestrator:
         self._device_task_queue = device_task_queue
         self._device_context_store = device_context_store
         self._chat_sessions: dict[int, ChatSessionState] = {}
+        self._memory = MemoryStore(settings.memory_db_path)
 
     async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
         """Route the prompt and reserve a session before execution starts."""
@@ -407,6 +409,9 @@ class Orchestrator:
             ) from exc
 
         session = lease.session
+        memory_ctx = build_memory_context(
+            self._memory, user_id, repo_path=str(repo_resolution.root)
+        )
         execution_prompt = build_codex_prompt(
             role=decision.role,
             user_prompt=normalized_prompt,
@@ -414,6 +419,7 @@ class Orchestrator:
             assistant_name=self._settings.assistant_name,
             repo_name=repo_resolution.label,
             repo_path=str(repo_resolution.root),
+            memory_context=memory_ctx,
         )
         ack_parts = [
             self._build_ack_text(decision.role),
@@ -571,6 +577,13 @@ class Orchestrator:
             )
         finally:
             await prepared.lease.release(summary_update)
+            if summary_update and prepared.repo_resolution is not None:
+                self._memory.save_session_summary(
+                    user_id=prepared.user_id,
+                    repo_path=str(prepared.repo_resolution.root),
+                    role=prepared.role,
+                    summary=summary_update,
+                )
             if prepared.case_id is not None:
                 await self._case_manager.update_case(
                     prepared.case_id,
@@ -611,6 +624,7 @@ class Orchestrator:
                 user_prompt=normalized_text,
                 session_summary=state.summary,
                 assistant_name=self._settings.assistant_name,
+                memory_context=build_memory_context(self._memory, user_id),
             )
             try:
                 backend = self._backend_prefs.get(user_id)

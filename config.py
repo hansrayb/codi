@@ -59,6 +59,7 @@ class Settings:
     important_pm2_apps: tuple[str, ...]
     repo_pm2_map: dict[str, str]
     alert_targets_path: Path
+    memory_db_path: Path
     enable_device_registry: bool
     device_registry_path: Path
     device_api_host: str
@@ -236,6 +237,9 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     alert_targets_path = Path(
         os.getenv("ALERT_TARGETS_PATH", str(codex_work_dir / "codi-alert-targets.json"))
     ).expanduser().resolve()
+    memory_db_path = Path(
+        os.getenv("MEMORY_DB_PATH", str(codex_work_dir / "codi-memory.db"))
+    ).expanduser().resolve()
 
     allowed_set = set(allowed_user_ids)
     for uid in admin_user_ids:
@@ -323,6 +327,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         important_pm2_apps=important_pm2_apps,
         repo_pm2_map=repo_pm2_map,
         alert_targets_path=alert_targets_path,
+        memory_db_path=memory_db_path,
         enable_device_registry=enable_device_registry,
         device_registry_path=device_registry_path,
         device_api_host=device_api_host,
