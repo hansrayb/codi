@@ -138,6 +138,16 @@ class PostApprovalShellPlan:
 
     run_build: bool
     pm2_app_name: str | None
+    run_git_push: bool = False
+
+
+@dataclass(frozen=True)
+class RepoBuildContext:
+    """Resolved deploy context for a repo, derived from REPO_PM2_MAP."""
+
+    build_dir: Path
+    mode: str  # "local" or "push"
+    pm2_app_name: str | None  # only relevant for mode="local"
 
 
 @dataclass(frozen=True)
@@ -546,6 +556,50 @@ def build_shell_request_for_pm2_shortcut(shortcut: Pm2ShellShortcutRequest) -> L
             command=f"pm2 logs {app_name} --lines 100 --nostream",
         )
     raise LocalShellError("Shortcut PM2 ini belum punya command shell yang cocok.")
+
+
+def resolve_build_context(
+    repo_root: Path,
+    relative_paths: tuple[str, ...],
+    repo_pm2_map: dict[str, str],
+) -> RepoBuildContext | None:
+    """Return RepoBuildContext by matching changed files against repo_pm2_map.
+
+    Map values of "push" select the CI/CD flow (git commit + push).
+    Any other value is treated as a PM2 app name for the local build flow.
+    Longest matching path prefix wins.
+    """
+    if not repo_pm2_map:
+        return None
+    repo_resolved = repo_root.resolve()
+    best: RepoBuildContext | None = None
+    best_depth = -1
+    for dir_str, target in repo_pm2_map.items():
+        dir_path = Path(dir_str).resolve()
+        matched = False
+        for rel in relative_paths:
+            full = (repo_resolved / rel).resolve()
+            try:
+                full.relative_to(dir_path)
+                matched = True
+                break
+            except ValueError:
+                pass
+        if not matched:
+            try:
+                repo_resolved.relative_to(dir_path)
+                matched = True
+            except ValueError:
+                pass
+        if matched:
+            depth = len(dir_path.parts)
+            if depth > best_depth:
+                best_depth = depth
+                if target.strip().lower() == "push":
+                    best = RepoBuildContext(build_dir=dir_path, mode="push", pm2_app_name=None)
+                else:
+                    best = RepoBuildContext(build_dir=dir_path, mode="local", pm2_app_name=target)
+    return best
 
 
 def match_post_approval_shell_plan(

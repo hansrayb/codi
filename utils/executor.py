@@ -58,6 +58,7 @@ async def run_codex_task(
         cwd=cwd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        limit=4 * 1024 * 1024,  # 4MB — prevents LimitOverrunError on large output lines
     )
     stdout_lines: list[str] = []
     stderr_lines: list[str] = []
@@ -125,7 +126,12 @@ async def _read_stdout_stream(
         return
 
     while True:
-        raw_line = await stream.readline()
+        try:
+            raw_line = await stream.readline()
+        except asyncio.LimitOverrunError:
+            # Line exceeds buffer limit — drain and skip it
+            await stream.read(4 * 1024 * 1024)
+            continue
         if not raw_line:
             break
         line = _decode_output(raw_line).strip()
@@ -148,7 +154,11 @@ async def _read_stderr_stream(
         return
 
     while True:
-        raw_line = await stream.readline()
+        try:
+            raw_line = await stream.readline()
+        except asyncio.LimitOverrunError:
+            await stream.read(4 * 1024 * 1024)
+            continue
         if not raw_line:
             break
         line = _decode_output(raw_line).strip()

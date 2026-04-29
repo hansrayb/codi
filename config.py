@@ -57,6 +57,7 @@ class Settings:
     max_watched_repos_per_user: int
     important_services: tuple[str, ...]
     important_pm2_apps: tuple[str, ...]
+    repo_pm2_map: dict[str, str]
     alert_targets_path: Path
     enable_device_registry: bool
     device_registry_path: Path
@@ -119,7 +120,9 @@ class Settings:
 def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     """Load, validate, and return application settings."""
 
-    load_dotenv(env_file, override=False)
+    # Always refresh runtime config from the repo's .env file.
+    # This prevents in-process exec restarts from retaining stale role/env values.
+    load_dotenv(env_file, override=True)
 
     assistant_name = (os.getenv("ASSISTANT_NAME") or "Codi").strip() or "Codi"
     enable_desktop_actions = _parse_bool(os.getenv("ENABLE_DESKTOP_ACTIONS", "true"))
@@ -222,6 +225,14 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         for item in _split_csv(os.getenv("IMPORTANT_PM2_APPS", ""))
         if item.strip()
     )
+    repo_pm2_map: dict[str, str] = {}
+    for _entry in _split_csv(os.getenv("REPO_PM2_MAP", "")):
+        _entry = _entry.strip()
+        if ":" in _entry:
+            _dir, _app = _entry.split(":", 1)
+            _dir, _app = _dir.strip(), _app.strip()
+            if _dir and _app:
+                repo_pm2_map[str(Path(_dir).expanduser().resolve())] = _app
     alert_targets_path = Path(
         os.getenv("ALERT_TARGETS_PATH", str(codex_work_dir / "codi-alert-targets.json"))
     ).expanduser().resolve()
@@ -310,6 +321,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         max_watched_repos_per_user=max_watched_repos_per_user,
         important_services=important_services,
         important_pm2_apps=important_pm2_apps,
+        repo_pm2_map=repo_pm2_map,
         alert_targets_path=alert_targets_path,
         enable_device_registry=enable_device_registry,
         device_registry_path=device_registry_path,
