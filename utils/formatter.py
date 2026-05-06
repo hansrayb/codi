@@ -65,12 +65,17 @@ def format_execution_payload(
             attachment_bytes=attachment_text.encode("utf-8"),
         )
 
-    status_line = _build_status_line(assistant_name, role, exit_code)
+    if exit_code != 0:
+        status_line = _build_status_line(assistant_name, role, exit_code)
+        return MessagePayload(
+            text=(
+                f"<b>{escape(status_line)}</b>\n\n"
+                f"{escape(primary_output)}"
+            ),
+            parse_mode=ParseMode.HTML,
+        )
     return MessagePayload(
-        text=(
-            f"<b>{escape(status_line)}</b>\n\n"
-            f"{escape(primary_output)}"
-        ),
+        text=escape(primary_output),
         parse_mode=ParseMode.HTML,
     )
 

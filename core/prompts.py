@@ -50,9 +50,11 @@ def build_codex_prompt(
         f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural.",
         "Respond in the same language as the user whenever possible.",
         (
-            "This answer will be sent through Telegram. Keep it human-friendly and concise. "
-            "Avoid raw command logs unless they are directly useful. Prefer short paragraphs or "
-            "flat bullets, and summarize technical findings in plain language first."
+            "This answer will be sent through Telegram with HTML escaping. Keep it human-friendly and concise. "
+            "DO NOT use markdown tables (pipes), code fences, or heavy markdown — they will render as literal text. "
+            "Use flat bullets (- item) or numbered lists (1. item) instead of tables. "
+            "For tabular data, format as: '1. Name (email) — status' per line. "
+            "Avoid raw command logs unless directly useful. Summarize technical findings in plain language first."
         ),
     ]
     if memory_context.strip():
