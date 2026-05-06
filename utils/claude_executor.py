@@ -19,6 +19,8 @@ async def run_claude_task(
     claude_bin: str = "claude",
     claude_model: str = "claude-sonnet-4-6",
     claude_session_id: str | None = None,
+    mcp_config: str | None = None,
+    allowed_tools: str | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> CodexRunResult:
     """Run Claude Code CLI in non-interactive mode and return the result."""
@@ -28,6 +30,8 @@ async def run_claude_task(
         claude_bin=claude_bin,
         claude_model=claude_model,
         claude_session_id=claude_session_id,
+        mcp_config=mcp_config,
+        allowed_tools=allowed_tools,
     )
 
     process = await asyncio.create_subprocess_exec(
@@ -64,8 +68,14 @@ def _build_claude_args(
     claude_bin: str,
     claude_model: str,
     claude_session_id: str | None,
+    mcp_config: str | None = None,
+    allowed_tools: str | None = None,
 ) -> list[str]:
     args = [claude_bin, "--model", claude_model, "--output-format", "json"]
+    if mcp_config:
+        args.extend(["--mcp-config", mcp_config])
+    if allowed_tools:
+        args.extend(["--allowedTools", allowed_tools])
     if claude_session_id:
         args.extend(["--resume", claude_session_id])
     args.extend(["-p", prompt])

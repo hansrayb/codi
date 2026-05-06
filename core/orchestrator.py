@@ -501,6 +501,8 @@ class Orchestrator:
                     claude_bin=self._settings.claude_bin,
                     claude_model=self._settings.claude_model,
                     claude_session_id=prepared.session.claude_session_id,
+                    mcp_config=self._settings.claude_mcp_config or None,
+                    allowed_tools=self._settings.claude_allowed_tools or None,
                     on_progress=on_progress,
                 )
                 prepared.session.claude_session_id = result.thread_id
@@ -636,6 +638,8 @@ class Orchestrator:
                         claude_bin=self._settings.claude_bin,
                         claude_model=self._settings.claude_model,
                         claude_session_id=state.claude_session_id,
+                        mcp_config=self._settings.claude_mcp_config or None,
+                        allowed_tools=self._settings.claude_allowed_tools or None,
                         on_progress=on_progress,
                     )
                     state.claude_session_id = result.thread_id
@@ -2419,6 +2423,8 @@ class Orchestrator:
                     claude_bin=self._settings.claude_bin,
                     claude_model=self._settings.claude_model,
                     claude_session_id=draft.codex_thread_id,
+                    mcp_config=self._settings.claude_mcp_config or None,
+                    allowed_tools=self._settings.claude_allowed_tools or None,
                     on_progress=on_progress,
                 )
             else:

@@ -41,6 +41,8 @@ class Settings:
     codex_work_dir: Path
     claude_bin: str
     claude_model: str
+    claude_mcp_config: str
+    claude_allowed_tools: str
     allowed_work_dirs: tuple[Path, ...]
     default_role: str
     max_active_sessions: int
@@ -153,6 +155,8 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     )
     claude_bin = os.getenv("CLAUDE_BIN", "claude").strip() or "claude"
     claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+    claude_mcp_config = os.getenv("CLAUDE_MCP_CONFIG", "").strip()
+    claude_allowed_tools = os.getenv("CLAUDE_ALLOWED_TOOLS", "").strip()
     codex_work_dir = _parse_existing_dir(
         os.getenv("CODEX_WORK_DIR", os.getcwd()),
         "CODEX_WORK_DIR",
@@ -309,6 +313,8 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         codex_work_dir=codex_work_dir,
         claude_bin=claude_bin,
         claude_model=claude_model,
+        claude_mcp_config=claude_mcp_config,
+        claude_allowed_tools=claude_allowed_tools,
         allowed_work_dirs=allowed_work_dirs,
         default_role=default_role,
         max_active_sessions=max_active_sessions,

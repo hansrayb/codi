@@ -4,4 +4,7 @@ __pycache__/
 codi-runtime.log
 codi-audit.log
 codi-devices.json
+codi-memory.db
+codi-memory.db-shm
+codi-memory.db-wal
 logs/*.log
