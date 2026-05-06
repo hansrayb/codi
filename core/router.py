@@ -40,7 +40,6 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "implement",
         "refactor",
         "tambahkan test",
-        "fitur",
         "endpoint",
         "commit message",
         "pesan commit",
@@ -153,6 +152,13 @@ class IntentRouter:
                 continuation_hint=True,
             )
 
+        if self._is_question(normalized):
+            return RoutingDecision(
+                role=self._default_role,
+                confidence=0.7,
+                reason="question_pattern",
+            )
+
         scores = {role: 0 for role in KEYWORDS}
         for role, keywords in KEYWORDS.items():
             for keyword in keywords:
@@ -206,6 +212,22 @@ class IntentRouter:
     @staticmethod
     def _has_continuation_hint(normalized_prompt: str) -> bool:
         return any(hint in normalized_prompt for hint in CONTINUATION_HINTS)
+
+    @staticmethod
+    def _is_question(normalized_prompt: str) -> bool:
+        if normalized_prompt.endswith("?"):
+            return True
+        question_starters = (
+            "apa ", "apakah ", "kenapa ", "mengapa ", "bagaimana ", "gimana ",
+            "kapan ", "dimana ", "di mana ", "siapa ", "berapa ",
+            "what ", "why ", "how ", "when ", "where ", "who ",
+            "jelaskan ", "tampilkan ", "tunjukkan ", "lihat ", "cek ",
+        )
+        question_phrases = ("cara kerja", "cara kerjanya", "cara pakai")
+        return (
+            normalized_prompt.startswith(question_starters)
+            or any(phrase in normalized_prompt for phrase in question_phrases)
+        )
 
 
 def _normalize(prompt: str) -> str:

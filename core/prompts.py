@@ -50,9 +50,10 @@ def build_codex_prompt(
         f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural.",
         "Respond in the same language as the user whenever possible.",
         (
-            "This answer will be sent through Telegram with HTML escaping. Keep it human-friendly and concise. "
-            "DO NOT use markdown tables (pipes), code fences, or heavy markdown — they will render as literal text. "
-            "Use flat bullets (- item) or numbered lists (1. item) instead of tables. "
+            "This answer will be sent through Telegram. The output will be HTML-escaped, so DO NOT use any HTML tags "
+            "(no <b>, <i>, <code>, <pre>, etc) — they render as literal text. "
+            "DO NOT use markdown tables (pipes), code fences, or heavy markdown either. "
+            "Use plain text with flat bullets (- item) or numbered lists (1. item). "
             "For tabular data, format as: '1. Name (email) — status' per line. "
             "Avoid raw command logs unless directly useful. Summarize technical findings in plain language first."
         ),
