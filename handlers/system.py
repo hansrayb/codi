@@ -141,11 +141,9 @@ Contoh:
 - tambah fitur /ping ke kamu
 - perbaiki help text kamu
 - tambahkan command /version ke codi
-- ubah timeout codex jadi 900
 - apakah kamu bisa memodifikasi dirimu sendiri
 - ai backend saat ini
 - pakai claude
-- pakai codex
 - mode saya apa
 - mode aman
 - mode ops
@@ -201,10 +199,12 @@ Contoh:
 Konteks kerja sekarang lebih lengket karena session AI dijaga per session Codi.
 Kalau repo aktif adalah repo Codi sendiri, setelah apply Codi akan cek test lokal lalu restart otomatis bila aman.
 
-Kamu bisa ganti AI backend kapan saja:
-- <code>pakai claude</code> - pakai Claude Code CLI
-- <code>pakai codex</code> - pakai Codex CLI (default)
+AI backend: Claude Code CLI.
 - <code>ai backend saat ini</code> - cek backend yang aktif
+
+---
+{assistant_name} pertama kali ditulis oleh Codex — AI CLI yang membangun semuanya dari nol.
+Terima kasih, Codex. Sekarang Claude yang melanjutkan.
 
 Commands:
 /pilih_project - pilih project bisnis sebagai konteks aktif

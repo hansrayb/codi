@@ -56,7 +56,7 @@ async def status_command(
     host_uptime_seconds = _read_uptime_seconds()
     bot_uptime_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
 
-    ai_backend = snapshot.get("ai_backend", "codex").upper()
+    ai_backend = snapshot.get("ai_backend", "claude").upper()
     lines = [
         f"Status {assistant_name} - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "",

@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import re
 
-VALID_BACKENDS = {"codex", "claude"}
-BACKEND_LABELS = {"codex": "Codex", "claude": "Claude"}
+VALID_BACKENDS = {"claude"}
+BACKEND_LABELS = {"claude": "Claude"}
 
 _SWITCH_TO_CLAUDE = re.compile(
     r"\b(pakai|ganti(\s+ke?)?|switch(\s+ke?)?|gunakan|pindah(\s+ke?)?)\s+claude\b",
-    re.IGNORECASE,
-)
-_SWITCH_TO_CODEX = re.compile(
-    r"\b(pakai|ganti(\s+ke?)?|switch(\s+ke?)?|gunakan|pindah(\s+ke?)?)\s+codex\b",
     re.IGNORECASE,
 )
 _BACKEND_QUERY = re.compile(
@@ -24,7 +20,7 @@ _BACKEND_QUERY = re.compile(
 class BackendPrefs:
     """In-memory per-user AI backend preference."""
 
-    def __init__(self, default_backend: str = "codex") -> None:
+    def __init__(self, default_backend: str = "claude") -> None:
         self._default = default_backend
         self._prefs: dict[int, str] = {}
 
@@ -41,8 +37,6 @@ def match_backend_switch(text: str) -> str | None:
     """Return target backend name if text is a backend switch request, else None."""
     if _SWITCH_TO_CLAUDE.search(text):
         return "claude"
-    if _SWITCH_TO_CODEX.search(text):
-        return "codex"
     return None
 
 

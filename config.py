@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 VALID_ROLES = {"builder", "reviewer", "debugger", "ops", "general"}
 VALID_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
-VALID_BACKENDS = {"codex", "claude"}
+VALID_BACKENDS = {"claude"}
 
 
 class ConfigError(ValueError):
@@ -144,7 +144,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     business_database_urls = _parse_str_list_optional(
         os.getenv("BUSINESS_DATABASE_URLS", ""),
     )
-    ai_backend = os.getenv("AI_BACKEND", "codex").strip().lower() or "codex"
+    ai_backend = os.getenv("AI_BACKEND", "claude").strip().lower() or "claude"
     codex_bin = os.getenv("CODEX_BIN", "codex").strip() or "codex"
     codex_timeout = _parse_positive_int(os.getenv("CODEX_TIMEOUT", "600"), "CODEX_TIMEOUT")
     codex_reasoning_effort = (

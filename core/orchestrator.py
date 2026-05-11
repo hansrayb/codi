@@ -109,7 +109,6 @@ from core.system_activity import (
 )
 from models.result import MessagePayload
 from models.session import Session
-from utils.executor import run_codex_task
 from utils.claude_executor import run_claude_task
 from core.backend_prefs import (
     BACKEND_LABELS,
@@ -492,9 +491,7 @@ class Orchestrator:
                     on_progress=on_progress,
                     started=started,
                 )
-            backend = self._backend_prefs.get(prepared.user_id)
-            if backend == "claude":
-                result = await run_claude_task(
+            result = await run_claude_task(
                     prompt=prepared.execution_prompt,
                     cwd=prepared.session.cwd,
                     timeout=self._settings.codex_timeout,
@@ -505,22 +502,7 @@ class Orchestrator:
                     allowed_tools=self._settings.claude_allowed_tools or None,
                     on_progress=on_progress,
                 )
-                prepared.session.claude_session_id = result.thread_id
-            else:
-                result = await run_codex_task(
-                    prompt=prepared.execution_prompt,
-                    role=prepared.role,
-                    cwd=prepared.session.cwd,
-                    timeout=self._settings.codex_timeout,
-                    session_id=prepared.session.session_id,
-                    codex_bin=self._settings.codex_bin,
-                    model_reasoning_effort=self._settings.codex_reasoning_effort,
-                    sandbox_mode=policy.sandbox_mode,
-                    codex_thread_id=prepared.session.codex_thread_id,
-                    persist_session=True,
-                    on_progress=on_progress,
-                )
-                prepared.session.codex_thread_id = result.thread_id
+            prepared.session.claude_session_id = result.thread_id
             duration = time.perf_counter() - started
             self._logger.info(
                 "user_id=%s | session=%s | role=%s | exit_code=%s | duration=%.2fs",
@@ -547,7 +529,7 @@ class Orchestrator:
                 prepared.role,
             )
             return format_error_payload(
-                "Codex CLI tidak ditemukan di sistem.",
+                "Claude CLI tidak ditemukan di sistem.",
                 assistant_name=self._settings.assistant_name,
             )
         except asyncio.TimeoutError:
@@ -629,9 +611,7 @@ class Orchestrator:
                 memory_context=build_memory_context(self._memory, user_id),
             )
             try:
-                backend = self._backend_prefs.get(user_id)
-                if backend == "claude":
-                    result = await run_claude_task(
+                result = await run_claude_task(
                         prompt=execution_prompt,
                         cwd=str(self._settings.codex_work_dir),
                         timeout=self._settings.codex_timeout,
@@ -642,22 +622,7 @@ class Orchestrator:
                         allowed_tools=self._settings.claude_allowed_tools or None,
                         on_progress=on_progress,
                     )
-                    state.claude_session_id = result.thread_id
-                else:
-                    result = await run_codex_task(
-                        prompt=execution_prompt,
-                        role="general",
-                        cwd=str(self._settings.codex_work_dir),
-                        timeout=self._settings.codex_timeout,
-                        session_id=f"chat-{user_id}",
-                        codex_bin=self._settings.codex_bin,
-                        model_reasoning_effort=self._settings.codex_reasoning_effort,
-                        sandbox_mode=self._settings.codex_write_sandbox_mode,
-                        codex_thread_id=state.codex_thread_id,
-                        persist_session=True,
-                        on_progress=on_progress,
-                    )
-                    state.codex_thread_id = result.thread_id
+                state.claude_session_id = result.thread_id
                 duration = time.perf_counter() - started
                 state.summary = self._summarize_session(state.summary, normalized_text)
                 self._logger.info(
@@ -1462,7 +1427,7 @@ class Orchestrator:
                     f"<code>tambah fitur /ping ke kamu</code>\n"
                     f"<code>perbaiki help text kamu</code>\n"
                     f"<code>tambahkan command /version ke codi</code>\n"
-                    f"<code>ubah timeout codex jadi 900</code>\n\n"
+                    f"<code>ubah claude timeout jadi 900</code>\n\n"
                     f"Repo: <code>{escape(str(self_root))}</code>"
                 ),
                 parse_mode="HTML",
@@ -1493,7 +1458,7 @@ class Orchestrator:
                 text=(
                     f"<b>{escape(self._settings.assistant_name)}</b>\n\n"
                     f"Backend AI aktif: <b>{label}</b>.\n\n"
-                    "Untuk ganti, kirim <code>pakai claude</code> atau <code>pakai codex</code>."
+                    "Backend AI: Claude Code CLI."
                 ),
                 parse_mode="HTML",
             )
@@ -2414,9 +2379,7 @@ class Orchestrator:
         )
 
         try:
-            backend = self._backend_prefs.get(prepared.user_id)
-            if backend == "claude":
-                result = await run_claude_task(
+            result = await run_claude_task(
                     prompt=execution_prompt,
                     cwd=str(draft.draft_root),
                     timeout=self._settings.codex_timeout,
@@ -2425,20 +2388,6 @@ class Orchestrator:
                     claude_session_id=draft.codex_thread_id,
                     mcp_config=self._settings.claude_mcp_config or None,
                     allowed_tools=self._settings.claude_allowed_tools or None,
-                    on_progress=on_progress,
-                )
-            else:
-                result = await run_codex_task(
-                    prompt=execution_prompt,
-                    role=prepared.role,
-                    cwd=str(draft.draft_root),
-                    timeout=self._settings.codex_timeout,
-                    session_id=f"{prepared.session.session_id}-proposal",
-                    codex_bin=self._settings.codex_bin,
-                    model_reasoning_effort=self._settings.codex_reasoning_effort,
-                    sandbox_mode=self._settings.codex_write_sandbox_mode,
-                    codex_thread_id=draft.codex_thread_id,
-                    persist_session=True,
                     on_progress=on_progress,
                 )
             await self._edit_approval_manager.update_draft_thread(

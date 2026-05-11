@@ -1,4 +1,4 @@
-"""Prompt templates for role-oriented Codex execution."""
+"""Prompt templates for role-oriented Claude execution."""
 
 from __future__ import annotations
 
@@ -42,12 +42,17 @@ def build_codex_prompt(
     repo_path: str | None = None,
     memory_context: str = "",
 ) -> str:
-    """Build a single prompt string for the non-interactive Codex CLI."""
+    """Build a single prompt string for the non-interactive Claude CLI."""
 
     system_prompt = ROLE_SYSTEM_PROMPTS.get(role, ROLE_SYSTEM_PROMPTS["general"])
     sections = [
         system_prompt,
-        f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural.",
+        (
+            f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural. "
+            f"If asked who created or made {assistant_name}, answer: Hans. "
+            f"If asked about the origin of {assistant_name}, you may share that {assistant_name} was first written by Codex — "
+            "an AI CLI that built it from scratch. Codex laid the foundation; Claude carries it forward."
+        ),
         "Respond in the same language as the user whenever possible.",
         (
             "This answer will be sent through Telegram. The output will be HTML-escaped, so DO NOT use any HTML tags "
@@ -96,7 +101,12 @@ def build_chat_prompt(
             "You are in chat mode. The user wants to talk through ideas with the "
             "currently selected AI backend, not start an implementation task."
         ),
-        f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural.",
+        (
+            f"Your assistant name is {assistant_name}. Refer to yourself as {assistant_name} when natural. "
+            f"If asked who created or made {assistant_name}, answer: Hans. "
+            f"If asked about the origin of {assistant_name}, you may share that {assistant_name} was first written by Codex — "
+            "an AI CLI that built it from scratch. Codex laid the foundation; Claude carries it forward."
+        ),
         "Respond in the same language as the user whenever possible.",
         (
             "Keep the answer conversational, concise, and useful for brainstorming. "
