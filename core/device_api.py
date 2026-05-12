@@ -7,7 +7,7 @@ import threading
 from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable
+from typing import Callable, Optional
 
 from core.device_registry import (
     DeviceRegistryError,
@@ -39,11 +39,17 @@ class DeviceApiServer:
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._notify_fn_cell: list[Callable[[str], None] | None] = [None]
+        self._chat_fn_cell: list[Optional[Callable[[str, int], str]]] = [None]
 
     def set_notify_fn(self, fn: Callable[[str], None]) -> None:
         """Set a thread-safe callback to send Telegram notifications."""
 
         self._notify_fn_cell[0] = fn
+
+    def set_chat_fn(self, fn: Callable[[str, int], str]) -> None:
+        """Set a sync callable (message, user_id) -> reply for the /api/chat endpoint."""
+
+        self._chat_fn_cell[0] = fn
 
     def start(self) -> None:
         """Start the device API server in a background thread."""
@@ -52,7 +58,7 @@ class DeviceApiServer:
             return
         handler_cls = self._build_handler_class()
         server = ThreadingHTTPServer((self._host, self._port), handler_cls)
-        server.daemon_threads = True
+        server.daemon_threads = True  # noqa: FBT003
         self._server = server
         self._thread = threading.Thread(
             target=server.serve_forever,
@@ -95,6 +101,7 @@ class DeviceApiServer:
         logger = self._logger
         shared_token = self._shared_token
         notify_fn_cell = self._notify_fn_cell
+        chat_fn_cell = self._chat_fn_cell
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "CodiDeviceAPI/1.0"
@@ -113,6 +120,9 @@ class DeviceApiServer:
                     )
                     return
 
+                if self.path == "/api/chat":
+                    self._handle_chat()
+                    return
                 if self.path == "/api/device/tasks/poll":
                     self._handle_task_poll()
                     return
@@ -302,6 +312,26 @@ class DeviceApiServer:
                     self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "internal_error"})
                     return
                 self._send_json(HTTPStatus.OK, {"ok": True, "tasks": created})
+
+            def _handle_chat(self) -> None:
+                chat_fn = chat_fn_cell[0]
+                if chat_fn is None:
+                    self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "chat_not_available"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    message = str(payload.get("message") or "").strip()
+                    user_id = int(payload.get("user_id") or 0)
+                    if not message:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "message_required"})
+                        return
+                    reply = chat_fn(message, user_id)
+                    self._send_json(HTTPStatus.OK, {"ok": True, "reply": reply})
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})
+                except Exception:
+                    logger.exception("action=chat_api_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "internal_error"})
 
             def log_message(self, fmt: str, *args) -> None:
                 return

@@ -208,6 +208,19 @@ async def _post_init(application: Application) -> None:
             _make_notify_fn(application.bot, settings, loop, logger)
         )
 
+        _orch: Orchestrator = application.bot_data["orchestrator"]
+
+        async def _chat_async(message: str, user_id: int) -> str:
+            prepared = await _orch.prepare_dispatch(user_id or settings.admin_user_ids[0], message)
+            payload = await _orch.run_prepared(prepared)
+            return payload.text
+
+        def _chat_sync(message: str, user_id: int) -> str:
+            future = asyncio.run_coroutine_threadsafe(_chat_async(message, user_id), loop)
+            return future.result(timeout=120)
+
+        device_api_server.set_chat_fn(_chat_sync)
+
     assistant_name = settings.assistant_name
     try:
         await application.bot.set_my_commands([
