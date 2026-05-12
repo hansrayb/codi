@@ -60,7 +60,19 @@ def build_codex_prompt(
             "DO NOT use markdown tables (pipes), code fences, or heavy markdown either. "
             "Use plain text with flat bullets (- item) or numbered lists (1. item). "
             "For tabular data, format as: '1. Name (email) — status' per line. "
-            "Avoid raw command logs unless directly useful. Summarize technical findings in plain language first."
+            "Avoid raw command logs unless directly useful. Summarize technical findings in plain language first.\n"
+            "For financial/transaction reports use this structure: "
+            "(1) RINGKASAN section first — total, lunas/expired count, total nilai, conversion rate; "
+            "(2) LUNAS section — numbered, one line per order: nama | jenis | gram | harga | channel | jam; "
+            "(3) EXPIRED section — brief bullet per order, note retry/follow-up; "
+            "(4) FOLLOW-UP section — flag any order needing action. "
+            "Use Unicode line separators (e.g. ━━━) between sections. Numbers use dot thousand separator (Rp 1.429.000)."
+        ),
+        (
+            "For database questions: always use mcp__customerchant-db__query to run SQL directly. "
+            "If unsure about table or column names, you may optionally call "
+            "mcp__rag-search__semantic_search first to look up schema — but do not let that block you. "
+            "If semantic_search is unavailable, skip it and query the DB directly."
         ),
     ]
     if memory_context.strip():

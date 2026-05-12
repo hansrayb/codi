@@ -491,12 +491,18 @@ class Orchestrator:
                     on_progress=on_progress,
                     started=started,
                 )
+            _fast_roles = {"general", "ops"}
+            _model = (
+                self._settings.claude_model_fast
+                if prepared.role in _fast_roles
+                else self._settings.claude_model
+            )
             result = await run_claude_task(
                     prompt=prepared.execution_prompt,
                     cwd=prepared.session.cwd,
                     timeout=self._settings.codex_timeout,
                     claude_bin=self._settings.claude_bin,
-                    claude_model=self._settings.claude_model,
+                    claude_model=_model,
                     claude_session_id=prepared.session.claude_session_id,
                     mcp_config=self._settings.claude_mcp_config or None,
                     allowed_tools=self._settings.claude_allowed_tools or None,
@@ -616,7 +622,7 @@ class Orchestrator:
                         cwd=str(self._settings.codex_work_dir),
                         timeout=self._settings.codex_timeout,
                         claude_bin=self._settings.claude_bin,
-                        claude_model=self._settings.claude_model,
+                        claude_model=self._settings.claude_model_fast,
                         claude_session_id=state.claude_session_id,
                         mcp_config=self._settings.claude_mcp_config or None,
                         allowed_tools=self._settings.claude_allowed_tools or None,

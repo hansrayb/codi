@@ -41,6 +41,7 @@ class Settings:
     codex_work_dir: Path
     claude_bin: str
     claude_model: str
+    claude_model_fast: str
     claude_mcp_config: str
     claude_allowed_tools: str
     allowed_work_dirs: tuple[Path, ...]
@@ -155,6 +156,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     )
     claude_bin = os.getenv("CLAUDE_BIN", "claude").strip() or "claude"
     claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+    claude_model_fast = os.getenv("CLAUDE_MODEL_FAST", "claude-haiku-4-5-20251001").strip() or "claude-haiku-4-5-20251001"
     claude_mcp_config = os.getenv("CLAUDE_MCP_CONFIG", "").strip()
     claude_allowed_tools = os.getenv("CLAUDE_ALLOWED_TOOLS", "").strip()
     codex_work_dir = _parse_existing_dir(
@@ -313,6 +315,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         codex_work_dir=codex_work_dir,
         claude_bin=claude_bin,
         claude_model=claude_model,
+        claude_model_fast=claude_model_fast,
         claude_mcp_config=claude_mcp_config,
         claude_allowed_tools=claude_allowed_tools,
         allowed_work_dirs=allowed_work_dirs,
