@@ -137,12 +137,12 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-ROLE_NAMES = ("builder", "reviewer", "debugger", "ops", "general", "advisor", "hr")
+ROLE_NAMES = ("codi", "builder", "reviewer", "debugger", "ops", "general", "advisor", "hr")
 OVERRIDE_PATTERNS = (
-    re.compile(r"\bpakai\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
-    re.compile(r"\bsebagai\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
-    re.compile(r"\btask\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
-    re.compile(r"\brole\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\bpakai\s+(codi|builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\bsebagai\s+(codi|builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\btask\s+(codi|builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\brole\s+(codi|builder|reviewer|debugger|ops|general|advisor|hr)\b"),
 )
 STOPWORDS = {
     "yang",

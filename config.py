@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-VALID_ROLES = {"builder", "reviewer", "debugger", "ops", "general"}
+VALID_ROLES = {"codi", "builder", "reviewer", "debugger", "ops", "general", "advisor", "hr"}
 VALID_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
 VALID_BACKENDS = {"claude"}
 

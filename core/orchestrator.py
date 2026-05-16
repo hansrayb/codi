@@ -375,6 +375,7 @@ class Orchestrator:
         policy = get_role_policy(decision.role)
         if (
             policy.allow_write
+            and decision.role != "codi"
             and repo_resolution.reason == "default_workdir"
             and not (repo_resolution.root / ".git").exists()
         ):

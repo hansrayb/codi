@@ -16,6 +16,12 @@ class RolePolicy:
 
 
 ROLE_POLICIES: dict[str, RolePolicy] = {
+    "codi": RolePolicy(
+        name="codi",
+        sandbox_mode="workspace-write",
+        allow_write=True,
+        description="Unified mode — handles all domains without explicit routing.",
+    ),
     "builder": RolePolicy(
         name="builder",
         sandbox_mode="workspace-write",
