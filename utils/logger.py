@@ -1,4 +1,4 @@
-"""Logging helpers for the orchestrated Codex Telegram bot."""
+"""Logging helpers for the orchestrated Codi Telegram bot."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def configure_logging(level: str, log_file: str | None = None) -> logging.Logger
         handlers=handlers,
         force=True,
     )
-    logger = logging.getLogger("codex_agent")
+    logger = logging.getLogger("codi")
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     return logger
 

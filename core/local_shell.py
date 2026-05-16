@@ -165,7 +165,7 @@ class LocalShellResult:
 
 
 class LocalShellService:
-    """Run explicit local shell commands outside the Codex sandbox."""
+    """Run explicit local shell commands outside the Claude sandbox."""
 
     def __init__(
         self,
@@ -427,7 +427,7 @@ def build_shell_request_for_service_shortcut(
     """Translate a service shortcut into a concrete `systemctl` or `journalctl` call."""
 
     if shortcut.action == "service_health_all":
-        raw_units = important_services or ("codex-agent.service",)
+        raw_units = important_services or ("codi.service",)
         units = tuple(_quote_systemd_unit(unit) for unit in raw_units)
         units_expr = " ".join(units)
         return LocalShellRequest(

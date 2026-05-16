@@ -60,7 +60,7 @@ class OrchestratorSafetyTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.workdir = Path(self.tempdir.name)
-        (self.workdir / ".env").write_text("CODEX_TIMEOUT=180\n", encoding="utf-8")
+        (self.workdir / ".env").write_text("CLAUDE_TIMEOUT=180\n", encoding="utf-8")
         self.logger = SimpleNamespace(
             info=lambda *args, **kwargs: None,
             warning=lambda *args, **kwargs: None,
@@ -78,11 +78,11 @@ class OrchestratorSafetyTests(unittest.IsolatedAsyncioTestCase):
         )
         settings = SimpleNamespace(
             assistant_name="Codi",
-            codex_work_dir=self.workdir,
+            claude_work_dir=self.workdir,
             max_output_length=1200,
             important_services=("codex-agent.service",),
             enable_desktop_actions=True,
-            codex_timeout=600,
+            claude_timeout=600,
             codex_bin="codex",
             codex_reasoning_effort="medium",
             ai_backend="codex",
@@ -132,10 +132,10 @@ class OrchestratorSafetyTests(unittest.IsolatedAsyncioTestCase):
         approved = await self.orchestrator.try_handle_control_message(1, "lanjutkan aksi")
 
         self.assertIn("aksi ini saya tahan dulu", pending.text.lower())
-        self.assertIn("CODEX_TIMEOUT", approved.text)
+        self.assertIn("CLAUDE_TIMEOUT", approved.text)
         self.assertIn("<code>600</code>", approved.text)
         self.assertEqual(approved.post_send_action, "restart_self")
-        self.assertIn("CODEX_TIMEOUT=600", (self.workdir / ".env").read_text(encoding="utf-8"))
+        self.assertIn("CLAUDE_TIMEOUT=600", (self.workdir / ".env").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

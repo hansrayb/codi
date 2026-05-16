@@ -161,7 +161,7 @@ class SystemActivityInspector:
         self,
         *,
         log_file: str | None = None,
-        journal_unit: str = "codex-agent.service",
+        journal_unit: str = "codi.service",
         desktop_action_manager: DesktopActionManager | None = None,
         process_limit: int = 5,
         log_lines: int = 12,

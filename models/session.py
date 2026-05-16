@@ -1,4 +1,4 @@
-"""Session domain models for orchestrated Codex execution."""
+"""Session domain models for orchestrated Codi execution."""
 
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ class Session:
     role: str
     cwd: str
     case_id: str | None = None
-    codex_thread_id: str | None = None
     claude_session_id: str | None = None
     status: str = "idle"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

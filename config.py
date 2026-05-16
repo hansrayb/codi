@@ -1,4 +1,4 @@
-"""Application configuration for the orchestrated Codex Telegram bot."""
+"""Application configuration for the orchestrated Codi Telegram bot."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 VALID_ROLES = {"codi", "builder", "reviewer", "debugger", "ops", "general", "advisor", "hr"}
-VALID_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
 VALID_BACKENDS = {"claude"}
 
 
@@ -34,11 +33,8 @@ class Settings:
     business_database_paths: tuple[Path, ...]
     business_database_urls: tuple[str, ...]
     ai_backend: str
-    codex_bin: str
-    codex_timeout: int
-    codex_reasoning_effort: str
-    codex_write_sandbox_mode: str
-    codex_work_dir: Path
+    claude_work_dir: Path
+    claude_timeout: int
     claude_bin: str
     claude_model: str
     claude_model_fast: str
@@ -150,24 +146,19 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("BUSINESS_DATABASE_URLS", ""),
     )
     ai_backend = os.getenv("AI_BACKEND", "claude").strip().lower() or "claude"
-    codex_bin = os.getenv("CODEX_BIN", "codex").strip() or "codex"
-    codex_timeout = _parse_positive_int(os.getenv("CODEX_TIMEOUT", "600"), "CODEX_TIMEOUT")
-    codex_reasoning_effort = (
-        os.getenv("CODEX_REASONING_EFFORT", "medium").strip().lower() or "medium"
-    )
-    codex_write_sandbox_mode = (
-        os.getenv("CODEX_WRITE_SANDBOX_MODE", "workspace-write").strip() or "workspace-write"
+    claude_timeout = _parse_positive_int(
+        os.getenv("CLAUDE_TIMEOUT") or os.getenv("CODEX_TIMEOUT", "600"), "CLAUDE_TIMEOUT"
     )
     claude_bin = os.getenv("CLAUDE_BIN", "claude").strip() or "claude"
     claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
     claude_model_fast = os.getenv("CLAUDE_MODEL_FAST", "claude-haiku-4-5-20251001").strip() or "claude-haiku-4-5-20251001"
     claude_mcp_config = os.getenv("CLAUDE_MCP_CONFIG", "").strip()
     claude_allowed_tools = os.getenv("CLAUDE_ALLOWED_TOOLS", "").strip()
-    codex_work_dir = _parse_existing_dir(
-        os.getenv("CODEX_WORK_DIR", os.getcwd()),
-        "CODEX_WORK_DIR",
+    claude_work_dir = _parse_existing_dir(
+        os.getenv("CLAUDE_WORK_DIR") or os.getenv("CODEX_WORK_DIR", os.getcwd()),
+        "CLAUDE_WORK_DIR",
     )
-    allowed_work_dirs_raw = os.getenv("ALLOWED_WORK_DIRS", str(codex_work_dir))
+    allowed_work_dirs_raw = os.getenv("ALLOWED_WORK_DIRS", str(claude_work_dir))
     allowed_work_dirs = tuple(
         _parse_existing_dir(item, "ALLOWED_WORK_DIRS")
         for item in _split_csv(allowed_work_dirs_raw)
@@ -222,7 +213,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
 
     enable_device_registry = _parse_bool(os.getenv("ENABLE_DEVICE_REGISTRY", "false"))
     device_registry_path = Path(
-        os.getenv("DEVICE_REGISTRY_PATH", str(codex_work_dir / "codi-devices.json"))
+        os.getenv("DEVICE_REGISTRY_PATH", str(claude_work_dir / "codi-devices.json"))
     ).expanduser().resolve()
     device_api_host = (os.getenv("DEVICE_API_HOST", "127.0.0.1").strip() or "127.0.0.1")
     device_api_port = _parse_port(os.getenv("DEVICE_API_PORT", "8787"), "DEVICE_API_PORT")
@@ -250,10 +241,10 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
             if _dir and _app:
                 repo_pm2_map[str(Path(_dir).expanduser().resolve())] = _app
     alert_targets_path = Path(
-        os.getenv("ALERT_TARGETS_PATH", str(codex_work_dir / "codi-alert-targets.json"))
+        os.getenv("ALERT_TARGETS_PATH", str(claude_work_dir / "codi-alert-targets.json"))
     ).expanduser().resolve()
     memory_db_path = Path(
-        os.getenv("MEMORY_DB_PATH", str(codex_work_dir / "codi-memory.db"))
+        os.getenv("MEMORY_DB_PATH", str(claude_work_dir / "codi-memory.db"))
     ).expanduser().resolve()
 
     allowed_set = set(allowed_user_ids)
@@ -283,20 +274,15 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         raise ConfigError(
             f"AI_BACKEND must be one of {sorted(VALID_BACKENDS)}, got {ai_backend!r}."
         )
-    if codex_reasoning_effort not in VALID_REASONING_EFFORTS:
-        raise ConfigError(
-            "CODEX_REASONING_EFFORT must be one of "
-            f"{sorted(VALID_REASONING_EFFORTS)}, got {codex_reasoning_effort!r}."
-        )
     if log_level not in VALID_LOG_LEVELS:
         raise ConfigError(
             f"LOG_LEVEL must be one of {sorted(VALID_LOG_LEVELS)}, got {log_level!r}."
         )
     if not any(
-        codex_work_dir == allowed or allowed in codex_work_dir.parents
+        claude_work_dir == allowed or allowed in claude_work_dir.parents
         for allowed in allowed_work_dirs
     ):
-        raise ConfigError("CODEX_WORK_DIR must be inside ALLOWED_WORK_DIRS.")
+        raise ConfigError("CLAUDE_WORK_DIR must be inside ALLOWED_WORK_DIRS.")
     if max_sessions_per_user > max_active_sessions:
         raise ConfigError("MAX_SESSIONS_PER_USER cannot exceed MAX_ACTIVE_SESSIONS.")
     if enable_device_registry and not device_api_shared_token:
@@ -317,11 +303,8 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         business_database_paths=business_database_paths,
         business_database_urls=business_database_urls,
         ai_backend=ai_backend,
-        codex_bin=codex_bin,
-        codex_timeout=codex_timeout,
-        codex_reasoning_effort=codex_reasoning_effort,
-        codex_write_sandbox_mode=codex_write_sandbox_mode,
-        codex_work_dir=codex_work_dir,
+        claude_work_dir=claude_work_dir,
+        claude_timeout=claude_timeout,
         claude_bin=claude_bin,
         claude_model=claude_model,
         claude_model_fast=claude_model_fast,

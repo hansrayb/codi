@@ -1,4 +1,4 @@
-"""Entry point for the orchestrated Codex Telegram bot."""
+"""Entry point for the orchestrated Codi Telegram bot."""
 
 from __future__ import annotations
 
@@ -84,11 +84,11 @@ def build_application(settings: Settings) -> Application:
         logger=logger,
     )
     device_task_queue = DeviceTaskQueue(
-        queue_path=settings.codex_work_dir / "codi-device-tasks.json",
+        queue_path=settings.claude_work_dir / "codi-device-tasks.json",
         logger=logger,
     )
     device_context_store = DeviceContextStore(
-        context_path=settings.codex_work_dir / "codi-device-contexts.json",
+        context_path=settings.claude_work_dir / "codi-device-contexts.json",
         logger=logger,
     )
     device_api_server = DeviceApiServer(
@@ -103,7 +103,7 @@ def build_application(settings: Settings) -> Application:
     desktop_screenshot_service = DesktopScreenshotService()
     local_shell_service = LocalShellService(
         enabled=settings.enable_local_shell,
-        default_cwd=settings.codex_work_dir,
+        default_cwd=settings.claude_work_dir,
         timeout=settings.local_shell_timeout,
     )
     edit_approval_manager = EditApprovalManager(
@@ -118,7 +118,7 @@ def build_application(settings: Settings) -> Application:
         admin_user_ids=settings.admin_user_ids or tuple(_non_readonly_ids),
         ops_user_ids=_ops_ids or tuple(_non_readonly_ids),
         approval_ttl_seconds=180,
-        audit_log_path=settings.codex_work_dir / "codi-audit.log",
+        audit_log_path=settings.claude_work_dir / "codi-audit.log",
         logger=logger,
     )
     self_maintenance_manager = SelfMaintenanceManager(
@@ -210,13 +210,15 @@ async def _post_init(application: Application) -> None:
 
         _orch: Orchestrator = application.bot_data["orchestrator"]
 
-        async def _chat_async(message: str, user_id: int) -> str:
-            prepared = await _orch.prepare_dispatch(user_id or settings.admin_user_ids[0], message)
+        async def _chat_async(message: str, user_id: int, scope: str = "") -> str:
+            prepared = await _orch.prepare_dispatch(
+                user_id or settings.admin_user_ids[0], message, scope=scope
+            )
             payload = await _orch.run_prepared(prepared)
             return payload.text
 
-        def _chat_sync(message: str, user_id: int) -> str:
-            future = asyncio.run_coroutine_threadsafe(_chat_async(message, user_id), loop)
+        def _chat_sync(message: str, user_id: int, scope: str = "") -> str:
+            future = asyncio.run_coroutine_threadsafe(_chat_async(message, user_id, scope), loop)
             return future.result(timeout=120)
 
         device_api_server.set_chat_fn(_chat_sync)

@@ -1,4 +1,4 @@
-"""Central orchestration logic for the Telegram Codex agent."""
+"""Central orchestration logic for the Telegram Codi agent."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import re
 import shlex
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as dataclass_replace
 from html import escape
 from pathlib import Path
 
@@ -74,7 +74,7 @@ from core.local_shell import (
     match_system_service_shortcut,
 )
 from core.memory import MemoryStore, build_memory_context
-from core.prompts import build_chat_prompt, build_codex_prompt
+from core.prompts import build_chat_prompt, build_task_prompt
 from core.self_context import CodiSelfContext
 from core.repo_context import (
     extract_repo_context_selection,
@@ -168,7 +168,7 @@ class OrchestratorUserError(RuntimeError):
 
 @dataclass
 class PreparedDispatch:
-    """Prepared execution metadata reserved before Codex is invoked."""
+    """Prepared execution metadata reserved before Claude is invoked."""
 
     kind: str
     user_id: int
@@ -188,7 +188,6 @@ class PreparedDispatch:
 class ChatSessionState:
     """Per-user lightweight backend chat state, isolated from work sessions."""
 
-    codex_thread_id: str | None = None
     claude_session_id: str | None = None
     summary: str = ""
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -246,7 +245,7 @@ class Orchestrator:
             project_root=str(self_maintenance_manager.project_root),
         )
 
-    async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
+    async def prepare_dispatch(self, user_id: int, prompt: str, *, scope: str = "") -> PreparedDispatch:
         """Route the prompt and reserve a session before execution starts."""
 
         normalized_prompt = prompt.strip()
@@ -295,7 +294,7 @@ class Orchestrator:
                 except SessionInvalidatedError as exc:
                     raise OrchestratorUserError("Session sebelumnya berubah saat menunggu. Coba kirim ulang task.") from exc
                 session = lease.session
-                execution_prompt = build_codex_prompt(
+                execution_prompt = build_task_prompt(
                     role=decision.role,
                     user_prompt=normalized_prompt,
                     session_summary=session.summary,
@@ -309,7 +308,7 @@ class Orchestrator:
                     "Setelah selesai, Codi akan menampilkan diff dan meminta persetujuan sebelum apply.",
                 ]
                 return PreparedDispatch(
-                    kind="codex",
+                    kind="claude",
                     user_id=user_id,
                     prompt=normalized_prompt,
                     role=decision.role,
@@ -372,6 +371,10 @@ class Orchestrator:
             )
 
         decision = self._router.route(normalized_prompt, active_session)
+        if scope == "repo":
+            _REPO_ROLES = {"builder", "reviewer", "debugger", "general"}
+            if decision.role not in _REPO_ROLES:
+                decision = dataclass_replace(decision, role="general", reason="scope_restricted")
         policy = get_role_policy(decision.role)
         if (
             policy.allow_write
@@ -387,12 +390,17 @@ class Orchestrator:
             decision,
             active_session,
         )
-        case, created_case = await self._case_manager.open_or_reuse_case(
-            user_id,
-            repo_resolution.root,
-            prompt=normalized_prompt,
-            role=decision.role,
-        )
+        needs_workspace = policy.allow_write
+
+        case_id: str | None = None
+        if needs_workspace:
+            case, created_case = await self._case_manager.open_or_reuse_case(
+                user_id,
+                repo_resolution.root,
+                prompt=normalized_prompt,
+                role=decision.role,
+            )
+            case_id = case.case_id
 
         try:
             lease = await self._session_manager.acquire_session(
@@ -400,7 +408,7 @@ class Orchestrator:
                 decision.role,
                 repo_resolution.root,
                 prefer_reuse=prefer_reuse,
-                case_id=case.case_id,
+                case_id=case_id,
             )
         except SessionLimitError as exc:
             raise OrchestratorUserError(
@@ -419,7 +427,7 @@ class Orchestrator:
         memory_ctx = build_memory_context(
             self._memory, user_id, repo_path=str(repo_resolution.root)
         )
-        execution_prompt = build_codex_prompt(
+        execution_prompt = build_task_prompt(
             role=decision.role,
             user_prompt=normalized_prompt,
             session_summary=session.summary,
@@ -429,11 +437,10 @@ class Orchestrator:
             memory_context=memory_ctx,
             bot_context=self._self_context.get_state_block(),
         )
-        ack_parts = [
-            self._build_ack_text(decision.role),
-            self._build_case_ack(case.title, created_case),
-            self._build_repo_ack(repo_resolution),
-        ]
+        ack_parts = [self._build_ack_text(decision.role)]
+        if needs_workspace:
+            ack_parts.append(self._build_case_ack(case.title, created_case))
+            ack_parts.append(self._build_repo_ack(repo_resolution))
         if lease.queued_before_acquire:
             ack_parts.append("Task ini sempat masuk antrean sebentar.")
         if decision.role == "general" and decision.confidence < 0.5:
@@ -443,7 +450,7 @@ class Orchestrator:
         self._logger.info(
             "user_id=%s | case=%s | session=%s | role=%s | repo=%s | repo_reason=%s | action=dispatch | reuse=%s | confidence=%.2f | prompt=%r",
             user_id,
-            case.case_id,
+            case_id,
             session.session_id,
             decision.role,
             str(repo_resolution.root),
@@ -454,7 +461,7 @@ class Orchestrator:
         )
 
         return PreparedDispatch(
-            kind="codex",
+            kind="claude",
             user_id=user_id,
             prompt=normalized_prompt,
             role=decision.role,
@@ -463,7 +470,7 @@ class Orchestrator:
             decision=decision,
             ack_text=ack_text,
             execution_prompt=execution_prompt,
-            case_id=case.case_id,
+            case_id=case_id,
             repo_resolution=repo_resolution,
         )
 
@@ -509,7 +516,7 @@ class Orchestrator:
             result = await run_claude_task(
                     prompt=prepared.execution_prompt,
                     cwd=prepared.session.cwd,
-                    timeout=self._settings.codex_timeout,
+                    timeout=self._settings.claude_timeout,
                     claude_bin=self._settings.claude_bin,
                     claude_model=_model,
                     claude_session_id=prepared.session.claude_session_id,
@@ -538,7 +545,7 @@ class Orchestrator:
             )
         except FileNotFoundError:
             self._logger.exception(
-                "user_id=%s | session=%s | role=%s | action=codex_missing",
+                "user_id=%s | session=%s | role=%s | action=claude_missing",
                 prepared.user_id,
                 prepared.session.session_id,
                 prepared.role,
@@ -553,12 +560,12 @@ class Orchestrator:
                 prepared.user_id,
                 prepared.session.session_id,
                 prepared.role,
-                self._settings.codex_timeout,
+                self._settings.claude_timeout,
             )
             return format_error_payload(
                 (
                     f"{self._settings.assistant_name} belum selesai dalam "
-                    f"{self._settings.codex_timeout} detik. "
+                    f"{self._settings.claude_timeout} detik. "
                     "Kalau mau, sempitkan fokusnya ke file, folder, atau masalah tertentu."
                 ),
                 assistant_name=self._settings.assistant_name,
@@ -628,8 +635,8 @@ class Orchestrator:
             try:
                 result = await run_claude_task(
                         prompt=execution_prompt,
-                        cwd=str(self._settings.codex_work_dir),
-                        timeout=self._settings.codex_timeout,
+                        cwd=str(self._settings.claude_work_dir),
+                        timeout=self._settings.claude_timeout,
                         claude_bin=self._settings.claude_bin,
                         claude_model=self._settings.claude_model_fast,
                         claude_session_id=state.claude_session_id,
@@ -666,11 +673,11 @@ class Orchestrator:
                 self._logger.warning(
                     "user_id=%s | action=chat_timeout | timeout=%ss",
                     user_id,
-                    self._settings.codex_timeout,
+                    self._settings.claude_timeout,
                 )
                 return format_error_payload(
                     (
-                        f"Mode /chat belum selesai dalam {self._settings.codex_timeout} detik. "
+                        f"Mode /chat belum selesai dalam {self._settings.claude_timeout} detik. "
                         "Coba kirim versi yang lebih pendek."
                     ),
                     assistant_name=self._settings.assistant_name,
@@ -790,7 +797,7 @@ class Orchestrator:
         chat_id: int,
         text: str,
     ) -> MessagePayload | None:
-        """Handle repo watch control messages without invoking Codex."""
+        """Handle repo watch control messages without invoking Claude."""
 
         action = self._repo_watch_manager.classify_message(text)
         if action is None:
@@ -894,7 +901,7 @@ class Orchestrator:
         user_id: int,
         text: str,
     ) -> MessagePayload | None:
-        """Handle device-registry queries without invoking Codex."""
+        """Handle device-registry queries without invoking Claude."""
 
         task_status_id = parse_task_status_request(text)
         if task_status_id is not None and self._device_task_queue is not None:
@@ -1622,7 +1629,7 @@ class Orchestrator:
             cwd = (
                 Path(active_case.repo_root)
                 if active_case is not None and active_case.repo_root
-                else self._settings.codex_work_dir
+                else self._settings.claude_work_dir
             )
             try:
                 policy = classify_shell_policy(shell_request.command)
@@ -1675,7 +1682,7 @@ class Orchestrator:
                 kind="local_shell",
                 payload={
                     "request": shell_request,
-                    "cwd": str(self._settings.codex_work_dir),
+                    "cwd": str(self._settings.claude_work_dir),
                 },
                 policy=policy,
             )
@@ -1684,7 +1691,7 @@ class Orchestrator:
             return await self._run_local_shell_with_audit(
                 user_id,
                 shell_request,
-                cwd=self._settings.codex_work_dir,
+                cwd=self._settings.claude_work_dir,
                 policy=policy,
                 failure_message="Codi belum berhasil menjalankan shortcut service itu.",
                 log_action="service_shell_shortcut_failed",
@@ -1714,7 +1721,7 @@ class Orchestrator:
                 kind="local_shell",
                 payload={
                     "request": shell_request,
-                    "cwd": str(self._settings.codex_work_dir),
+                    "cwd": str(self._settings.claude_work_dir),
                 },
                 policy=policy,
             )
@@ -1723,7 +1730,7 @@ class Orchestrator:
             return await self._run_local_shell_with_audit(
                 user_id,
                 shell_request,
-                cwd=self._settings.codex_work_dir,
+                cwd=self._settings.claude_work_dir,
                 policy=policy,
                 failure_message="Codi belum berhasil menjalankan shortcut PM2 itu.",
                 log_action="pm2_shell_shortcut_failed",
@@ -1955,7 +1962,7 @@ class Orchestrator:
         try:
             result = apply_env_config_update(
                 request,
-                env_path=self._settings.codex_work_dir / ".env",
+                env_path=self._settings.claude_work_dir / ".env",
             )
         except EnvConfigError as exc:
             self._safety_manager.record_audit_event(
@@ -2204,7 +2211,7 @@ class Orchestrator:
                     pm2_result = await self._run_local_shell_result_with_audit(
                         user_id,
                         pm2_request,
-                        cwd=self._settings.codex_work_dir,
+                        cwd=self._settings.claude_work_dir,
                         policy=pm2_policy,
                         approval_id=pending.approval_id,
                         log_action="post_approval_pm2_restart_failed",
@@ -2397,10 +2404,10 @@ class Orchestrator:
             result = await run_claude_task(
                     prompt=execution_prompt,
                     cwd=str(draft.draft_root),
-                    timeout=self._settings.codex_timeout,
+                    timeout=self._settings.claude_timeout,
                     claude_bin=self._settings.claude_bin,
                     claude_model=self._settings.claude_model,
-                    claude_session_id=draft.codex_thread_id,
+                    claude_session_id=draft.claude_thread_id,
                     mcp_config=self._settings.claude_mcp_config or None,
                     allowed_tools=self._settings.claude_allowed_tools or None,
                     on_progress=on_progress,

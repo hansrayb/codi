@@ -1,4 +1,4 @@
-"""Helpers for streaming Codex progress into Telegram-friendly updates."""
+"""Helpers for streaming Claude progress into Telegram-friendly updates."""
 
 from __future__ import annotations
 

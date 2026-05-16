@@ -1,4 +1,4 @@
-"""Safe, explicit desktop actions that bypass Codex for GUI app launch."""
+"""Safe, explicit desktop actions that bypass Claude for GUI app launch."""
 
 from __future__ import annotations
 

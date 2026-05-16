@@ -1,4 +1,4 @@
-"""Rule-based prompt routing for the orchestrated Codex bot."""
+"""Rule-based prompt routing for the orchestrated Codi bot."""
 
 from __future__ import annotations
 

@@ -166,7 +166,7 @@ class RepoResolver:
         return self._default_resolution()
 
     def _default_resolution(self) -> RepoResolution:
-        root = self._settings.codex_work_dir
+        root = self._settings.claude_work_dir
         return RepoResolution(
             root=root,
             label=root.name or str(root),

@@ -36,11 +36,10 @@ class EnvConfigUpdateResult:
 
 
 _ENV_SETTING_ALIASES: dict[str, tuple[str, ...]] = {
-    "CODEX_TIMEOUT": (
-        "codex timeout",
-        "timeout codex",
+    "CLAUDE_TIMEOUT": (
+        "claude timeout",
+        "timeout claude",
         "timeout codi",
-        "timeout codi codex",
     ),
     "LOCAL_SHELL_TIMEOUT": (
         "local shell timeout",
@@ -51,7 +50,7 @@ _ENV_SETTING_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 _DISPLAY_NAMES = {
-    "CODEX_TIMEOUT": "Codex timeout",
+    "CLAUDE_TIMEOUT": "Claude timeout",
     "LOCAL_SHELL_TIMEOUT": "Local shell timeout",
 }
 

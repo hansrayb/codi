@@ -1,4 +1,4 @@
-"""Status handlers for the orchestrated Codex Telegram bot."""
+"""Status handlers for the orchestrated Codi Telegram bot."""
 
 from __future__ import annotations
 

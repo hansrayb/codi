@@ -1,4 +1,4 @@
-"""In-memory session lifecycle management for logical Codex terminals."""
+"""In-memory session lifecycle management for logical Claude terminals."""
 
 from __future__ import annotations
 

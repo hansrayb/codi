@@ -46,8 +46,8 @@ class DeviceApiServer:
 
         self._notify_fn_cell[0] = fn
 
-    def set_chat_fn(self, fn: Callable[[str, int], str]) -> None:
-        """Set a sync callable (message, user_id) -> reply for the /api/chat endpoint."""
+    def set_chat_fn(self, fn: Callable[[str, int, str], str]) -> None:
+        """Set a sync callable (message, user_id, scope) -> reply for the /api/chat endpoint."""
 
         self._chat_fn_cell[0] = fn
 
@@ -322,10 +322,11 @@ class DeviceApiServer:
                     payload = self._read_json_body()
                     message = str(payload.get("message") or "").strip()
                     user_id = int(payload.get("user_id") or 0)
+                    scope = str(payload.get("scope") or "").strip()
                     if not message:
                         self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "message_required"})
                         return
-                    reply = chat_fn(message, user_id)
+                    reply = chat_fn(message, user_id, scope)
                     self._send_json(HTTPStatus.OK, {"ok": True, "reply": reply})
                 except json.JSONDecodeError:
                     self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})

@@ -1,4 +1,4 @@
-"""Async subprocess execution helpers for Codex CLI tasks."""
+"""Async subprocess execution helpers (legacy executor)."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ ProgressCallback = Callable[[str], Awaitable[None]]
 
 
 @dataclass(frozen=True)
-class CodexRunResult:
-    """Normalized output from a Codex CLI execution."""
+class ClaudeRunResult:
+    """Normalized output from a Claude CLI execution."""
 
     exit_code: int
     stdout: str
@@ -39,7 +39,7 @@ async def run_codex_task(
     persist_session: bool = True,
     on_progress: ProgressCallback | None = None,
 ) -> CodexRunResult:
-    """Run Codex in non-interactive mode and return exit code, stdout, and stderr."""
+    """Run Claude CLI in non-interactive mode and return exit code, stdout, and stderr."""
 
     output_path = _build_temp_output_path(session_id or role)
     args = _build_codex_args(
@@ -93,7 +93,7 @@ async def run_codex_task(
     stdout_text = "\n".join(stdout_lines).strip()
     stderr_text = "\n".join(stderr_lines).strip()
     cleaned_stdout = output_text.strip() or stdout_text.strip()
-    return CodexRunResult(
+    return ClaudeRunResult(
         exit_code=process.returncode or 0,
         stdout=cleaned_stdout,
         stderr=stderr_text.strip(),
@@ -102,7 +102,7 @@ async def run_codex_task(
 
 
 def _build_temp_output_path(session_tag: str) -> Path:
-    fd, path = tempfile.mkstemp(prefix=f"codex-{session_tag}-", suffix=".txt")
+    fd, path = tempfile.mkstemp(prefix=f"codi-{session_tag}-", suffix=".txt")
     os.close(fd)
     return Path(path)
 

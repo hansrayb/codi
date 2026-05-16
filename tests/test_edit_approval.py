@@ -85,7 +85,7 @@ class EditApprovalManagerTests(unittest.IsolatedAsyncioTestCase):
             case_id="c-07",
             repo_root=self.repo_root,
         )
-        draft.codex_thread_id = "thread-edit-1"
+        draft.claude_thread_id = "thread-edit-1"
         (draft.draft_root / "src" / "app.py").write_text("print('draft')\n", encoding="utf-8")
 
         pending = await self.manager.build_pending(
@@ -109,7 +109,7 @@ class EditApprovalManagerTests(unittest.IsolatedAsyncioTestCase):
             (draft.draft_root / "src" / "app.py").read_text(encoding="utf-8"),
             "print('before')\n",
         )
-        self.assertIsNone(draft.codex_thread_id)
+        self.assertIsNone(draft.claude_thread_id)
 
     async def test_approve_detects_conflict_on_original_repo(self) -> None:
         draft = await self.manager.open_or_reuse_draft(
@@ -117,7 +117,7 @@ class EditApprovalManagerTests(unittest.IsolatedAsyncioTestCase):
             case_id="c-09",
             repo_root=self.repo_root,
         )
-        draft.codex_thread_id = "thread-edit-2"
+        draft.claude_thread_id = "thread-edit-2"
         (draft.draft_root / "src" / "app.py").write_text("print('after')\n", encoding="utf-8")
 
         pending = await self.manager.build_pending(
@@ -140,7 +140,7 @@ class EditApprovalManagerTests(unittest.IsolatedAsyncioTestCase):
             (draft.draft_root / "src" / "app.py").read_text(encoding="utf-8"),
             "print('outside change')\n",
         )
-        self.assertIsNone(draft.codex_thread_id)
+        self.assertIsNone(draft.claude_thread_id)
 
     async def test_close_case_discards_draft_workspace(self) -> None:
         draft = await self.manager.open_or_reuse_draft(

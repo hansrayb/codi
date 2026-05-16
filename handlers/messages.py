@@ -17,7 +17,7 @@ async def handle_text_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Treat any plain text message as an orchestrated Codex task."""
+    """Treat any plain text message as an orchestrated Codi task."""
 
     message = update.effective_message
     user = update.effective_user

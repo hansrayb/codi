@@ -181,7 +181,7 @@ class FormatterTests(unittest.TestCase):
         payload = format_env_config_update_payload(
             assistant_name="Codi",
             result=EnvConfigUpdateResult(
-                key="CODEX_TIMEOUT",
+                key="CLAUDE_TIMEOUT",
                 display_name="Codex timeout",
                 old_value="180",
                 new_value="600",
@@ -192,7 +192,7 @@ class FormatterTests(unittest.TestCase):
         )
 
         self.assertIn("Codi sudah merapikan konfigurasi lokal ini.", payload.text)
-        self.assertIn("CODEX_TIMEOUT", payload.text)
+        self.assertIn("CLAUDE_TIMEOUT", payload.text)
         self.assertIn("600", payload.text)
         self.assertEqual(payload.post_send_action, "restart_self")
         self.assertEqual(payload.parse_mode, ParseMode.HTML)

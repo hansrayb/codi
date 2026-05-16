@@ -1,1 +1,1 @@
-"""Core orchestration package for the Telegram Codex agent."""
+"""Core orchestration package for the Telegram Codi agent."""

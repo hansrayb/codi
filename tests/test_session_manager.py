@@ -31,10 +31,10 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
             business_database_urls=(),
             ai_backend="codex",
             codex_bin="codex",
-            codex_timeout=180,
+            claude_timeout=180,
             codex_reasoning_effort="medium",
             codex_write_sandbox_mode="workspace-write",
-            codex_work_dir=workspace,
+            claude_work_dir=workspace,
             claude_bin="claude",
             claude_model="claude-sonnet-4-6",
             allowed_work_dirs=(workspace,),
@@ -70,7 +70,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_one = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
         )
         await lease_one.release("- first task")
@@ -78,7 +78,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_two = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=True,
         )
 
@@ -89,7 +89,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_one = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
         )
 
@@ -97,7 +97,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
             self.manager.acquire_session(
                 user_id=1,
                 role="builder",
-                cwd=self.settings.codex_work_dir,
+                cwd=self.settings.claude_work_dir,
                 prefer_reuse=True,
             )
         )
@@ -107,7 +107,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
             await self.manager.acquire_session(
                 user_id=1,
                 role="builder",
-                cwd=self.settings.codex_work_dir,
+                cwd=self.settings.claude_work_dir,
                 prefer_reuse=True,
             )
 
@@ -119,7 +119,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease = await self.manager.acquire_session(
             user_id=1,
             role="reviewer",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
         )
         await lease.release("- summary")
@@ -135,7 +135,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_one = await self.manager.acquire_session(
             user_id=1,
             role="debugger",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
         )
         await lease_one.release("- first debugger task")
@@ -143,7 +143,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_two = await self.manager.acquire_session(
             user_id=1,
             role="debugger",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
         )
 
@@ -151,13 +151,13 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         await lease_two.release("- second debugger task")
 
     async def test_same_role_with_different_cwd_creates_new_session(self) -> None:
-        other_repo = self.settings.codex_work_dir / "other-repo"
+        other_repo = self.settings.claude_work_dir / "other-repo"
         other_repo.mkdir()
 
         lease_one = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
         )
         await lease_one.release("- first repo task")
@@ -177,7 +177,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_one = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
             case_id="c-01",
         )
@@ -186,7 +186,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_two = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=True,
             case_id="c-02",
         )
@@ -199,7 +199,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_one = await self.manager.acquire_session(
             user_id=1,
             role="builder",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
             case_id="c-01",
         )
@@ -207,7 +207,7 @@ class SessionManagerTests(unittest.IsolatedAsyncioTestCase):
         lease_two = await self.manager.acquire_session(
             user_id=1,
             role="reviewer",
-            cwd=self.settings.codex_work_dir,
+            cwd=self.settings.claude_work_dir,
             prefer_reuse=False,
             case_id="c-01",
         )

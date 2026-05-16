@@ -1,1 +1,1 @@
-"""Utility helpers for the orchestrated Codex Telegram bot."""
+"""Utility helpers for the orchestrated Codi Telegram bot."""

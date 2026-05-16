@@ -1,4 +1,4 @@
-"""Approval-gated edit workflow for write-capable Codex tasks."""
+"""Approval-gated edit workflow for write-capable Claude tasks."""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ class DraftWorkspace:
     user_id: int
     repo_root: Path
     draft_root: Path
-    codex_thread_id: str | None = None
+    claude_thread_id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_activity_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -165,7 +165,7 @@ class EditApprovalManager:
             draft = self._drafts_by_case.get(case_id)
             if draft is None:
                 return
-            draft.codex_thread_id = thread_id
+            draft.claude_thread_id = thread_id
             draft.last_activity_at = datetime.now(timezone.utc)
 
     async def discard_draft_changes(self, case_id: str) -> None:
@@ -298,7 +298,7 @@ class EditApprovalManager:
         if draft is None:
             return
         await asyncio.to_thread(self._sync_repo_to_draft, draft.repo_root, draft.draft_root)
-        draft.codex_thread_id = None
+        draft.claude_thread_id = None
         draft.last_activity_at = datetime.now(timezone.utc)
 
     async def _remove_draft_locked(self, case_id: str) -> None:
@@ -391,7 +391,7 @@ class EditApprovalManager:
 
 
 def rewrite_workspace_paths(text: str, original_root: Path, draft_root: Path) -> str:
-    """Rewrite absolute workspace paths so Codex sees the current draft location."""
+    """Rewrite absolute workspace paths so Claude sees the current draft location."""
 
     return text.replace(str(original_root), str(draft_root))
 

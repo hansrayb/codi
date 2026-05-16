@@ -22,7 +22,7 @@ class EnvConfigQueryTests(unittest.TestCase):
         self.assertEqual(
             request,
             EnvConfigUpdateRequest(
-                key="CODEX_TIMEOUT",
+                key="CLAUDE_TIMEOUT",
                 value="600",
                 display_name="Codex timeout",
                 original_prompt="ubah codex timeout jadi 600",
@@ -30,14 +30,14 @@ class EnvConfigQueryTests(unittest.TestCase):
         )
 
     def test_direct_env_key_prompt_is_detected(self) -> None:
-        request = match_env_config_update_query("set CODEX_TIMEOUT=900")
+        request = match_env_config_update_query("set CLAUDE_TIMEOUT=900")
         self.assertEqual(
             request,
             EnvConfigUpdateRequest(
-                key="CODEX_TIMEOUT",
+                key="CLAUDE_TIMEOUT",
                 value="900",
                 display_name="Codex timeout",
-                original_prompt="set CODEX_TIMEOUT=900",
+                original_prompt="set CLAUDE_TIMEOUT=900",
             ),
         )
 
@@ -63,11 +63,11 @@ class EnvConfigApplyTests(unittest.TestCase):
     def test_existing_value_is_replaced(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             env_path = Path(temp_dir) / ".env"
-            env_path.write_text("CODEX_TIMEOUT=180\nOTHER=value\n", encoding="utf-8")
+            env_path.write_text("CLAUDE_TIMEOUT=180\nOTHER=value\n", encoding="utf-8")
 
             result = apply_env_config_update(
                 EnvConfigUpdateRequest(
-                    key="CODEX_TIMEOUT",
+                    key="CLAUDE_TIMEOUT",
                     value="600",
                     display_name="Codex timeout",
                     original_prompt="ubah codex timeout jadi 600",
@@ -78,7 +78,7 @@ class EnvConfigApplyTests(unittest.TestCase):
             self.assertTrue(result.changed)
             self.assertEqual(result.old_value, "180")
             self.assertEqual(result.new_value, "600")
-            self.assertIn("CODEX_TIMEOUT=600\n", env_path.read_text(encoding="utf-8"))
+            self.assertIn("CLAUDE_TIMEOUT=600\n", env_path.read_text(encoding="utf-8"))
 
     def test_missing_value_is_appended(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -87,7 +87,7 @@ class EnvConfigApplyTests(unittest.TestCase):
 
             result = apply_env_config_update(
                 EnvConfigUpdateRequest(
-                    key="CODEX_TIMEOUT",
+                    key="CLAUDE_TIMEOUT",
                     value="600",
                     display_name="Codex timeout",
                     original_prompt="ubah codex timeout jadi 600",
@@ -97,16 +97,16 @@ class EnvConfigApplyTests(unittest.TestCase):
 
             self.assertTrue(result.changed)
             self.assertIsNone(result.old_value)
-            self.assertTrue(env_path.read_text(encoding="utf-8").endswith("CODEX_TIMEOUT=600\n"))
+            self.assertTrue(env_path.read_text(encoding="utf-8").endswith("CLAUDE_TIMEOUT=600\n"))
 
     def test_same_value_skips_write_semantically(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             env_path = Path(temp_dir) / ".env"
-            env_path.write_text("CODEX_TIMEOUT=600\n", encoding="utf-8")
+            env_path.write_text("CLAUDE_TIMEOUT=600\n", encoding="utf-8")
 
             result = apply_env_config_update(
                 EnvConfigUpdateRequest(
-                    key="CODEX_TIMEOUT",
+                    key="CLAUDE_TIMEOUT",
                     value="600",
                     display_name="Codex timeout",
                     original_prompt="ubah codex timeout jadi 600",

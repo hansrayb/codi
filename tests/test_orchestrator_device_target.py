@@ -98,11 +98,11 @@ class OrchestratorDeviceTargetTests(unittest.IsolatedAsyncioTestCase):
         )
         settings = SimpleNamespace(
             assistant_name="Codi",
-            codex_work_dir=self.workdir,
+            claude_work_dir=self.workdir,
             max_output_length=1200,
             important_services=("codex-agent.service",),
             enable_desktop_actions=True,
-            codex_timeout=600,
+            claude_timeout=600,
             codex_bin="codex",
             codex_reasoning_effort="medium",
             ai_backend="codex",

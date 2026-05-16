@@ -98,12 +98,12 @@ class OrchestratorRepoContextTests(unittest.IsolatedAsyncioTestCase):
         self.repo_resolver = _RepoResolverStub(self.workdir / "AI-Agent-Telegram")
         settings = SimpleNamespace(
             assistant_name="Codi",
-            codex_work_dir=self.workdir,
+            claude_work_dir=self.workdir,
             max_output_length=1200,
             important_services=("codex-agent.service",),
             enable_desktop_actions=True,
             ai_backend="codex",
-            codex_timeout=600,
+            claude_timeout=600,
             codex_bin="codex",
             codex_reasoning_effort="medium",
         )

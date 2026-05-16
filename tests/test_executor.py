@@ -70,7 +70,7 @@ class ExecutorProgressParsingTests(unittest.TestCase):
             codex_bin="codex",
             model_reasoning_effort="medium",
             sandbox_mode="read-only",
-            codex_thread_id=None,
+            claude_thread_id=None,
             persist_session=True,
         )
         self.assertIn("--sandbox", args)
@@ -86,7 +86,7 @@ class ExecutorProgressParsingTests(unittest.TestCase):
             codex_bin="codex",
             model_reasoning_effort="medium",
             sandbox_mode="workspace-write",
-            codex_thread_id="thread-123",
+            claude_thread_id="thread-123",
             persist_session=True,
         )
         self.assertIn("resume", args)

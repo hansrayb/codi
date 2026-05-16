@@ -6,7 +6,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable
 
-from utils.executor import CodexRunResult
+from utils.executor import ClaudeRunResult
 
 ProgressCallback = Callable[[str], Awaitable[None]]
 
@@ -22,7 +22,7 @@ async def run_claude_task(
     mcp_config: str | None = None,
     allowed_tools: str | None = None,
     on_progress: ProgressCallback | None = None,
-) -> CodexRunResult:
+) -> ClaudeRunResult:
     """Run Claude Code CLI in non-interactive mode and return the result."""
 
     args = _build_claude_args(
@@ -54,7 +54,7 @@ async def run_claude_task(
     stderr_text = _decode(stderr_raw)
     result_text, session_id = _parse_output(stdout_text)
 
-    return CodexRunResult(
+    return ClaudeRunResult(
         exit_code=process.returncode or 0,
         stdout=result_text or stdout_text.strip(),
         stderr=stderr_text.strip(),

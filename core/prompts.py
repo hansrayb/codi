@@ -117,7 +117,7 @@ ROLE_SYSTEM_PROMPTS: dict[str, str] = {
 }
 
 
-def build_codex_prompt(
+def build_task_prompt(
     role: str,
     user_prompt: str,
     session_summary: str = "",

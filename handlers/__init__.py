@@ -1,4 +1,4 @@
-"""Telegram handler registration for the orchestrated Codex bot."""
+"""Telegram handler registration for the orchestrated Codi bot."""
 
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 

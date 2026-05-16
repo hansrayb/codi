@@ -1,1 +1,1 @@
-"""Domain models for the orchestrated Codex Telegram bot."""
+"""Domain models for the orchestrated Codi Telegram bot."""

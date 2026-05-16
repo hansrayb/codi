@@ -1,4 +1,4 @@
-"""Role policy definitions for orchestrated Codex execution."""
+"""Role policy definitions for orchestrated Codi execution."""
 
 from __future__ import annotations
 
@@ -57,6 +57,12 @@ ROLE_POLICIES: dict[str, RolePolicy] = {
         sandbox_mode="read-only",
         allow_write=False,
         description="Business advisor with live DB read access for Lumbung Emas insights.",
+    ),
+    "hr": RolePolicy(
+        name="hr",
+        sandbox_mode="read-only",
+        allow_write=False,
+        description="HR queries — attendance, payroll, leave, overtime via HR API.",
     ),
 }
 

@@ -25,7 +25,7 @@ class LoadSettingsTests(unittest.TestCase):
                         "ADMIN_USER_IDS=5354020279,8518719557",
                         "VIEWER_USER_IDS=",
                         "BUSINESS_USER_IDS=",
-                        f"CODEX_WORK_DIR={workspace}",
+                        f"CLAUDE_WORK_DIR={workspace}",
                         f"ALLOWED_WORK_DIRS={workspace}",
                     ]
                 )
@@ -41,7 +41,7 @@ class LoadSettingsTests(unittest.TestCase):
                     "ADMIN_USER_IDS",
                     "VIEWER_USER_IDS",
                     "BUSINESS_USER_IDS",
-                    "CODEX_WORK_DIR",
+                    "CLAUDE_WORK_DIR",
                     "ALLOWED_WORK_DIRS",
                 )
             }
@@ -51,7 +51,7 @@ class LoadSettingsTests(unittest.TestCase):
                 os.environ["ADMIN_USER_IDS"] = "5354020279"
                 os.environ["VIEWER_USER_IDS"] = ""
                 os.environ["BUSINESS_USER_IDS"] = "8518719557"
-                os.environ["CODEX_WORK_DIR"] = str(workspace)
+                os.environ["CLAUDE_WORK_DIR"] = str(workspace)
                 os.environ["ALLOWED_WORK_DIRS"] = str(workspace)
 
                 settings = load_settings(env_path)
