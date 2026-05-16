@@ -69,6 +69,10 @@ class Settings:
     device_api_port: int
     device_api_shared_token: str | None
     device_heartbeat_ttl_seconds: int
+    hr_enabled: bool
+    hr_api_url: str
+    hr_service_email: str
+    hr_service_password: str
 
     @property
     def session_idle_ttl_seconds(self) -> int:
@@ -211,6 +215,11 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("MAX_WATCHED_REPOS_PER_USER", "5"),
         "MAX_WATCHED_REPOS_PER_USER",
     )
+    hr_enabled = _parse_bool(os.getenv("HR_ENABLED", "false"))
+    hr_api_url = (os.getenv("HR_API_URL", "http://localhost:8000") or "http://localhost:8000").strip()
+    hr_service_email = (os.getenv("HR_SERVICE_EMAIL", "") or "").strip()
+    hr_service_password = (os.getenv("HR_SERVICE_PASSWORD", "") or "").strip()
+
     enable_device_registry = _parse_bool(os.getenv("ENABLE_DEVICE_REGISTRY", "false"))
     device_registry_path = Path(
         os.getenv("DEVICE_REGISTRY_PATH", str(codex_work_dir / "codi-devices.json"))
@@ -343,6 +352,10 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         device_api_port=device_api_port,
         device_api_shared_token=device_api_shared_token,
         device_heartbeat_ttl_seconds=device_heartbeat_ttl_seconds,
+        hr_enabled=hr_enabled,
+        hr_api_url=hr_api_url,
+        hr_service_email=hr_service_email,
+        hr_service_password=hr_service_password,
     )
 
 

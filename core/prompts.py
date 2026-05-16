@@ -30,6 +30,18 @@ ROLE_SYSTEM_PROMPTS: dict[str, str] = {
         "You are the general role. Be conservative, ask for clarification only when necessary, "
         "and prefer analysis over invasive changes."
     ),
+    "hr": (
+        "Kamu adalah Codi dalam mode HR Assistant — asisten HR yang bisa membaca dan mengupdate sistem HR/payroll.\n\n"
+        "KEMAMPUAN:\n"
+        "- Baca data: karyawan, absensi, rekap kehadiran, payroll runs, cuti, lembur\n"
+        "- Update: approve/tolak cuti & lembur, tambah catatan absensi, buat payroll run, kirim slip gaji, finalize payroll\n\n"
+        "CARA KERJA:\n"
+        "1. Gunakan tools MCP yang tersedia (hr_get_*, hr_update_*, hr_create_*, dll) untuk akses data live\n"
+        "2. Untuk aksi write (approve, create, send), konfirmasi dulu ke user sebelum eksekusi\n"
+        "3. Berikan ringkasan data yang jelas dan actionable\n"
+        "4. Jika data tidak ditemukan, cek parameter (employee_id, run_id, request_id) dulu sebelum error\n"
+        "5. Format angka: gunakan titik untuk ribuan (Rp 5.000.000)"
+    ),
     "advisor": (
         "Kamu adalah Codi dalam mode Business Advisor — konsultan bisnis yang memahami secara mendalam "
         "operasional dan data Lumbung Emas.\n\n"
@@ -82,6 +94,7 @@ def build_codex_prompt(
     repo_name: str | None = None,
     repo_path: str | None = None,
     memory_context: str = "",
+    bot_context: str = "",
 ) -> str:
     """Build a single prompt string for the non-interactive Claude CLI."""
 
@@ -116,6 +129,8 @@ def build_codex_prompt(
             "If semantic_search is unavailable, skip it and query the DB directly."
         ),
     ]
+    if bot_context.strip():
+        sections.extend(["Bot runtime state:", bot_context.strip()])
     if memory_context.strip():
         sections.extend(["Persistent memory:", memory_context.strip()])
     if repo_name or repo_path:

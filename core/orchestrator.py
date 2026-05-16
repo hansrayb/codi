@@ -75,6 +75,7 @@ from core.local_shell import (
 )
 from core.memory import MemoryStore, build_memory_context
 from core.prompts import build_chat_prompt, build_codex_prompt
+from core.self_context import CodiSelfContext
 from core.repo_context import (
     extract_repo_context_selection,
     is_repo_context_status_query,
@@ -238,6 +239,12 @@ class Orchestrator:
         self._device_context_store = device_context_store
         self._chat_sessions: dict[int, ChatSessionState] = {}
         self._memory = MemoryStore(settings.memory_db_path)
+        self._self_context = CodiSelfContext(
+            settings=settings,
+            session_manager=session_manager,
+            device_registry_manager=device_registry_manager,
+            project_root=str(self_maintenance_manager.project_root),
+        )
 
     async def prepare_dispatch(self, user_id: int, prompt: str) -> PreparedDispatch:
         """Route the prompt and reserve a session before execution starts."""
@@ -419,6 +426,7 @@ class Orchestrator:
             repo_name=repo_resolution.label,
             repo_path=str(repo_resolution.root),
             memory_context=memory_ctx,
+            bot_context=self._self_context.get_state_block(),
         )
         ack_parts = [
             self._build_ack_text(decision.role),

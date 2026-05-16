@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "codi-hr": {
+      "command": "python",
+      "args": ["/c/ai-agent-telegram/mcp_codi_server.py"],
+      "env": {
+        "CODI_API_URL": "http://127.0.0.1:8787",
+        "CODI_API_TOKEN": "",
+        "HR_API_URL": "http://localhost:8000",
+        "HR_SERVICE_EMAIL": "",
+        "HR_SERVICE_PASSWORD": ""
+      }
+    }
+  }
+}

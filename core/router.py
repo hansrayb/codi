@@ -92,6 +92,33 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "churn",
         "akuisisi mitra",
     ),
+    "hr": (
+        "absensi",
+        "kehadiran",
+        "rekap hadir",
+        "rekap absensi",
+        "payroll",
+        "penggajian",
+        "gaji",
+        "slip gaji",
+        "cuti",
+        "izin",
+        "lembur",
+        "karyawan",
+        "data karyawan",
+        "approve cuti",
+        "setujui cuti",
+        "tolak cuti",
+        "approve lembur",
+        "setujui lembur",
+        "generate payroll",
+        "buat payroll",
+        "kirim slip",
+        "email slip",
+        "finalize payroll",
+        "rekap karyawan",
+        "hr system",
+    ),
     "debugger": ("error", "traceback", "kenapa gagal", "debug", "crash", "flaky"),
     "ops": (
         "status",
@@ -110,12 +137,12 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-ROLE_NAMES = ("builder", "reviewer", "debugger", "ops", "general", "advisor")
+ROLE_NAMES = ("builder", "reviewer", "debugger", "ops", "general", "advisor", "hr")
 OVERRIDE_PATTERNS = (
-    re.compile(r"\bpakai\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
-    re.compile(r"\bsebagai\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
-    re.compile(r"\btask\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
-    re.compile(r"\brole\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
+    re.compile(r"\bpakai\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\bsebagai\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\btask\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
+    re.compile(r"\brole\s+(builder|reviewer|debugger|ops|general|advisor|hr)\b"),
 )
 STOPWORDS = {
     "yang",
