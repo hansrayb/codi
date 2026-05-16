@@ -6,8 +6,8 @@ Run via stdio (Claude Code spawns this as a subprocess):
 Env vars (set in Claude Code settings.json or shell):
   CODI_API_URL          http://127.0.0.1:8787  (Codi device API base)
   CODI_API_TOKEN        shared token for Codi device API
-  HR_API_URL            http://localhost:8000   (HR system base URL)
-  HR_SERVICE_EMAIL      service account email
+  HR_API_URL            https://hrga-api.emasmini.co.id  (HR system base URL)
+  HR_SERVICE_EMAIL      service account email (maps to 'username' field)
   HR_SERVICE_PASSWORD   service account password
 """
 
@@ -31,7 +31,7 @@ from mcp.types import Tool, TextContent, CallToolResult
 
 CODI_API_URL = os.environ.get("CODI_API_URL", "http://127.0.0.1:8787").rstrip("/")
 CODI_TOKEN = os.environ.get("CODI_API_TOKEN", "")
-HR_API_URL = os.environ.get("HR_API_URL", "http://localhost:8000").rstrip("/")
+HR_API_URL = os.environ.get("HR_API_URL", "https://hrga-api.emasmini.co.id").rstrip("/")
 HR_EMAIL = os.environ.get("HR_SERVICE_EMAIL", "")
 HR_PASSWORD = os.environ.get("HR_SERVICE_PASSWORD", "")
 
@@ -70,7 +70,7 @@ def _hr_token() -> str:
     with _hr_token_lock:
         if _hr_token and time.time() < _hr_token_expiry:
             return _hr_token
-        data = _http("POST", f"{HR_API_URL}/api/auth/login", {"email": HR_EMAIL, "password": HR_PASSWORD})
+        data = _http("POST", f"{HR_API_URL}/api/auth/login", {"username": HR_EMAIL, "password": HR_PASSWORD})
         tok = data.get("access_token") or data.get("token") or ""
         if not tok:
             raise RuntimeError("HR login did not return a token.")
@@ -329,10 +329,10 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
         return _ok(await asyncio.to_thread(_hr, "GET", path))
 
     if name == "hr_get_attendance":
-        params: dict = {"from_date": args["from_date"], "to_date": args["to_date"]}
+        params: dict = {"start_date": args["from_date"], "end_date": args["to_date"]}
         if args.get("employee_id"):
-            params["employee_id"] = args["employee_id"]
-        path = "/api/attendance/summary?" + urllib.parse.urlencode(params)
+            params["user_id"] = args["employee_id"]
+        path = "/api/attendance?" + urllib.parse.urlencode(params)
         return _ok(await asyncio.to_thread(_hr, "GET", path))
 
     if name == "hr_get_payroll_runs":
@@ -346,17 +346,17 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
 
     if name == "hr_get_leave_requests":
         params = {k: v for k, v in [("status", args.get("status", "")), ("employee_id", args.get("employee_id", ""))] if v}
-        path = "/api/leave/requests" + ("?" + urllib.parse.urlencode(params) if params else "")
+        path = "/api/leave-requests" + ("?" + urllib.parse.urlencode(params) if params else "")
         return _ok(await asyncio.to_thread(_hr, "GET", path))
 
     if name == "hr_get_overtime_requests":
         status = args.get("status", "")
-        path = "/api/overtime/requests" + (f"?status={status}" if status else "")
+        path = "/api/overtime-requests" + (f"?status={status}" if status else "")
         return _ok(await asyncio.to_thread(_hr, "GET", path))
 
     # ── HR write ───────────────────────────────────────────────────────────────
     if name == "hr_add_attendance_note":
-        return _ok(await asyncio.to_thread(_hr, "POST", "/api/attendance/status-note", {
+        return _ok(await asyncio.to_thread(_hr, "POST", "/api/attendance/notes", {
             "employee_id": args["employee_id"],
             "attendance_date": args["attendance_date"],
             "status": args["status"],
@@ -367,18 +367,18 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
         body: dict = {"status": args["status"]}
         if args.get("note"):
             body["note"] = args["note"]
-        path = f"/api/leave/requests/{args['request_id']}"
-        return _ok(await asyncio.to_thread(_hr, "PATCH", path, body))
+        path = f"/api/leave-requests/{args['request_id']}/status"
+        return _ok(await asyncio.to_thread(_hr, "PUT", path, body))
 
     if name == "hr_update_overtime_request":
-        body = {"hr_status": args["action"]}
+        body = {"status": args["action"]}
         if args.get("note"):
             body["note"] = args["note"]
-        path = f"/api/overtime/requests/{args['request_id']}"
-        return _ok(await asyncio.to_thread(_hr, "PATCH", path, body))
+        path = f"/api/overtime-requests/{args['request_id']}/status"
+        return _ok(await asyncio.to_thread(_hr, "PUT", path, body))
 
     if name == "hr_create_payroll_run":
-        return _ok(await asyncio.to_thread(_hr, "POST", "/api/payroll/runs", {
+        return _ok(await asyncio.to_thread(_hr, "POST", "/api/payroll/run", {
             "year": args["year"],
             "month": args["month"],
             "period_start": args["period_start"],
@@ -389,7 +389,7 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
         body = {"run_id": args["run_id"]}
         if args.get("employee_ids"):
             body["employee_id_list"] = args["employee_ids"]
-        return _ok(await asyncio.to_thread(_hr, "POST", "/api/payroll/email", body))
+        return _ok(await asyncio.to_thread(_hr, "POST", f"/api/payroll/runs/{args['run_id']}/email", body))
 
     if name == "hr_finalize_payroll_run":
         path = f"/api/payroll/runs/{args['run_id']}/finalize"

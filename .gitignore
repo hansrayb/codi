@@ -8,3 +8,4 @@ codi-memory.db
 codi-memory.db-shm
 codi-memory.db-wal
 logs/*.log
+mcp-config-codi.json
