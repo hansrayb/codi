@@ -46,6 +46,12 @@ ROLE_POLICIES: dict[str, RolePolicy] = {
         allow_write=False,
         description="Safe fallback for ambiguous prompts.",
     ),
+    "advisor": RolePolicy(
+        name="advisor",
+        sandbox_mode="read-only",
+        allow_write=False,
+        description="Business advisor with live DB read access for Lumbung Emas insights.",
+    ),
 }
 
 

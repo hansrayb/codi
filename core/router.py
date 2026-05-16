@@ -65,6 +65,33 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "insert",
         "delete",
     ),
+    "advisor": (
+        "saran",
+        "rekomendasi",
+        "strategi bisnis",
+        "analisis bisnis",
+        "performa bisnis",
+        "kinerja bisnis",
+        "omzet",
+        "pendapatan",
+        "pertumbuhan",
+        "tren penjualan",
+        "trend penjualan",
+        "optimasi bisnis",
+        "potensi bisnis",
+        "peluang bisnis",
+        "evaluasi bisnis",
+        "insight bisnis",
+        "konsultasi",
+        "cara meningkatkan",
+        "bagaimana meningkatkan",
+        "tingkatkan penjualan",
+        "tingkatkan mitra",
+        "konversi",
+        "retention",
+        "churn",
+        "akuisisi mitra",
+    ),
     "debugger": ("error", "traceback", "kenapa gagal", "debug", "crash", "flaky"),
     "ops": (
         "status",
@@ -83,12 +110,12 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-ROLE_NAMES = ("builder", "reviewer", "debugger", "ops", "general")
+ROLE_NAMES = ("builder", "reviewer", "debugger", "ops", "general", "advisor")
 OVERRIDE_PATTERNS = (
-    re.compile(r"\bpakai\s+(builder|reviewer|debugger|ops|general)\b"),
-    re.compile(r"\bsebagai\s+(builder|reviewer|debugger|ops|general)\b"),
-    re.compile(r"\btask\s+(builder|reviewer|debugger|ops|general)\b"),
-    re.compile(r"\brole\s+(builder|reviewer|debugger|ops|general)\b"),
+    re.compile(r"\bpakai\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
+    re.compile(r"\bsebagai\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
+    re.compile(r"\btask\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
+    re.compile(r"\brole\s+(builder|reviewer|debugger|ops|general|advisor)\b"),
 )
 STOPWORDS = {
     "yang",
@@ -152,13 +179,6 @@ class IntentRouter:
                 continuation_hint=True,
             )
 
-        if self._is_question(normalized):
-            return RoutingDecision(
-                role=self._default_role,
-                confidence=0.7,
-                reason="question_pattern",
-            )
-
         scores = {role: 0 for role in KEYWORDS}
         for role, keywords in KEYWORDS.items():
             for keyword in keywords:
@@ -168,6 +188,12 @@ class IntentRouter:
         best_role = max(scores, key=scores.get, default=self._default_role)
         best_score = scores.get(best_role, 0)
         if best_score <= 0:
+            if self._is_question(normalized):
+                return RoutingDecision(
+                    role=self._default_role,
+                    confidence=0.7,
+                    reason="question_pattern",
+                )
             return RoutingDecision(
                 role=self._default_role,
                 confidence=0.35,
