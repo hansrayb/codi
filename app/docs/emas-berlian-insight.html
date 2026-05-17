@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emas Berlian Insight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Navy palette */
+    --bg-page: #060a14;
+    --bg-app: #0a1124;
+    --bg-card: #111a31;
+    --bg-elev: #18233f;
+    --bg-input: #0f1830;
+    --bg-highlight: #1a2547;
+    
+    /* Ink */
+    --ink: #f4f6fb;
+    --ink-dim: #a8b0c4;
+    --ink-muted: #6b7390;
+    --ink-faint: #404863;
+    
+    /* Gold accent */
+    --gold: #c9a857;
+    --gold-bright: #e6c47a;
+    --gold-dim: #8e7634;
+    --gold-soft: rgba(201, 168, 87, 0.12);
+    --gold-line: rgba(201, 168, 87, 0.3);
+    
+    /* Diamond white shimmer */
+    --diamond: #e8edf5;
+    --diamond-soft: rgba(232, 237, 245, 0.1);
+    
+    /* Navy variants */
+    --navy-blue: #4a7bc8;
+    --navy-soft: rgba(74, 123, 200, 0.15);
+    
+    /* Semantic */
+    --green: #5ec99a;
+    --green-soft: rgba(94, 201, 154, 0.12);
+    --red: #e07a7a;
+    --red-soft: rgba(224, 122, 122, 0.12);
+    --amber: #d4a544;
+    --amber-soft: rgba(212, 165, 68, 0.12);
+    
+    --line: rgba(255,255,255,0.05);
+    --line-strong: rgba(255,255,255,0.09);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--bg-page);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: auto;
+  }
+  body {
+    background-image: 
+      radial-gradient(ellipse at top, rgba(74,123,200,0.06), transparent 60%),
+      radial-gradient(ellipse at bottom, rgba(201,168,87,0.03), transparent 60%);
+    padding: 40px 20px;
+  }
+
+  .page-header {
+    max-width: 1400px;
+    margin: 0 auto 32px;
+    text-align: center;
+  }
+  .page-header .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .page-header h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(28px, 4vw, 44px);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .page-header h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+  .page-header p {
+    color: var(--ink-muted);
+    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  .showcase {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 48px 32px;
+    justify-content: center;
+  }
+  .screen-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .screen-label {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 16px;
+  }
+  .screen-label strong { color: var(--gold); font-weight: 600; }
+
+  .phone {
+    width: 380px;
+    height: 800px;
+    background: var(--bg-app);
+    border-radius: 44px;
+    border: 8px solid #0a0f1e;
+    box-shadow: 
+      0 30px 60px -20px rgba(0,0,0,0.9),
+      0 0 0 1px rgba(255,255,255,0.04),
+      inset 0 0 0 1px rgba(255,255,255,0.02);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .status-bar {
+    height: 44px;
+    padding: 0 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .status-bar::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 30px;
+    background: #000;
+    border-radius: 20px;
+  }
+  .status-bar .icons {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .app-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* === LOGIN === */
+  .login-screen {
+    padding: 60px 32px 32px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: 
+      radial-gradient(circle at 50% 25%, rgba(74,123,200,0.18), transparent 55%),
+      radial-gradient(circle at 50% 75%, rgba(201,168,87,0.1), transparent 55%),
+      var(--bg-app);
+  }
+  .login-logo {
+    margin: 50px auto 0;
+    width: 96px;
+    height: 96px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, var(--bg-elev), var(--bg-app));
+    border: 1px solid var(--gold-line);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 10px 40px rgba(74,123,200,0.25);
+    position: relative;
+  }
+  .login-logo::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, var(--gold), transparent 60%);
+    z-index: -1;
+    opacity: 0.4;
+    filter: blur(10px);
+  }
+  .login-logo svg { width: 52px; height: 52px; }
+  .login-brand {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 700;
+    text-align: center;
+    margin-top: 28px;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+  .login-brand em { color: var(--gold); font-style: italic; }
+  .login-sub {
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 12px;
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+  }
+  .login-divider { flex: 1; }
+  .biometric-btn {
+    width: 88px;
+    height: 88px;
+    margin: 20px auto;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy-soft), rgba(74,123,200,0.04));
+    border: 1px solid var(--navy-blue);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .biometric-btn::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border: 1px solid var(--navy-blue);
+    border-radius: 50%;
+    opacity: 0.25;
+    animation: pulse-ring 2.4s infinite;
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.35; }
+    100% { transform: scale(1.35); opacity: 0; }
+  }
+  .biometric-btn svg { width: 40px; height: 40px; }
+  .biometric-label {
+    text-align: center;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .biometric-hint {
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 11px;
+    margin-top: 6px;
+  }
+  .login-footer {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* === DASHBOARD === */
+  .dashboard {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding-bottom: 90px;
+  }
+  .dashboard::-webkit-scrollbar { width: 0; }
+  
+  .top-nav {
+    padding: 12px 20px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .greeting {
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.05em;
+  }
+  .greeting strong {
+    display: block;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+    font-family: 'Fraunces', serif;
+    margin-top: 3px;
+    letter-spacing: -0.01em;
+  }
+  .greeting .role {
+    display: block;
+    color: var(--gold);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 2px;
+    font-weight: 500;
+  }
+  .avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy-blue), #2a4a7f);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ink);
+    border: 1px solid var(--gold-line);
+  }
+
+  .period-bar {
+    margin: 0 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .period-bar .period-btn {
+    flex: 1;
+    padding: 7px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    color: var(--ink-muted);
+    cursor: pointer;
+  }
+  .period-bar .period-btn.active {
+    background: var(--gold-soft);
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  .summary-card {
+    margin: 0 20px 16px;
+    padding: 22px;
+    background: linear-gradient(135deg, var(--bg-card), var(--bg-elev));
+    border: 1px solid var(--gold-line);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary-card::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, var(--gold-soft), transparent 65%);
+    border-radius: 50%;
+  }
+  .summary-card::after {
+    content: '';
+    position: absolute;
+    bottom: -80px;
+    left: -50px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, var(--navy-soft), transparent 70%);
+    border-radius: 50%;
+  }
+  .summary-label {
+    font-size: 10px;
+    color: var(--ink-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+  }
+  .summary-label .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 2s infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.4; } }
+  .summary-value {
+    font-family: 'Fraunces', serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin-top: 8px;
+    letter-spacing: -0.02em;
+    position: relative;
+    line-height: 1;
+  }
+  .summary-value .currency {
+    font-size: 16px;
+    color: var(--ink-muted);
+    font-weight: 500;
+    margin-right: 5px;
+  }
+  .summary-value .unit {
+    font-size: 18px;
+    color: var(--ink-muted);
+    font-weight: 500;
+    margin-left: 3px;
+  }
+  .summary-meta {
+    display: flex;
+    gap: 14px;
+    margin-top: 12px;
+    font-size: 11px;
+    position: relative;
+    align-items: center;
+  }
+  .summary-meta .trend {
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 600;
+  }
+  .summary-meta .period { color: var(--ink-muted); }
+  
+  .mini-chart { margin-top: 16px; height: 50px; position: relative; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 0 20px;
+    margin-bottom: 20px;
+  }
+  .stat-mini {
+    padding: 14px 11px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .stat-mini .stat-label {
+    font-size: 9px;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .stat-mini .stat-num {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+  .stat-mini .stat-num .ss { font-size: 11px; color: var(--ink-muted); font-weight: 500; }
+  .stat-mini .stat-delta {
+    font-size: 10px;
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .delta-up { color: var(--green); }
+  .delta-down { color: var(--red); }
+  .delta-flat { color: var(--ink-muted); }
+
+  .section-title {
+    padding: 12px 20px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .section-title h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .section-title .more {
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .chart-card {
+    margin: 0 20px 16px;
+    padding: 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+  }
+  .chart-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .chart-card-head h4 {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .chart-card-head .sub {
+    font-size: 10px;
+    color: var(--ink-muted);
+    margin-top: 3px;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+  }
+  .chart-legend .lg {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--ink-dim);
+  }
+  .chart-legend .lg .sw {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .chart-svg {
+    width: 100%;
+    height: 130px;
+  }
+
+  .ai-summary {
+    margin: 0 20px 16px;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--bg-card), var(--bg-elev));
+    border: 1px solid var(--gold-line);
+    border-radius: 16px;
+    position: relative;
+  }
+  .ai-summary-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .ai-summary-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    display: grid;
+    place-items: center;
+    color: var(--bg-app);
+  }
+  .ai-summary-title {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .ai-summary-sub {
+    font-size: 10px;
+    color: var(--ink-muted);
+    margin-top: 1px;
+  }
+  .ai-summary-body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--ink-dim);
+  }
+  .ai-summary-body p { margin-bottom: 10px; }
+  .ai-summary-body p:last-child { margin-bottom: 0; }
+  .ai-summary-body strong { color: var(--ink); font-weight: 600; }
+  .ai-summary-body .pos { color: var(--green); font-weight: 600; }
+  .ai-summary-body .neg { color: var(--red); font-weight: 600; }
+  .ai-summary-body .gold { color: var(--gold); font-weight: 600; }
+  
+  .ai-meta {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.05em;
+  }
+  .ai-meta .tap { color: var(--gold); font-weight: 600; }
+
+  .highlight-list {
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .highlight {
+    padding: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    border-left: 3px solid var(--c, var(--gold));
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .highlight .icon-wrap {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--cs, var(--gold-soft));
+    color: var(--c, var(--gold));
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .highlight .hl-body { flex: 1; min-width: 0; }
+  .highlight .hl-title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .highlight .hl-desc {
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+  .highlight .hl-time {
+    font-size: 10px;
+    color: var(--ink-faint);
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .highlight.red { --c: var(--red); --cs: var(--red-soft); }
+  .highlight.green { --c: var(--green); --cs: var(--green-soft); }
+  .highlight.gold { --c: var(--gold); --cs: var(--gold-soft); }
+  .highlight.navy { --c: var(--navy-blue); --cs: var(--navy-soft); }
+
+  .bottom-nav {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: rgba(10,17,36,0.92);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 1fr 1fr 80px 1fr 1fr;
+    align-items: center;
+    padding: 0 20px 24px;
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-faint);
+    font-size: 10px;
+    cursor: pointer;
+    position: relative;
+  }
+  .nav-item.active { color: var(--gold); }
+  .nav-fab {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+    margin: 0 auto;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 10px 24px -4px rgba(201,168,87,0.4);
+    cursor: pointer;
+    transform: translateY(-12px);
+    color: var(--bg-app);
+  }
+
+  /* === CHAT === */
+  .chat-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .chat-header {
+    padding: 10px 20px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .chat-back {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    color: var(--ink-dim);
+  }
+  .chat-title-wrap { flex: 1; }
+  .chat-title {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .chat-status {
+    font-size: 11px;
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 1px;
+  }
+  .chat-status .ds {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+  .chat-options {
+    width: 32px;
+    height: 32px;
+    color: var(--ink-dim);
+    display: grid;
+    place-items: center;
+  }
+
+  .messages {
+    flex: 1;
+    padding: 16px 16px 100px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .messages::-webkit-scrollbar { width: 0; }
+
+  .day-marker {
+    text-align: center;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin: 4px 0;
+  }
+
+  .msg {
+    max-width: 86%;
+    padding: 12px 14px;
+    border-radius: 18px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--navy-blue), #2a4a7f);
+    color: var(--ink);
+    font-weight: 500;
+    border-bottom-right-radius: 4px;
+    border: 1px solid var(--gold-line);
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+  }
+  .msg-time {
+    font-size: 9px;
+    color: var(--ink-faint);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .msg.user .msg-time { color: rgba(244,246,251,0.5); text-align: right; }
+
+  .rich-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    margin-top: 8px;
+  }
+  .rich-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .rich-card-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .rich-card-badge {
+    font-size: 9px;
+    padding: 3px 7px;
+    background: var(--green-soft);
+    color: var(--green);
+    border-radius: 6px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .rich-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 12px;
+  }
+  .rich-row:last-child { border-bottom: none; }
+  .rich-row .rl { color: var(--ink-dim); }
+  .rich-row .rv { font-weight: 600; }
+  .rich-row .rv.up { color: var(--green); }
+  .rich-row .rv.down { color: var(--red); }
+  
+  .rich-action {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .rich-action button {
+    flex: 1;
+    padding: 9px;
+    background: var(--gold-soft);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .rich-action button.secondary {
+    background: transparent;
+    border-color: var(--line-strong);
+    color: var(--ink-dim);
+  }
+
+  .inline-chart {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-app);
+    border-radius: 10px;
+  }
+
+  .suggestions {
+    padding: 8px 16px 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .suggestions::-webkit-scrollbar { height: 0; }
+  .chip {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+
+  .chat-input-wrap {
+    padding: 12px 16px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-app);
+  }
+  .chat-input {
+    background: var(--bg-input);
+    border: 1px solid var(--line-strong);
+    border-radius: 24px;
+    padding: 6px 6px 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chat-input input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    padding: 8px 0;
+  }
+  .chat-input input::placeholder { color: var(--ink-faint); }
+  .ci-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--ink-dim);
+  }
+  .ci-btn.send {
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+    color: var(--bg-app);
+  }
+
+  /* === INSIGHT === */
+  .detail-screen {
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 90px;
+  }
+  .detail-screen::-webkit-scrollbar { width: 0; }
+  
+  .detail-hero {
+    padding: 12px 20px 24px;
+    background: linear-gradient(180deg, rgba(74,123,200,0.1), transparent);
+  }
+  .detail-back-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    color: var(--ink-dim);
+  }
+  .detail-hero h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .detail-hero .sub {
+    color: var(--ink-muted);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+  .detail-hero .sub .status {
+    color: var(--green);
+    font-weight: 600;
+    margin-left: 4px;
+  }
+
+  .kpi-grid {
+    padding: 0 20px 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .kpi-cell {
+    padding: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .kpi-cell .kl {
+    font-size: 10px;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .kpi-cell .kv {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+    letter-spacing: -0.01em;
+  }
+  .kpi-cell .kv .ku { font-size: 12px; color: var(--ink-muted); font-weight: 500; }
+  .kpi-cell .kd {
+    font-size: 10px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .donut-card {
+    margin: 12px 20px;
+    padding: 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .donut-wrap {
+    width: 100px;
+    height: 100px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .donut-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .donut-center .dn {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .donut-center .dl {
+    font-size: 9px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .donut-legend {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .donut-legend .dlg {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+  }
+  .donut-legend .dlg-left {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-dim);
+  }
+  .donut-legend .dlg-left .sw {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+  }
+  .donut-legend .dlg-val {
+    color: var(--ink);
+    font-weight: 600;
+    font-family: 'Fraunces', serif;
+  }
+
+  .ic { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .ic-sm { width: 14px; height: 14px; }
+  .ic-lg { width: 24px; height: 24px; }
+
+  /* === BRAND IDENTITY SHOWCASE === */
+  .brand-section {
+    max-width: 1200px;
+    margin: 80px auto 0;
+    padding: 40px;
+    background: linear-gradient(135deg, var(--bg-card), var(--bg-elev));
+    border: 1px solid var(--gold-line);
+    border-radius: 24px;
+  }
+  .brand-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  .brand-logo-large {
+    width: 140px;
+    height: 140px;
+    border-radius: 32px;
+    background: linear-gradient(135deg, var(--bg-elev), var(--bg-app));
+    border: 1px solid var(--gold-line);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 20px 50px rgba(74,123,200,0.2);
+    position: relative;
+  }
+  .brand-logo-large::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 34px;
+    background: linear-gradient(135deg, var(--gold), transparent 60%);
+    z-index: -1;
+    opacity: 0.5;
+    filter: blur(14px);
+  }
+  .brand-logo-large svg { width: 80px; height: 80px; }
+  .brand-info h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 8px;
+  }
+  .brand-info h2 em { color: var(--gold); font-style: italic; }
+  .brand-info p {
+    color: var(--ink-muted);
+    font-size: 14px;
+    line-height: 1.7;
+    max-width: 520px;
+  }
+  .brand-divider {
+    height: 1px;
+    background: var(--line);
+    margin: 28px 0;
+  }
+  .brand-attrs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+  }
+  .brand-attr-label {
+    font-size: 10px;
+    color: var(--ink-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .brand-attr-val {
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .brand-attr-val .pill {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  .notes {
+    max-width: 1400px;
+    margin: 60px auto 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .note-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .note-card h4 {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    margin-bottom: 6px;
+    color: var(--gold);
+  }
+  .note-card p {
+    font-size: 12px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+  }
+
+  footer {
+    max-width: 1400px;
+    margin: 40px auto 0;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 900px) {
+    body { padding: 24px 12px; }
+    .phone { transform: scale(0.88); transform-origin: top center; margin-bottom: -90px; }
+    .brand-grid { grid-template-columns: 1fr; text-align: center; }
+    .brand-logo-large { margin: 0 auto; }
+    .brand-info p { margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="eyebrow">// Mobile Concept · Final</div>
+  <h1>Emas Berlian <em>Insight</em></h1>
+  <p>Executive Business Intelligence · Untuk Bapak Leo Sastra C.W.</p>
+</div>
+
+<!-- ============ BRAND IDENTITY ============ -->
+<div class="brand-section">
+  <div class="brand-grid">
+    <div class="brand-logo-large">
+      <svg viewBox="0 0 80 80" fill="none">
+        <!-- Outer ring (subtle, like dashed orbital) -->
+        <circle cx="40" cy="40" r="34" stroke="#c9a857" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.5"/>
+        
+        <!-- Diamond facet (top) -->
+        <g transform="translate(40 16)">
+          <path d="M0 0 L7 7 L0 18 L-7 7 Z" fill="none" stroke="#e8edf5" stroke-width="1.4" stroke-linejoin="round"/>
+          <path d="M-7 7 L7 7" stroke="#e8edf5" stroke-width="1" opacity="0.6"/>
+          <path d="M-3.5 3.5 L0 7 L3.5 3.5" stroke="#e8edf5" stroke-width="0.8" opacity="0.4" fill="none"/>
+        </g>
+        
+        <!-- Gold bar/ingot (bottom) -->
+        <g transform="translate(40 50)">
+          <path d="M-14 -3 L14 -3 L11 7 L-11 7 Z" fill="none" stroke="#c9a857" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M-11 -3 L-8 7 M11 -3 L8 7" stroke="#c9a857" stroke-width="0.8" opacity="0.5"/>
+          <path d="M-9 2 L9 2" stroke="#c9a857" stroke-width="0.6" opacity="0.4"/>
+        </g>
+      </svg>
+    </div>
+    <div class="brand-info">
+      <h2>Emas Berlian <em>Insight</em></h2>
+      <p>Aplikasi intelijen bisnis untuk Direksi — menyajikan ringkasan operasional, analisis tren penjualan, dan asisten percakapan Codi dalam satu antarmuka yang ringkas dan eksekutif.</p>
+      <div class="brand-divider"></div>
+      <div class="brand-attrs">
+        <div>
+          <div class="brand-attr-label">Untuk</div>
+          <div class="brand-attr-val">Direktur & Owner</div>
+        </div>
+        <div>
+          <div class="brand-attr-label">Cakupan</div>
+          <div class="brand-attr-val">1 Kantor Operasional</div>
+        </div>
+        <div>
+          <div class="brand-attr-label">Mode</div>
+          <div class="brand-attr-val">Read-only · Insight</div>
+        </div>
+        <div>
+          <div class="brand-attr-label">Identitas Warna</div>
+          <div class="brand-attr-val">
+            <span class="pill" style="background:#c9a857"></span>Emas
+            <span class="pill" style="background:#4a7bc8;margin-left:8px;"></span>Navy
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="showcase" style="margin-top: 60px;">
+
+  <!-- ============ SCREEN 1: LOGIN ============ -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 1 · <strong>Login</strong></div>
+    <div class="phone">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span class="icons">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M2 12h.01M5.5 9.5a8 8 0 0113 0M8.5 12.5a4 4 0 017 0M12 16h.01"/></svg>
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M5 12V7a7 7 0 0114 0v5M3 12h18v9H3z"/></svg>
+          <span style="font-size:11px;">100%</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="login-screen">
+          <div class="login-logo">
+            <svg viewBox="0 0 52 52" fill="none">
+              <circle cx="26" cy="26" r="22" stroke="#c9a857" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.6"/>
+              <!-- Diamond top -->
+              <g transform="translate(26 11)">
+                <path d="M0 0 L5 5 L0 13 L-5 5 Z" fill="none" stroke="#e8edf5" stroke-width="1.3" stroke-linejoin="round"/>
+                <path d="M-5 5 L5 5" stroke="#e8edf5" stroke-width="0.8" opacity="0.6"/>
+              </g>
+              <!-- Gold bar bottom -->
+              <g transform="translate(26 33)">
+                <path d="M-10 -2 L10 -2 L8 5 L-8 5 Z" fill="none" stroke="#c9a857" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M-8 -2 L-6 5 M8 -2 L6 5" stroke="#c9a857" stroke-width="0.7" opacity="0.5"/>
+              </g>
+            </svg>
+          </div>
+          <div class="login-brand">Emas Berlian <em>Insight</em></div>
+          <div class="login-sub">Executive Business Intelligence</div>
+          
+          <div class="login-divider"></div>
+          
+          <div class="biometric-btn">
+            <svg class="ic ic-lg" style="stroke:#4a7bc8" viewBox="0 0 24 24">
+              <path d="M12 11v.01M19 11a7 7 0 10-14 0v3a9 9 0 0018 0v-3zM12 7a4 4 0 014 4M12 15a4 4 0 01-4-4"/>
+            </svg>
+          </div>
+          <div class="biometric-label">Sentuh untuk masuk</div>
+          <div class="biometric-hint">Otentikasi biometrik diperlukan</div>
+          
+          <div class="login-footer">
+            Akses Khusus Direksi<br>
+            v1.0.0 · 2026.05
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 2: DASHBOARD ============ -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 2 · <strong>Dashboard</strong></div>
+    <div class="phone">
+      <div class="status-bar">
+        <span>9:42</span>
+        <span class="icons">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M2 12h.01M5.5 9.5a8 8 0 0113 0M8.5 12.5a4 4 0 017 0M12 16h.01"/></svg>
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M5 12V7a7 7 0 0114 0v5M3 12h18v9H3z"/></svg>
+          <span style="font-size:11px;">100%</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="dashboard">
+          <div class="top-nav">
+            <div class="greeting">
+              Selamat pagi,
+              <strong>Bapak Leo Sastra C.W.</strong>
+              <span class="role">Direktur Utama</span>
+            </div>
+            <div class="avatar">LS</div>
+          </div>
+
+          <div class="period-bar">
+            <div class="period-btn">Hari</div>
+            <div class="period-btn">Minggu</div>
+            <div class="period-btn active">Bulan Ini</div>
+            <div class="period-btn">Tahun</div>
+          </div>
+
+          <div class="summary-card">
+            <div class="summary-label">
+              <span class="live-dot"></span>
+              OMZET MEI 2026 · LIVE
+            </div>
+            <div class="summary-value">
+              <span class="currency">Rp</span>828,8<span class="unit">jt</span>
+            </div>
+            <div class="summary-meta">
+              <span class="trend">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg>
+                +321% MoM
+              </span>
+              <span class="period">17 hari · 55 order · proyeksi Rp 1,51 M</span>
+            </div>
+            <div class="mini-chart">
+              <svg width="100%" height="50" viewBox="0 0 320 50" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#c9a857" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#c9a857" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,40 L20,38 L40,42 L60,35 L80,30 L100,32 L120,28 L140,22 L160,25 L180,20 L200,16 L220,12 L240,15 L260,10 L280,8 L300,6 L320,5 L320,50 L0,50 Z" fill="url(#sparkGrad)"/>
+                <path d="M0,40 L20,38 L40,42 L60,35 L80,30 L100,32 L120,28 L140,22 L160,25 L180,20 L200,16 L220,12 L240,15 L260,10 L280,8 L300,6 L320,5" stroke="#c9a857" stroke-width="1.8" fill="none"/>
+                <circle cx="320" cy="5" r="3.5" fill="#c9a857"/>
+                <circle cx="320" cy="5" r="6" fill="none" stroke="#c9a857" stroke-width="1" opacity="0.4"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-mini">
+              <div class="stat-label">Order</div>
+              <div class="stat-num">55<span class="ss"> tx</span></div>
+              <div class="stat-delta delta-up">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg>
+                15 retail
+              </div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-label">Conv. Rate</div>
+              <div class="stat-num">68,8<span class="ss">%</span></div>
+              <div class="stat-delta delta-down">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                31,2%
+              </div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-label">Beban</div>
+              <div class="stat-num">10,8<span class="ss">jt</span></div>
+              <div class="stat-delta delta-flat">1,3% omzet</div>
+            </div>
+          </div>
+
+          <div class="ai-summary">
+            <div class="ai-summary-head">
+              <div class="ai-summary-icon">
+                <svg class="ic" style="stroke-width:2.2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+              </div>
+              <div>
+                <div class="ai-summary-title">Ringkasan Hari Ini</div>
+                <div class="ai-summary-sub">Diperbarui 14 menit lalu oleh Codi</div>
+              </div>
+            </div>
+            <div class="ai-summary-body">
+              <p>Operasional kantor berada dalam <span class="pos">kondisi sehat</span>. Omzet Mei sudah melampaui April dengan pertumbuhan signifikan, didorong kembalinya penjualan emas retail (Rp 656 jt dari 15 order).</p>
+              <p>Yang memerlukan perhatian: <span class="neg">conversion rate turun ke 68,8%</span> — terdapat <strong>Rp 127 jt potensi pendapatan</strong> dari 24 order yang expired. Jika dikonversi sebagian, omzet bulan ini berpotensi naik Rp 50–60 jt.</p>
+              <p>Beban komisi tetap rendah di <span class="gold">1,3% dari omzet</span> — rasio yang sangat sehat.</p>
+            </div>
+            <div class="ai-meta">
+              <span>Berdasarkan 12 data point</span>
+              <span class="tap">Tap untuk detail →</span>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <div>
+                <h4>Tren Omzet 7 Hari Terakhir</h4>
+                <div class="sub">Penjualan emas vs Rotasi</div>
+              </div>
+              <div class="chart-legend">
+                <div class="lg"><span class="sw" style="background:#c9a857"></span>Retail</div>
+                <div class="lg"><span class="sw" style="background:#4a7bc8"></span>Rotasi</div>
+              </div>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 320 130" preserveAspectRatio="none">
+              <line x1="0" y1="30" x2="320" y2="30" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 3"/>
+              <line x1="0" y1="65" x2="320" y2="65" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 3"/>
+              <line x1="0" y1="100" x2="320" y2="100" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 3"/>
+              <g>
+                <rect x="14" y="78" width="14" height="40" rx="2" fill="#c9a857" opacity="0.85"/>
+                <rect x="60" y="60" width="14" height="58" rx="2" fill="#c9a857" opacity="0.85"/>
+                <rect x="106" y="85" width="14" height="33" rx="2" fill="#c9a857" opacity="0.85"/>
+                <rect x="152" y="48" width="14" height="70" rx="2" fill="#c9a857" opacity="0.85"/>
+                <rect x="198" y="36" width="14" height="82" rx="2" fill="#c9a857" opacity="0.85"/>
+                <rect x="244" y="52" width="14" height="66" rx="2" fill="#c9a857" opacity="0.85"/>
+                <rect x="290" y="25" width="14" height="93" rx="2" fill="#c9a857"/>
+              </g>
+              <g>
+                <rect x="30" y="95" width="14" height="23" rx="2" fill="#4a7bc8" opacity="0.8"/>
+                <rect x="76" y="88" width="14" height="30" rx="2" fill="#4a7bc8" opacity="0.8"/>
+                <rect x="122" y="92" width="14" height="26" rx="2" fill="#4a7bc8" opacity="0.8"/>
+                <rect x="168" y="85" width="14" height="33" rx="2" fill="#4a7bc8" opacity="0.8"/>
+                <rect x="214" y="80" width="14" height="38" rx="2" fill="#4a7bc8" opacity="0.8"/>
+                <rect x="260" y="90" width="14" height="28" rx="2" fill="#4a7bc8" opacity="0.8"/>
+                <rect x="306" y="82" width="14" height="36" rx="2" fill="#4a7bc8" opacity="0.8"/>
+              </g>
+              <g fill="#6b7390" font-size="9" font-family="JetBrains Mono" text-anchor="middle">
+                <text x="21" y="128">11</text>
+                <text x="67" y="128">12</text>
+                <text x="113" y="128">13</text>
+                <text x="159" y="128">14</text>
+                <text x="205" y="128">15</text>
+                <text x="251" y="128">16</text>
+                <text x="297" y="128">17</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="section-title">
+            <h3>Sorotan</h3>
+            <span class="more">Lihat semua →</span>
+          </div>
+
+          <div class="highlight-list">
+            <div class="highlight green">
+              <div class="icon-wrap">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg>
+              </div>
+              <div class="hl-body">
+                <div class="hl-title">Penjualan emas retail kembali aktif</div>
+                <div class="hl-desc">Rp 656 jt dari 15 order (240,6g) — bulan April nol penjualan retail.</div>
+                <div class="hl-time">14 mei 14:30</div>
+              </div>
+            </div>
+
+            <div class="highlight red">
+              <div class="icon-wrap">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.29 3.86l-8.45 14.65A2 2 0 003.55 22h16.9a2 2 0 001.71-3.49L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              </div>
+              <div class="hl-body">
+                <div class="hl-title">24 order expired bulan ini</div>
+                <div class="hl-desc">Total nilai Rp 127 jt tidak terbayar — conversion rate turun dari 100% ke 68,8%.</div>
+                <div class="hl-time">17 mei 09:20</div>
+              </div>
+            </div>
+
+            <div class="highlight navy">
+              <div class="icon-wrap">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z"/></svg>
+              </div>
+              <div class="hl-body">
+                <div class="hl-title">Payroll Mei sudah ter-generate</div>
+                <div class="hl-desc">22 karyawan · total Rp 159 jt · sedang menunggu finalisasi oleh HRGA.</div>
+                <div class="hl-time">15 mei 16:45</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            <span>Beranda</span>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+            <span>Insight</span>
+          </div>
+          <div class="nav-fab">
+            <svg class="ic" style="stroke-width:2.5" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <span>Laporan</span>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.5 8.5 0 0113 0"/></svg>
+            <span>Profil</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 3: CHAT ============ -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 3 · <strong>Chat dengan Codi</strong></div>
+    <div class="phone">
+      <div class="status-bar">
+        <span>9:45</span>
+        <span class="icons">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M2 12h.01M5.5 9.5a8 8 0 0113 0M8.5 12.5a4 4 0 017 0M12 16h.01"/></svg>
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M5 12V7a7 7 0 0114 0v5M3 12h18v9H3z"/></svg>
+          <span style="font-size:11px;">98%</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="chat-screen">
+          <div class="chat-header">
+            <div class="chat-back">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </div>
+            <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--bg-elev),var(--bg-app));border:1px solid var(--gold-line);display:grid;place-items:center;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+                <g transform="translate(12 5)">
+                  <path d="M0 0 L3 3 L0 7 L-3 3 Z" fill="none" stroke="#e8edf5" stroke-width="1.1" stroke-linejoin="round"/>
+                </g>
+                <g transform="translate(12 16)">
+                  <path d="M-5 -1 L5 -1 L4 3 L-4 3 Z" fill="none" stroke="#c9a857" stroke-width="1.2" stroke-linejoin="round"/>
+                </g>
+              </svg>
+            </div>
+            <div class="chat-title-wrap">
+              <div class="chat-title">Codi</div>
+              <div class="chat-status"><span class="ds"></span> Aktif · respon 0,8s</div>
+            </div>
+            <div class="chat-options">
+              <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </div>
+          </div>
+
+          <div class="messages">
+            <div class="day-marker">Hari ini · 09:42</div>
+
+            <div class="msg user">
+              Bagaimana kondisi operasional hari ini, Codi?
+              <div class="msg-time">09:42</div>
+            </div>
+
+            <div class="msg bot">
+              Selamat pagi Bapak Leo. Berikut ringkasan kondisi kantor hari ini:
+              
+              <div class="rich-card">
+                <div class="rich-card-header">
+                  <div class="rich-card-title">Status Mei 2026</div>
+                  <div class="rich-card-badge">SEHAT</div>
+                </div>
+                <div class="rich-row"><span class="rl">Omzet</span><span class="rv up">Rp 828,8 jt</span></div>
+                <div class="rich-row"><span class="rl">Pertumbuhan MoM</span><span class="rv up">+321%</span></div>
+                <div class="rich-row"><span class="rl">Conv. Rate</span><span class="rv down">68,8%</span></div>
+                <div class="rich-row"><span class="rl">Beban Komisi</span><span class="rv">1,3% omzet</span></div>
+                
+                <div class="inline-chart">
+                  <svg width="100%" height="60" viewBox="0 0 290 60" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#c9a857" stop-opacity="0.4"/>
+                        <stop offset="100%" stop-color="#c9a857" stop-opacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <path d="M0,48 L40,45 L80,50 L120,38 L160,30 L200,24 L240,18 L290,10 L290,60 L0,60 Z" fill="url(#trendGrad)"/>
+                    <path d="M0,48 L40,45 L80,50 L120,38 L160,30 L200,24 L240,18 L290,10" stroke="#c9a857" stroke-width="1.8" fill="none"/>
+                  </svg>
+                </div>
+                
+                <div class="rich-action">
+                  <button>Lihat Ringkasan</button>
+                  <button class="secondary">Export PDF</button>
+                </div>
+              </div>
+              <div class="msg-time">09:42 · 0,8s</div>
+            </div>
+
+            <div class="msg user">
+              Apa yang perlu jadi prioritas Bapak?
+              <div class="msg-time">09:44</div>
+            </div>
+
+            <div class="msg bot">
+              Tiga hal yang sebaiknya Bapak ketahui:
+              <br><br>
+              <strong>1.</strong> Conversion rate turun ke 68,8% — ada Rp 127 jt potensi yang lolos. Tim Marketing & Kemitraan dapat menindaklanjuti.
+              <br><br>
+              <strong>2.</strong> Susi Susan (Komisaris) absen 7 hari berturut-turut — perlu klarifikasi dari HRGA.
+              <br><br>
+              <strong>3.</strong> Pertumbuhan retail sangat positif — momentum yang bisa diperkuat.
+              <div class="msg-time">09:44 · 1,1s</div>
+            </div>
+          </div>
+
+          <div class="suggestions">
+            <div class="chip">📊 Perbandingan dengan April</div>
+            <div class="chip">📈 Proyeksi akhir bulan</div>
+            <div class="chip">👥 Status karyawan</div>
+          </div>
+
+          <div class="chat-input-wrap">
+            <div class="chat-input">
+              <input type="text" placeholder="Tanyakan kondisi kantor..." />
+              <div class="ci-btn">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>
+              </div>
+              <div class="ci-btn send">
+                <svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 4: INSIGHT ============ -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 4 · <strong>Insight</strong></div>
+    <div class="phone">
+      <div class="status-bar">
+        <span>9:47</span>
+        <span class="icons">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M2 12h.01M5.5 9.5a8 8 0 0113 0M8.5 12.5a4 4 0 017 0M12 16h.01"/></svg>
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M5 12V7a7 7 0 0114 0v5M3 12h18v9H3z"/></svg>
+          <span style="font-size:11px;">98%</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="detail-screen">
+          <div class="detail-hero">
+            <div class="detail-back-row">
+              <div class="icon-btn">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              </div>
+              <div class="icon-btn">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+              </div>
+            </div>
+            <h2>Insight Operasional</h2>
+            <div class="sub">Periode: 1 – 17 Mei 2026 <span class="status">· Live</span></div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-cell">
+              <div class="kl">Omzet Total</div>
+              <div class="kv">Rp 828,8<span class="ku">jt</span></div>
+              <div class="kd delta-up">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg>
+                +321% MoM
+              </div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kl">Order Settled</div>
+              <div class="kv">55<span class="ku"> tx</span></div>
+              <div class="kd delta-up">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg>
+                15 retail · 40 rotasi
+              </div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kl">Avg. Ticket</div>
+              <div class="kv">Rp 15,1<span class="ku">jt</span></div>
+              <div class="kd delta-up">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg>
+                +21,8%
+              </div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kl">Potensi Hilang</div>
+              <div class="kv">Rp 127<span class="ku">jt</span></div>
+              <div class="kd delta-down">
+                <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                24 order expired
+              </div>
+            </div>
+          </div>
+
+          <div class="donut-card">
+            <div class="donut-wrap">
+              <svg width="100" height="100" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="36" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="12"/>
+                <circle cx="50" cy="50" r="36" fill="none" stroke="#c9a857" stroke-width="12" 
+                  stroke-dasharray="178.7 226.2" stroke-dashoffset="0" transform="rotate(-90 50 50)" stroke-linecap="round"/>
+                <circle cx="50" cy="50" r="36" fill="none" stroke="#4a7bc8" stroke-width="12" 
+                  stroke-dasharray="47.5 226.2" stroke-dashoffset="-180" transform="rotate(-90 50 50)" stroke-linecap="round"/>
+              </svg>
+              <div class="donut-center">
+                <div class="dn">828,8<span style="font-size:10px;color:var(--ink-muted);">jt</span></div>
+                <div class="dl">Total</div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div style="font-size:10px;color:var(--ink-muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;">Komposisi Omzet</div>
+              <div class="dlg">
+                <div class="dlg-left">
+                  <span class="sw" style="background:#c9a857"></span>
+                  Penjualan Emas
+                </div>
+                <div class="dlg-val">79,2%</div>
+              </div>
+              <div class="dlg">
+                <div class="dlg-left">
+                  <span class="sw" style="background:#4a7bc8"></span>
+                  Rotasi Masuk
+                </div>
+                <div class="dlg-val">20,8%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ai-summary">
+            <div class="ai-summary-head">
+              <div class="ai-summary-icon">
+                <svg class="ic" style="stroke-width:2.2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+              </div>
+              <div>
+                <div class="ai-summary-title">Analisis Mendalam</div>
+                <div class="ai-summary-sub">Disusun oleh Codi · 14 menit lalu</div>
+              </div>
+            </div>
+            <div class="ai-summary-body">
+              <p><strong>Yang Sehat.</strong> Omzet Mei <span class="pos">naik tajam</span> ke Rp 828,8 jt — pertumbuhan +321% dibanding April. Penjualan emas retail kembali aktif setelah bulan April nol transaksi. Avg. ticket size naik dari Rp 12,4 jt ke Rp 15,1 jt, menunjukkan kualitas pembeli yang membaik. Beban komisi terjaga rendah di <span class="gold">1,3% dari omzet</span> — rasio yang sangat aman.</p>
+              <p><strong>Yang Perlu Perhatian.</strong> <span class="neg">Conversion rate turun</span> dari 100% di April ke 68,8% — 24 order senilai Rp 127 jt tidak terbayar. Ini bukan kerugian, melainkan <em>missed revenue</em>. Jika tim Marketing & Kemitraan dapat memperbaiki tindak lanjut, potensi tambahan Rp 50–60 jt di sisa bulan dapat tercapai.</p>
+              <p><strong>Catatan.</strong> Data sistem baru sejak April 2026 — benchmark historis belum solid. Estimasi gross profit emas berkisar Rp 6–20 jt (margin 1–3%) — angka ini perlu dibandingkan dengan total payroll Rp 159 jt untuk gambaran kas operasional yang akurat.</p>
+            </div>
+            <div class="ai-meta">
+              <span>12 data point · 4 sumber</span>
+              <span class="tap">Tanya Codi →</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            <span>Beranda</span>
+          </div>
+          <div class="nav-item active">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+            <span>Insight</span>
+          </div>
+          <div class="nav-fab">
+            <svg class="ic" style="stroke-width:2.5" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <span>Laporan</span>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.5 8.5 0 0113 0"/></svg>
+            <span>Profil</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="notes">
+  <div class="note-card">
+    <h4>Logo: berlian + emas batang</h4>
+    <p>Komposisi vertikal — facet berlian putih di atas (presisi & nilai), batang emas di bawah (kekayaan & soliditas). Lingkaran dashed emas sebagai bingkai = ekosistem operasional. Bukan logo dekoratif, tapi simbolik.</p>
+  </div>
+  <div class="note-card">
+    <h4>Berlian sebagai accent kedua</h4>
+    <p>Putih berlian (#e8edf5) dipakai untuk facet logo. Tidak digunakan berlebihan di UI — emas tetap dominan sebagai brand color, putih berlian hanya untuk identity moment.</p>
+  </div>
+  <div class="note-card">
+    <h4>Scope: 1 kantor</h4>
+    <p>Bahasa diubah dari "bisnis" → "operasional kantor" / "kondisi kantor". Lebih tepat menggambarkan cakupan aplikasi: satu unit operasional, bukan group-wide. Codi tetap pakai data DB yang sama.</p>
+  </div>
+  <div class="note-card">
+    <h4>Read-only premium</h4>
+    <p>Insight dashboard, KPI cells, donut chart, AI summary. Semua untuk membaca, tidak ada call-to-action transaksional. Direksi dapat informasi, delegasi ke tim operasional via channel terpisah.</p>
+  </div>
+  <div class="note-card">
+    <h4>Codi tetap Codi</h4>
+    <p>Walaupun app rebrand jadi "Emas Berlian Insight", asisten percakapan tetap bernama "Codi". App = wadah. Codi = persona AI. Pemisahan ini memudahkan jika di masa depan Codi melayani multiple app/channel.</p>
+  </div>
+  <div class="note-card">
+    <h4>Bingkai eksekutif</h4>
+    <p>Sapaan "Selamat pagi, Bapak Leo Sastra C.W." + jabatan "Direktur Utama" + format tanggal lengkap. Kesan aplikasi yang khusus dibuat untuk satu orang, bukan tools generic.</p>
+  </div>
+</div>
+
+<footer>
+  Emas Berlian Insight · Powered by Codi · Concept v1.0 · Untuk Bapak Leo Sastra C.W.
+</footer>
+
+</body>
+</html>

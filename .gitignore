@@ -1,11 +1,33 @@
+# ── Python ───────────────────────────────
 .venv/
 __pycache__/
+*.pyc
+
+# ── Secrets / env ────────────────────────
 .env
+
+# ── Runtime state (anchored to CLAUDE_WORK_DIR / cwd) ──
 codi-runtime.log
 codi-audit.log
 codi-devices.json
+codi-alert-targets.json
 codi-memory.db
 codi-memory.db-shm
 codi-memory.db-wal
 logs/*.log
+
+# ── Local config ─────────────────────────
 mcp-config-codi.json
+.codex
+
+# ── Flutter (app/) ───────────────────────
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/.idea/
+app/*.iml
+app/.gradle/
+app/android/.gradle/
+app/ios/Pods/
+app/ios/.symlinks/
