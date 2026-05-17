@@ -43,11 +43,8 @@ class ServiceWatchManagerTests(unittest.IsolatedAsyncioTestCase):
             business_allowed_dirs=(),
             business_database_paths=(),
             business_database_urls=(),
-            ai_backend='codex',
-            codex_bin='codex',
+            ai_backend='claude',
             claude_timeout=180,
-            codex_reasoning_effort='medium',
-            codex_write_sandbox_mode='workspace-write',
             claude_work_dir=workspace,
             claude_bin='claude',
             claude_model='claude-sonnet-4-6',
@@ -74,6 +71,15 @@ class ServiceWatchManagerTests(unittest.IsolatedAsyncioTestCase):
             device_api_port=8787,
             device_api_shared_token=None,
             device_heartbeat_ttl_seconds=90,
+            claude_model_fast="claude-haiku-4-5-20251001",
+            claude_mcp_config="",
+            claude_allowed_tools="",
+            repo_pm2_map={},
+            memory_db_path=workspace / "codi-memory.db",
+            hr_enabled=False,
+            hr_api_url="http://localhost:8000",
+            hr_service_email="",
+            hr_service_password="",
         )
         self.alert_targets = AlertTargetRegistry(self.settings.alert_targets_path)
         await self.alert_targets.register_chat(user_id=1, chat_id=99)

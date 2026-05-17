@@ -207,12 +207,14 @@ def _build_codex_args(
     prompt: str,
     cwd: str,
     output_path: Path,
-    codex_bin: str,
-    model_reasoning_effort: str,
-    sandbox_mode: str,
-    codex_thread_id: str | None,
-    persist_session: bool,
+    codex_bin: str = "codex",
+    model_reasoning_effort: str = "medium",
+    sandbox_mode: str = "read-only",
+    codex_thread_id: str | None = None,
+    claude_thread_id: str | None = None,
+    persist_session: bool = True,
 ) -> list[str]:
+    _thread_id = claude_thread_id or codex_thread_id
     args = [
         codex_bin,
         "-c",
@@ -221,7 +223,7 @@ def _build_codex_args(
         "never",
         "exec",
     ]
-    if codex_thread_id:
+    if _thread_id:
         args.extend(
             [
                 "resume",
@@ -229,7 +231,7 @@ def _build_codex_args(
                 "--skip-git-repo-check",
                 "--output-last-message",
                 str(output_path),
-                codex_thread_id,
+                _thread_id,
                 prompt,
             ]
         )

@@ -102,10 +102,9 @@ class OrchestratorRepoContextTests(unittest.IsolatedAsyncioTestCase):
             max_output_length=1200,
             important_services=("codex-agent.service",),
             enable_desktop_actions=True,
-            ai_backend="codex",
+            ai_backend="claude",
             claude_timeout=600,
-            codex_bin="codex",
-            codex_reasoning_effort="medium",
+            memory_db_path=self.workdir / "codi-memory.db",
         )
         self.orchestrator = Orchestrator(
             settings,
@@ -115,7 +114,7 @@ class OrchestratorRepoContextTests(unittest.IsolatedAsyncioTestCase):
             repo_resolver=self.repo_resolver,
             repo_watch_manager=SimpleNamespace(),
             device_registry_manager=_DeviceRegistryStub(),
-            self_maintenance_manager=SimpleNamespace(),
+            self_maintenance_manager=SimpleNamespace(project_root=self.workdir, is_self_repo=lambda p: False),
             desktop_action_manager=SimpleNamespace(),
             desktop_screenshot_service=SimpleNamespace(),
             local_shell_service=SimpleNamespace(),

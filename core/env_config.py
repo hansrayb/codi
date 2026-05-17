@@ -150,7 +150,7 @@ def _resolve_setting_alias(raw_alias: str) -> str | None:
 
 
 def _validate_env_value(key: str, raw_value: str) -> str:
-    if key in {"CODEX_TIMEOUT", "LOCAL_SHELL_TIMEOUT"}:
+    if key in {"CLAUDE_TIMEOUT", "LOCAL_SHELL_TIMEOUT"}:
         return _validate_positive_int(raw_value, key)
     raise EnvConfigError(f"Pengaturan `{key}` belum didukung untuk update natural ini.")
 
