@@ -95,5 +95,21 @@ flutter:
   assets:
     - assets/svg/
     - assets/images/
+    - assets/icon/
 
   # Fonts via google_fonts package
+
+# App launcher icon — generate: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/icon-dark.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#0A1124"
+  adaptive_icon_foreground: "assets/icon/icon-dark.png"
+  web:
+    generate: true
+  windows:
+    generate: false
+  macos:
+    generate: false

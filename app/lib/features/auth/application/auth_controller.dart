@@ -79,6 +79,13 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Login dummy tanpa biometric (sementara untuk testing — biometric
+  /// path tetap ada via [authenticate]). Tombol "Masuk" → langsung lolos.
+  Future<void> loginDummy() async {
+    if (state.isBusy) return;
+    await _mockLogin();
+  }
+
   /// Stub login — ganti dengan call `POST /auth/login` saat backend siap.
   Future<void> _mockLogin() async {
     state = state.copyWith(status: LoginStatus.loggingIn, clearError: true);

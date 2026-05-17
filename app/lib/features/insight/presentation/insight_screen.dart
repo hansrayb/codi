@@ -1,39 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../models/dashboard_summary.dart';
+import '../../../models/insight_detail.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/emas_error_view.dart';
 import '../../../widgets/emas_loading.dart';
 import '../../shell/presentation/widgets/bottom_nav.dart';
-import '../application/dashboard_controller.dart';
-import '../domain/dashboard_state.dart';
-import 'widgets/ai_summary_card.dart';
-import 'widgets/chart_card.dart';
-import 'widgets/greeting_header.dart';
-import 'widgets/highlight_list.dart';
-import 'widgets/period_selector.dart';
-import 'widgets/stats_row.dart';
-import 'widgets/summary_card.dart';
+import '../application/insight_controller.dart';
+import '../domain/insight_state.dart';
+import 'widgets/composition_donut.dart';
+import 'widgets/deep_analysis_card.dart';
+import 'widgets/insight_hero.dart';
+import 'widgets/kpi_grid.dart';
 
-/// Dashboard (Beranda) — `docs/06-SCREENS.md` S2, layout match mockup
-/// `docs/emas-berlian-insight.html`.
+/// Insight (S4) — `docs/06-SCREENS.md`, layout match mockup
+/// `docs/emas-berlian-insight.html` SCREEN 4.
 ///
-/// Pull-to-refresh, shimmer loading, error state. Bottom nav visual.
-class DashboardScreen extends ConsumerWidget {
-  const DashboardScreen({
+/// Read-only premium: hero, KPI grid, donut komposisi, analisis Codi.
+/// Pull-to-refresh, shimmer, error/offline. Bottom nav fungsional.
+class InsightScreen extends ConsumerWidget {
+  const InsightScreen({
+    this.onBack,
     this.onOpenChat,
-    this.onOpenInsight,
     this.onNavTap,
     this.showBottomNav = true,
     super.key,
   });
 
-  /// Tap FAB Codi → Chat.
-  final VoidCallback? onOpenChat;
+  /// Tap back / arrow hero — kembali ke Beranda.
+  final VoidCallback? onBack;
 
-  /// Tap AI summary → Insight.
-  final VoidCallback? onOpenInsight;
+  /// Tap FAB Codi / "Tanya Codi →" → Chat.
+  final VoidCallback? onOpenChat;
 
   /// Tap item bottom nav lain (di-handle shell).
   final ValueChanged<NavTab>? onNavTap;
@@ -44,7 +42,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(dashboardControllerProvider);
+    final state = ref.watch(insightControllerProvider);
 
     return Scaffold(
       body: Stack(
@@ -52,30 +50,32 @@ class DashboardScreen extends ConsumerWidget {
           SafeArea(
             bottom: false,
             child: switch (state) {
-              DashboardLoading() => const _LoadingView(),
-              DashboardError(:final message) => EmasErrorView(
+              InsightLoading() => const _LoadingView(),
+              InsightError(:final message) => EmasErrorView(
                   message: message,
                   onRetry: () => ref
-                      .read(dashboardControllerProvider.notifier)
+                      .read(insightControllerProvider.notifier)
                       .refresh(),
                 ),
-              DashboardSuccess(:final data) => _Content(
+              InsightSuccess(:final data) => _Content(
                   onRefresh: () => ref
-                      .read(dashboardControllerProvider.notifier)
+                      .read(insightControllerProvider.notifier)
                       .refresh(),
-                  child: _DashboardBody(
+                  child: _InsightBody(
                     data: data,
-                    onOpenInsight: onOpenInsight,
+                    onBack: onBack,
+                    onOpenChat: onOpenChat,
                   ),
                 ),
-              DashboardOffline(:final cached) => _Content(
+              InsightOffline(:final cached) => _Content(
                   isOffline: true,
                   onRefresh: () => ref
-                      .read(dashboardControllerProvider.notifier)
+                      .read(insightControllerProvider.notifier)
                       .refresh(),
-                  child: _DashboardBody(
+                  child: _InsightBody(
                     data: cached,
-                    onOpenInsight: onOpenInsight,
+                    onBack: onBack,
+                    onOpenChat: onOpenChat,
                   ),
                 ),
             },
@@ -86,7 +86,7 @@ class DashboardScreen extends ConsumerWidget {
               right: 0,
               bottom: 0,
               child: BottomNav(
-                active: NavTab.beranda,
+                active: NavTab.insight,
                 onTap: onNavTap,
                 onFabTap: onOpenChat,
               ),
@@ -130,40 +130,44 @@ class _Content extends StatelessWidget {
   }
 }
 
-class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.data, this.onOpenInsight});
+class _InsightBody extends StatelessWidget {
+  const _InsightBody({
+    required this.data,
+    this.onBack,
+    this.onOpenChat,
+  });
 
-  final DashboardSummary data;
-  final VoidCallback? onOpenInsight;
+  final InsightDetail data;
+  final VoidCallback? onBack;
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final period = ref.watch(selectedPeriodProvider);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const GreetingHeader(
-              name: 'Leo Sastra C.W.',
-              title: 'Direktur Utama',
-            ),
-            PeriodSelector(
-              selected: period,
-              onChanged: (p) =>
-                  ref.read(selectedPeriodProvider.notifier).state = p,
-            ),
-            SummaryCard(data: data),
-            StatsRow(stats: data.stats),
-            AiSummaryCard(
-              summary: data.aiSummary,
-              onTap: onOpenInsight,
-            ),
-            ChartCard(bars: data.chart),
-            HighlightList(highlights: data.highlights),
-          ],
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InsightHero(
+          title: data.title,
+          periodLabel: data.periodLabel,
+          isLive: data.isLive,
+          onBack: onBack,
+        ),
+        KpiGrid(kpis: data.kpis),
+        CompositionDonut(
+          totalLabel: data.donutTotalLabel,
+          totalUnit: data.donutTotalUnit,
+          caption: data.donutCaption,
+          slices: data.donutSlices,
+        ),
+        DeepAnalysisCard(
+          title: data.analysisTitle,
+          author: data.analysisAuthor,
+          updatedAt: data.analysisUpdatedAt,
+          sections: data.analysisSections,
+          meta: data.analysisMeta,
+          onAskCodi: onOpenChat,
+        ),
+      ],
     );
   }
 }
@@ -177,13 +181,27 @@ class _LoadingView extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.s20),
       children: const [
         SizedBox(height: AppSpacing.s12),
-        EmasSkeleton(width: 180, height: 40),
-        SizedBox(height: AppSpacing.s20),
-        EmasSkeleton(width: double.infinity, height: 44, radius: 12),
+        EmasSkeleton(width: 200, height: 28),
+        SizedBox(height: AppSpacing.s8),
+        EmasSkeleton(width: 160, height: 14),
+        SizedBox(height: AppSpacing.s24),
+        Row(
+          children: [
+            Expanded(child: EmasSkeleton(width: 0, height: 80, radius: 14)),
+            SizedBox(width: AppSpacing.s8),
+            Expanded(child: EmasSkeleton(width: 0, height: 80, radius: 14)),
+          ],
+        ),
+        SizedBox(height: AppSpacing.s8),
+        Row(
+          children: [
+            Expanded(child: EmasSkeleton(width: 0, height: 80, radius: 14)),
+            SizedBox(width: AppSpacing.s8),
+            Expanded(child: EmasSkeleton(width: 0, height: 80, radius: 14)),
+          ],
+        ),
         SizedBox(height: AppSpacing.s16),
-        EmasSkeleton(width: double.infinity, height: 150, radius: 20),
-        SizedBox(height: AppSpacing.s16),
-        EmasLoadingCard(),
+        EmasSkeleton(width: double.infinity, height: 132, radius: 16),
         SizedBox(height: AppSpacing.s16),
         EmasLoadingCard(),
       ],

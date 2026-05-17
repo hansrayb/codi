@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../widgets/emas_button.dart';
 import '../application/auth_controller.dart';
 import '../domain/auth_state.dart';
-import 'widgets/biometric_button.dart';
 import 'widgets/login_logo.dart';
 
 /// Login screen — layout match mockup `docs/emas-berlian-insight.html`
@@ -24,13 +24,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(authControllerProvider.notifier).checkAvailability();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,29 +114,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _authArea(AuthState state) {
     final busy = state.isBusy;
-    final locked = state.status == LoginStatus.locked;
 
     return Column(
       children: [
-        BiometricButton(
-          enabled: !busy && !locked,
-          onTap: () =>
-              ref.read(authControllerProvider.notifier).authenticate(),
+        EmasButton(
+          label: busy ? 'Memverifikasi...' : 'Masuk',
+          icon: Icons.login,
+          expand: true,
+          onPressed: busy
+              ? null
+              : () =>
+                  ref.read(authControllerProvider.notifier).loginDummy(),
         ),
         const SizedBox(height: AppSpacing.s12),
         Text(
-          busy ? 'Memverifikasi...' : 'Sentuh untuk masuk',
-          textAlign: TextAlign.center,
-          style: AppTypography.bodyL.copyWith(color: context.colors.ink),
-        ),
-        const SizedBox(height: AppSpacing.s6),
-        Text(
-          state.errorMessage ?? 'Otentikasi biometrik diperlukan',
+          'Akses dummy — biometrik dinonaktifkan sementara',
           textAlign: TextAlign.center,
           style: AppTypography.bodyS.copyWith(
-            color: state.errorMessage != null
-                ? context.colors.red
-                : context.colors.inkMuted,
+            color: context.colors.inkMuted,
           ),
         ),
       ],

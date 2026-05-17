@@ -1,42 +1,23 @@
-// Widget test Login screen — auth pakai mock BiometricHelper
-// (in-memory, backend belum ada).
+// Widget test Login — mode dummy (tombol Masuk, biometric dinonaktifkan
+// sementara; kode biometric tetap ada di controller).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:emas_berlian_insight/theme/app_theme.dart';
-import 'package:emas_berlian_insight/utils/biometric_helper.dart';
-import 'package:emas_berlian_insight/features/auth/application/auth_controller.dart';
 import 'package:emas_berlian_insight/features/auth/presentation/login_screen.dart';
-import 'package:emas_berlian_insight/features/auth/presentation/widgets/biometric_button.dart';
-
-/// Mock helper — hasil biometric ditentukan test.
-class _MockBiometric implements BiometricHelper {
-  _MockBiometric(this._result, {this.available = true});
-
-  final BiometricResult _result;
-  final bool available;
-
-  @override
-  Future<bool> isAvailable() async => available;
-
-  @override
-  Future<BiometricResult> authenticate() async => _result;
-}
+import 'package:emas_berlian_insight/widgets/emas_button.dart';
 
 Future<void> _pump(
-  WidgetTester tester,
-  BiometricHelper helper, {
+  WidgetTester tester, {
   VoidCallback? onAuth,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        biometricHelperProvider.overrideWithValue(helper),
-      ],
       child: MaterialApp(
-        theme: AppTheme.darkTheme,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
         home: LoginScreen(onAuthenticated: onAuth),
       ),
     ),
@@ -45,51 +26,23 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('render brand + label + footer', (tester) async {
-    await _pump(tester, _MockBiometric(BiometricResult.success));
+  testWidgets('render brand + tombol Masuk + footer', (tester) async {
+    await _pump(tester);
 
-    expect(find.text('Sentuh untuk masuk'), findsOneWidget);
     expect(find.text('Executive Business Intelligence'), findsOneWidget);
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.byType(EmasButton), findsOneWidget);
     expect(find.text('AKSES KHUSUS DIREKSI'), findsOneWidget);
-    expect(find.byType(BiometricButton), findsOneWidget);
   });
 
-  testWidgets('biometric sukses → onAuthenticated dipanggil',
-      (tester) async {
+  testWidgets('tap Masuk → onAuthenticated dipanggil', (tester) async {
     var authed = false;
-    await _pump(
-      tester,
-      _MockBiometric(BiometricResult.success),
-      onAuth: () => authed = true,
-    );
+    await _pump(tester, onAuth: () => authed = true);
 
-    await tester.tap(find.byType(BiometricButton));
-    await tester.pump(); // authenticating
-    await tester.pump(const Duration(seconds: 1)); // mock login delay
+    await tester.tap(find.byType(EmasButton));
+    await tester.pump(); // loggingIn
+    await tester.pump(const Duration(milliseconds: 900)); // mock delay
 
     expect(authed, isTrue);
-  });
-
-  testWidgets('biometric unavailable → pesan error', (tester) async {
-    await _pump(
-      tester,
-      _MockBiometric(BiometricResult.unavailable, available: false),
-    );
-    await tester.pump();
-
-    expect(
-      find.textContaining('Aktifkan Face ID'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('biometric gagal → pesan gagal', (tester) async {
-    await _pump(tester, _MockBiometric(BiometricResult.failed));
-
-    await tester.tap(find.byType(BiometricButton));
-    await tester.pump();
-    await tester.pump();
-
-    expect(find.textContaining('gagal'), findsOneWidget);
   });
 }
