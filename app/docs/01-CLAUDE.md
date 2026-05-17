@@ -93,6 +93,9 @@ Detail dependencies di `05-ARCHITECTURE.md`.
 - ❌ Skip `null` check untuk data dari API
 - ❌ Mutate state tanpa lewat Riverpod
 - ❌ Inline styles di widget — pakai theme/tokens
+- ❌ **1 file > 800 baris** — pecah jadi modul lebih kecil (widget, helper,
+  extension terpisah). Hard limit untuk maintainability. Berlaku semua
+  file `.dart` kecuali generated (`*.g.dart`, `*.freezed.dart`).
 
 ### Git
 

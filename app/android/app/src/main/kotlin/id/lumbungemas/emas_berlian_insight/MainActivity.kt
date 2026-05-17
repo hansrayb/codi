@@ -1,5 +1,6 @@
 package id.lumbungemas.emas_berlian_insight
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity wajib untuk plugin local_auth (biometric prompt).
+class MainActivity : FlutterFragmentActivity()

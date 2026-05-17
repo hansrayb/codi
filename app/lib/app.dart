@@ -1,32 +1,53 @@
 import 'package:flutter/material.dart';
 
+import 'features/auth/presentation/login_screen.dart';
+import 'theme/app_theme.dart';
+
 /// Root widget aplikasi.
 ///
-/// Scaffolding Fase 0 — `MaterialApp` minimal tanpa theme/router custom.
-/// Theme (`docs/03-DESIGN-SYSTEM.md`) dan `go_router`
-/// (`docs/05-ARCHITECTURE.md`) di-wire di Fase 1.
+/// Fase 1: theme dark-only + Login screen (match `docs/emas-berlian-insight.html`).
+/// Routing `go_router` + Dashboard di-wire berikutnya
+/// (`docs/05-ARCHITECTURE.md`, `docs/07-ROADMAP.md`). Sementara: login
+/// sukses → placeholder Dashboard.
 class EmasBerlianInsightApp extends StatelessWidget {
   const EmasBerlianInsightApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       title: 'Emas Berlian Insight',
       debugShowCheckedModeBanner: false,
-      home: _ScaffoldingPlaceholder(),
+      theme: AppTheme.darkTheme,
+      home: Builder(
+        builder: (context) => LoginScreen(
+          onAuthenticated: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const _DashboardPlaceholder(),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-/// Placeholder sementara Fase 0 — diganti Login screen di Fase 1.
-class _ScaffoldingPlaceholder extends StatelessWidget {
-  const _ScaffoldingPlaceholder();
+/// Placeholder Dashboard — diganti DashboardScreen di Fase 1 Minggu 2.
+class _DashboardPlaceholder extends StatelessWidget {
+  const _DashboardPlaceholder();
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
+      appBar: AppBar(title: Text('Beranda', style: AppTypography.headlineM)),
       body: Center(
-        child: Text('Emas Berlian Insight — scaffolding'),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.s24),
+          child: Text(
+            'Login berhasil.\nDashboard menyusul di tahap berikutnya.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyL,
+          ),
+        ),
       ),
     );
   }
