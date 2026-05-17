@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'features/auth/presentation/login_screen.dart';
+import 'features/dashboard/presentation/dashboard_screen.dart';
 import 'theme/app_theme.dart';
 
 /// Root widget aplikasi.
 ///
-/// Fase 1: theme dark-only + Login screen (match `docs/emas-berlian-insight.html`).
-/// Routing `go_router` + Dashboard di-wire berikutnya
-/// (`docs/05-ARCHITECTURE.md`, `docs/07-ROADMAP.md`). Sementara: login
-/// sukses → placeholder Dashboard.
+/// Fase 1: theme dark-only + Login + Dashboard (match
+/// `docs/emas-berlian-insight.html`). Routing `go_router` di-wire
+/// berikutnya (`docs/05-ARCHITECTURE.md`). Sementara: Navigator manual,
+/// Chat/Insight belum ada → snackbar placeholder.
 class EmasBerlianInsightApp extends StatelessWidget {
   const EmasBerlianInsightApp({super.key});
 
@@ -22,30 +23,8 @@ class EmasBerlianInsightApp extends StatelessWidget {
         builder: (context) => LoginScreen(
           onAuthenticated: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => const _DashboardPlaceholder(),
+              builder: (_) => const DashboardScreen(),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Placeholder Dashboard — diganti DashboardScreen di Fase 1 Minggu 2.
-class _DashboardPlaceholder extends StatelessWidget {
-  const _DashboardPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Beranda', style: AppTypography.headlineM)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.s24),
-          child: Text(
-            'Login berhasil.\nDashboard menyusul di tahap berikutnya.',
-            textAlign: TextAlign.center,
-            style: AppTypography.bodyL,
           ),
         ),
       ),
