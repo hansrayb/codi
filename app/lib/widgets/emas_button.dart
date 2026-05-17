@@ -85,15 +85,15 @@ class _EmasButtonState extends State<EmasButton> {
       case EmasButtonVariant.primary:
         return _container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [AppColors.goldBright, AppColors.gold],
+              colors: [context.colors.goldBright, context.colors.gold],
             ),
             borderRadius: BorderRadius.circular(AppRadius.r14),
             boxShadow: AppElevation.elev2,
           ),
-          foreground: AppColors.bgApp,
+          foreground: context.colors.bgApp,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.s14,
             vertical: AppSpacing.s12,
@@ -102,11 +102,11 @@ class _EmasButtonState extends State<EmasButton> {
       case EmasButtonVariant.secondary:
         return _container(
           decoration: BoxDecoration(
-            color: _pressed ? AppColors.bgHighlight : Colors.transparent,
+            color: _pressed ? context.colors.bgHighlight : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.r14),
-            border: Border.all(color: AppColors.lineStrong),
+            border: Border.all(color: context.colors.lineStrong),
           ),
-          foreground: AppColors.ink,
+          foreground: context.colors.ink,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.s14,
             vertical: AppSpacing.s12,
@@ -115,7 +115,7 @@ class _EmasButtonState extends State<EmasButton> {
       case EmasButtonVariant.ghost:
         return _container(
           decoration: const BoxDecoration(),
-          foreground: AppColors.gold,
+          foreground: context.colors.gold,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.s8,
             vertical: AppSpacing.s6,

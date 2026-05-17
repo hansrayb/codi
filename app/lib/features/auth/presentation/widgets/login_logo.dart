@@ -27,9 +27,9 @@ class LoginLogo extends StatelessWidget {
             height: _size + 4,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.r28 + 2),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: AppColors.goldSoft,
+                  color: context.colors.goldSoft,
                   blurRadius: 24,
                   spreadRadius: 2,
                 ),
@@ -41,13 +41,13 @@ class LoginLogo extends StatelessWidget {
             height: _size,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [AppColors.bgElev, AppColors.bgApp],
+                colors: [context.colors.bgElev, context.colors.bgApp],
               ),
               borderRadius: BorderRadius.circular(AppRadius.r28),
-              border: Border.all(color: AppColors.goldLine),
+              border: Border.all(color: context.colors.goldLine),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x404A7BC8),

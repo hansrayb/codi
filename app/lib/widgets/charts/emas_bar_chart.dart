@@ -73,7 +73,7 @@ class EmasBarChart extends StatelessWidget {
                     child: Text(
                       bars[i].label,
                       style: AppTypography.mono.copyWith(
-                        color: AppColors.inkMuted,
+                        color: context.colors.inkMuted,
                       ),
                     ),
                   );
@@ -89,7 +89,7 @@ class EmasBarChart extends StatelessWidget {
                 barRods: [
                   BarChartRodData(
                     toY: bars[i].retail,
-                    color: AppColors.gold.withValues(alpha: 0.85),
+                    color: context.colors.gold.withValues(alpha: 0.85),
                     width: 9,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(2),
@@ -97,7 +97,7 @@ class EmasBarChart extends StatelessWidget {
                   ),
                   BarChartRodData(
                     toY: bars[i].rotasi,
-                    color: AppColors.navyBlue.withValues(alpha: 0.8),
+                    color: context.colors.navyBlue.withValues(alpha: 0.8),
                     width: 9,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(2),

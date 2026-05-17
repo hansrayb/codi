@@ -28,9 +28,9 @@ class EmasCard extends StatelessWidget {
     final card = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: child,
     );
@@ -42,8 +42,8 @@ class EmasCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.r14),
-        splashColor: AppColors.goldSoft,
-        highlightColor: AppColors.bgHighlight,
+        splashColor: context.colors.goldSoft,
+        highlightColor: context.colors.bgHighlight,
         child: card,
       ),
     );
@@ -73,13 +73,13 @@ class EmasElevatedCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.bgCard, AppColors.bgElev],
+          colors: [context.colors.bgCard, context.colors.bgElev],
         ),
         borderRadius: BorderRadius.circular(AppRadius.r20),
-        border: Border.all(color: AppColors.goldLine),
+        border: Border.all(color: context.colors.goldLine),
         boxShadow: AppElevation.elev3,
       ),
       child: child,

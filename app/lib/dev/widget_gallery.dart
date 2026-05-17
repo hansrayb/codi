@@ -20,7 +20,7 @@ class WidgetGallery extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.s20),
         children: [
-          _section('Typography'),
+          _section(context, 'Typography'),
           Text('Emas Berlian Insight', style: AppTypography.displayL),
           const SizedBox(height: AppSpacing.s8),
           Text('Rp 1.250.000.000', style: AppTypography.numLarge),
@@ -32,7 +32,7 @@ class WidgetGallery extends StatelessWidget {
           const SizedBox(height: AppSpacing.s8),
           Text('14:30 · 17 MEI 2026', style: AppTypography.mono),
 
-          _section('Buttons'),
+          _section(context, 'Buttons'),
           const EmasButton(
             label: 'Tombol Primary',
             onPressed: _noop,
@@ -58,7 +58,7 @@ class WidgetGallery extends StatelessWidget {
           const SizedBox(height: AppSpacing.s12),
           const EmasButton(label: 'Disabled', onPressed: null, expand: true),
 
-          _section('Cards'),
+          _section(context, 'Cards'),
           const EmasCard(
             child: Text('Default card — bgCard, border line, radius 14.'),
           ),
@@ -74,7 +74,7 @@ class WidgetGallery extends StatelessWidget {
             ),
           ),
 
-          _section('Avatar'),
+          _section(context, 'Avatar'),
           const Row(
             children: [
               EmasAvatar(name: 'Leo Sastra'),
@@ -83,10 +83,10 @@ class WidgetGallery extends StatelessWidget {
             ],
           ),
 
-          _section('Input'),
+          _section(context, 'Input'),
           const EmasInput(hintText: 'Tanya Codi sesuatu...'),
 
-          _section('Alert'),
+          _section(context, 'Alert'),
           const EmasAlert(
             title: 'Pertumbuhan Sehat',
             message: 'Omzet naik 12% dibanding bulan lalu.',
@@ -99,10 +99,10 @@ class WidgetGallery extends StatelessWidget {
             severity: EmasAlertSeverity.warning,
           ),
 
-          _section('Loading'),
+          _section(context, 'Loading'),
           const EmasLoadingCard(),
 
-          _section('Error State'),
+          _section(context, 'Error State'),
           const SizedBox(
             height: 220,
             child: EmasErrorView(
@@ -111,7 +111,7 @@ class WidgetGallery extends StatelessWidget {
             ),
           ),
 
-          _section('Empty State'),
+          _section(context, 'Empty State'),
           const SizedBox(
             height: 180,
             child: EmasEmptyView(
@@ -124,14 +124,14 @@ class WidgetGallery extends StatelessWidget {
     );
   }
 
-  Widget _section(String title) => Padding(
+  Widget _section(BuildContext context, String title) => Padding(
         padding: const EdgeInsets.only(
           top: AppSpacing.s32,
           bottom: AppSpacing.s12,
         ),
         child: Text(
           title.toUpperCase(),
-          style: AppTypography.labelS.copyWith(color: AppColors.gold),
+          style: AppTypography.labelS.copyWith(color: context.colors.gold),
         ),
       );
 

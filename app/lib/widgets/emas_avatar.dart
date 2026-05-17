@@ -37,17 +37,17 @@ class EmasAvatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.navyBlue, Color(0xFF2A4A7F)],
+          colors: [context.colors.navyBlue, const Color(0xFF2A4A7F)],
         ),
-        border: Border.all(color: AppColors.goldLine),
+        border: Border.all(color: context.colors.goldLine),
       ),
       child: Text(
         _initials,
         style: AppTypography.labelM.copyWith(
-          color: AppColors.ink,
+          color: context.colors.ink,
           fontWeight: FontWeight.w700,
         ),
       ),

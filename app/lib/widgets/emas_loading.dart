@@ -27,13 +27,13 @@ class EmasSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.bgCard,
-      highlightColor: AppColors.bgHighlight,
+      baseColor: context.colors.bgCard,
+      highlightColor: context.colors.bgHighlight,
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.bgCard,
+          color: context.colors.bgCard,
           borderRadius: BorderRadius.circular(radius),
         ),
       ),
@@ -51,9 +51,9 @@ class EmasLoadingCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.s14),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,

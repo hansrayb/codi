@@ -43,7 +43,7 @@ class HighlightList extends StatelessWidget {
                 child: Text(
                   'Lihat semua →',
                   style: AppTypography.bodyS.copyWith(
-                    color: AppColors.gold,
+                    color: context.colors.gold,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -71,30 +71,30 @@ class _HighlightItem extends StatelessWidget {
 
   final Highlight item;
 
-  ({Color accent, Color soft, IconData icon}) get _style {
+  ({Color accent, Color soft, IconData icon}) _style(BuildContext context) {
     switch (item.severity) {
       case HighlightSeverity.green:
         return (
-          accent: AppColors.green,
-          soft: AppColors.greenSoft,
+          accent: context.colors.green,
+          soft: context.colors.greenSoft,
           icon: Icons.trending_up,
         );
       case HighlightSeverity.red:
         return (
-          accent: AppColors.red,
-          soft: AppColors.redSoft,
+          accent: context.colors.red,
+          soft: context.colors.redSoft,
           icon: Icons.warning_amber_rounded,
         );
       case HighlightSeverity.gold:
         return (
-          accent: AppColors.gold,
-          soft: AppColors.goldSoft,
+          accent: context.colors.gold,
+          soft: context.colors.goldSoft,
           icon: Icons.attach_money,
         );
       case HighlightSeverity.navy:
         return (
-          accent: AppColors.navyBlue,
-          soft: AppColors.navySoft,
+          accent: context.colors.navyBlue,
+          soft: context.colors.navySoft,
           icon: Icons.groups_outlined,
         );
     }
@@ -102,12 +102,12 @@ class _HighlightItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = _style;
+    final s = _style(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.r14),
@@ -141,7 +141,7 @@ class _HighlightItem extends StatelessWidget {
                             Text(
                               item.title,
                               style: AppTypography.bodyL.copyWith(
-                                color: AppColors.ink,
+                                color: context.colors.ink,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -149,7 +149,7 @@ class _HighlightItem extends StatelessWidget {
                             Text(
                               item.description,
                               style: AppTypography.bodyS.copyWith(
-                                color: AppColors.inkMuted,
+                                color: context.colors.inkMuted,
                               ),
                             ),
                             const SizedBox(height: AppSpacing.s6),

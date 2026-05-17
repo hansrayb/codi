@@ -27,9 +27,9 @@ class PeriodSelector extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(AppSpacing.s6),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: Row(
         children: [
@@ -44,7 +44,7 @@ class PeriodSelector extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: p == selected
-                        ? AppColors.goldSoft
+                        ? context.colors.goldSoft
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(AppRadius.r8),
                   ),
@@ -53,8 +53,8 @@ class PeriodSelector extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: AppTypography.bodyS.copyWith(
                       color: p == selected
-                          ? AppColors.gold
-                          : AppColors.inkMuted,
+                          ? context.colors.gold
+                          : context.colors.inkMuted,
                       fontWeight: p == selected
                           ? FontWeight.w600
                           : FontWeight.w500,

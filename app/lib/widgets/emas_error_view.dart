@@ -36,13 +36,13 @@ class EmasErrorView extends StatelessWidget {
               height: 56,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.redSoft,
+                color: context.colors.redSoft,
                 borderRadius: BorderRadius.circular(AppRadius.r16),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.cloud_off_outlined,
                 size: 28,
-                color: AppColors.red,
+                color: context.colors.red,
               ),
             ),
             const SizedBox(height: AppSpacing.s16),

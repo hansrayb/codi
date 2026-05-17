@@ -29,5 +29,6 @@ app/.idea/
 app/*.iml
 app/.gradle/
 app/android/.gradle/
+app/android/.kotlin/
 app/ios/Pods/
 app/ios/.symlinks/

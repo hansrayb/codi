@@ -7,7 +7,7 @@ import '../../../../utils/formatters/date_formatter.dart';
 /// AI Summary card dari Codi (`docs/06-SCREENS.md` → AI Summary Card &
 /// mockup `.ai-summary`).
 ///
-/// Gradient + goldLine, header ikon gold gradient, 3 paragraf, footer
+/// Gradient + goldLine, header ikon gradient brand, 3 paragraf, footer
 /// meta + "Tap untuk detail →". Tap → [onTap] (navigate ke Insight).
 class AiSummaryCard extends StatelessWidget {
   const AiSummaryCard({
@@ -21,6 +21,7 @@ class AiSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -33,18 +34,18 @@ class AiSummaryCard extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(AppSpacing.s16 + 2),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppColors.bgCard, AppColors.bgElev],
+            colors: [c.bgCard, c.bgElev],
           ),
           borderRadius: BorderRadius.circular(AppRadius.r16),
-          border: Border.all(color: AppColors.goldLine),
+          border: Border.all(color: c.goldLine),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _head(),
+            _head(context),
             const SizedBox(height: AppSpacing.s12),
             for (var i = 0; i < summary.paragraphs.length; i++) ...[
               if (i > 0) const SizedBox(height: AppSpacing.s8),
@@ -54,84 +55,82 @@ class AiSummaryCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: AppSpacing.s14),
-            _meta(),
+            _meta(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _head() => Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.gold, AppColors.goldDim],
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.r8),
+  Widget _head(BuildContext context) {
+    final c = context.colors;
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [c.gold, c.goldDim],
             ),
-            child: const Icon(
-              Icons.auto_awesome,
-              size: 15,
-              color: AppColors.bgApp,
-            ),
+            borderRadius: BorderRadius.circular(AppRadius.r8),
           ),
-          const SizedBox(width: AppSpacing.s12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ringkasan Hari Ini',
-                  style: AppTypography.bodyL.copyWith(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w700,
-                  ),
+          child: Icon(Icons.auto_awesome, size: 15, color: c.bgApp),
+        ),
+        const SizedBox(width: AppSpacing.s12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ringkasan Hari Ini',
+                style: AppTypography.bodyL.copyWith(
+                  color: c.ink,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: AppSpacing.s2),
-                Text(
-                  'Diperbarui ${DateFormatter.relative(summary.updatedAt)} '
-                  'oleh Codi',
-                  style: AppTypography.bodyS.copyWith(
-                    color: AppColors.inkMuted,
-                    fontSize: 10,
-                  ),
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              Text(
+                'Diperbarui ${DateFormatter.relative(summary.updatedAt)} '
+                'oleh Codi',
+                style: AppTypography.bodyS.copyWith(
+                  color: c.inkMuted,
+                  fontSize: 10,
                 ),
-              ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _meta(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      padding: const EdgeInsets.only(top: AppSpacing.s14),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: c.line)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Berdasarkan ${summary.dataPoints} data point',
+            style: AppTypography.labelS.copyWith(color: c.inkFaint),
+          ),
+          Text(
+            'Tap untuk detail →',
+            style: AppTypography.labelS.copyWith(
+              color: c.gold,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
-      );
-
-  Widget _meta() => Container(
-        padding: const EdgeInsets.only(top: AppSpacing.s14),
-        decoration: const BoxDecoration(
-          border: Border(
-            top: BorderSide(color: AppColors.line),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Berdasarkan ${summary.dataPoints} data point',
-              style: AppTypography.labelS.copyWith(
-                color: AppColors.inkFaint,
-              ),
-            ),
-            Text(
-              'Tap untuk detail →',
-              style: AppTypography.labelS.copyWith(
-                color: AppColors.gold,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
+      ),
+    );
+  }
 }

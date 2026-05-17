@@ -50,7 +50,7 @@ class GreetingHeader extends StatelessWidget {
                 Text(
                   _greeting(),
                   style: AppTypography.bodyS.copyWith(
-                    color: AppColors.inkMuted,
+                    color: context.colors.inkMuted,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.s2),
@@ -62,7 +62,7 @@ class GreetingHeader extends StatelessWidget {
                 Text(
                   title.toUpperCase(),
                   style: AppTypography.labelS.copyWith(
-                    color: AppColors.gold,
+                    color: context.colors.gold,
                   ),
                 ),
               ],

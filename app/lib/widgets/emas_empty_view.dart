@@ -35,10 +35,10 @@ class EmasEmptyView extends StatelessWidget {
               height: 56,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.bgHighlight,
+                color: context.colors.bgHighlight,
                 borderRadius: BorderRadius.circular(AppRadius.r16),
               ),
-              child: Icon(icon, size: 28, color: AppColors.inkMuted),
+              child: Icon(icon, size: 28, color: context.colors.inkMuted),
             ),
             const SizedBox(height: AppSpacing.s16),
             Text(

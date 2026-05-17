@@ -5,6 +5,15 @@ versioning [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Brand color**: gold → biru-cyan (sesuai logo aplikasi). Token `gold*`
+  dipertahankan namanya (legacy) tapi nilainya kini biru.
+- **Theme**: dark-only → **light & dark** (ikut sistem). `AppColors` jadi
+  ThemeExtension `AppPalette`, diakses via `context.colors.X` (resolve
+  per theme). 29 file widget dimigrasi. Override brief (`02-SPEC.md`
+  dark-only Phase 1) atas permintaan user.
+
 ### Added
 
 - Scaffolding Fase 0: struktur project Flutter, dependencies (`pubspec.yaml`),
@@ -27,3 +36,9 @@ versioning [SemVer](https://semver.org/).
   Mock data via `DashboardController` (backend belum ada).
 - Formatter `CurrencyFormatter` (Rp titik ribuan + compact jt/M) &
   `DateFormatter` (locale id_ID) + unit test.
+- Chat screen — layout match mockup `docs/emas-berlian-insight.html`:
+  header (Codi avatar SVG + status), message bubble (user navy / bot
+  bgCard), rich card (badge + rows trend-colored + inline sparkline +
+  action buttons), suggestion chips, chat input (pill + mic + send).
+  Mock conversation + canned reply (backend belum ada). Dashboard FAB
+  Codi → Chat. Token baru `AppRadius.r24`, `AppSpacing.s10`.

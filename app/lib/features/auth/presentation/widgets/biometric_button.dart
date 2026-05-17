@@ -79,7 +79,7 @@ class _BiometricButtonState extends State<BiometricButton>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.navyBlue.withValues(alpha: opacity),
+                        color: context.colors.navyBlue.withValues(alpha: opacity),
                       ),
                     ),
                   ),
@@ -94,17 +94,20 @@ class _BiometricButtonState extends State<BiometricButton>
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [AppColors.navySoft, Color(0x0A4A7BC8)],
+                  colors: [
+                    context.colors.navySoft,
+                    const Color(0x0A4A7BC8),
+                  ],
                 ),
-                border: Border.all(color: AppColors.navyBlue),
+                border: Border.all(color: context.colors.navyBlue),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.fingerprint,
                 size: 40,
-                color: AppColors.navyBlue,
+                color: context.colors.navyBlue,
               ),
             ),
           ),

@@ -1,95 +1,157 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
-/// Color token Emas Berlian Insight.
+/// Palet warna theme-aware Emas Berlian Insight.
 ///
-/// Sumber kebenaran: `docs/03-DESIGN-SYSTEM.md`. Jangan pakai warna di luar
-/// token ini — tidak ada magic color di widget.
-abstract final class AppColors {
-  // ── Background (Navy) ──────────────────────────────────────────
-  /// Outermost background, splash, body.
-  static const bgPage = Color(0xFF060A14);
+/// Brand color: biru-cyan (gradient dari logo aplikasi). Mendukung
+/// **dark** & **light** mode. Token diakses via `context.colors`
+/// (lihat `app_palette.dart`), bukan statik — agar resolve per theme.
+///
+/// Catatan: nama token `gold*` dipertahankan untuk kompatibilitas
+/// kode lama; nilainya kini biru (brand color baru).
+@immutable
+class AppColors {
+  const AppColors({
+    required this.bgPage,
+    required this.bgApp,
+    required this.bgCard,
+    required this.bgElev,
+    required this.bgInput,
+    required this.bgHighlight,
+    required this.ink,
+    required this.inkDim,
+    required this.inkMuted,
+    required this.inkFaint,
+    required this.gold,
+    required this.goldBright,
+    required this.goldDim,
+    required this.goldSoft,
+    required this.goldLine,
+    required this.diamond,
+    required this.diamondSoft,
+    required this.navyBlue,
+    required this.navySoft,
+    required this.purpleAccent,
+    required this.green,
+    required this.greenSoft,
+    required this.red,
+    required this.redSoft,
+    required this.amber,
+    required this.amberSoft,
+    required this.line,
+    required this.lineStrong,
+  });
 
-  /// App-level background, scaffold.
-  static const bgApp = Color(0xFF0A1124);
+  // Background
+  final Color bgPage;
+  final Color bgApp;
+  final Color bgCard;
+  final Color bgElev;
+  final Color bgInput;
+  final Color bgHighlight;
 
-  /// Card surface, default.
-  static const bgCard = Color(0xFF111A31);
+  // Ink (text)
+  final Color ink;
+  final Color inkDim;
+  final Color inkMuted;
+  final Color inkFaint;
 
-  /// Elevated card, dialog, modal.
-  static const bgElev = Color(0xFF18233F);
+  // Brand accent (biru — nama `gold*` legacy)
+  final Color gold;
+  final Color goldBright;
+  final Color goldDim;
+  final Color goldSoft;
+  final Color goldLine;
 
-  /// Input field background.
-  static const bgInput = Color(0xFF0F1830);
+  // Diamond / secondary
+  final Color diamond;
+  final Color diamondSoft;
 
-  /// Hover/pressed state.
-  static const bgHighlight = Color(0xFF1A2547);
+  // Navy / secondary data viz
+  final Color navyBlue;
+  final Color navySoft;
 
-  // ── Ink (Text) ─────────────────────────────────────────────────
-  /// Primary text, headlines.
-  static const ink = Color(0xFFF4F6FB);
+  /// Titik aksen ungu (orbit di logo).
+  final Color purpleAccent;
 
-  /// Body text, descriptions.
-  static const inkDim = Color(0xFFA8B0C4);
+  // Semantic
+  final Color green;
+  final Color greenSoft;
+  final Color red;
+  final Color redSoft;
+  final Color amber;
+  final Color amberSoft;
 
-  /// Secondary text, labels.
-  static const inkMuted = Color(0xFF6B7390);
+  // Lines
+  final Color line;
+  final Color lineStrong;
 
-  /// Tertiary text, timestamps.
-  static const inkFaint = Color(0xFF404863);
+  // ── Brand biru (estimasi dari logo) ──────────────────────────
+  static const _accent = Color(0xFF3B9EFF);
+  static const _accentBright = Color(0xFF5AC8FA);
+  static const _accentDim = Color(0xFF2563EB);
+  static const _purple = Color(0xFF9B7BF5);
 
-  // ── Gold Accent (Brand) ────────────────────────────────────────
-  /// Primary brand color, important numbers, CTAs.
-  static const gold = Color(0xFFC9A857);
+  /// Dark mode — navy background, brand biru terang.
+  static const AppColors dark = AppColors(
+    bgPage: Color(0xFF060A14),
+    bgApp: Color(0xFF0A1124),
+    bgCard: Color(0xFF111A31),
+    bgElev: Color(0xFF18233F),
+    bgInput: Color(0xFF0F1830),
+    bgHighlight: Color(0xFF1A2547),
+    ink: Color(0xFFF4F6FB),
+    inkDim: Color(0xFFA8B0C4),
+    inkMuted: Color(0xFF6B7390),
+    inkFaint: Color(0xFF404863),
+    gold: _accent,
+    goldBright: _accentBright,
+    goldDim: _accentDim,
+    goldSoft: Color(0x1F3B9EFF),
+    goldLine: Color(0x4D3B9EFF),
+    diamond: Color(0xFFE8EDF5),
+    diamondSoft: Color(0x1AE8EDF5),
+    navyBlue: Color(0xFF4A7BC8),
+    navySoft: Color(0x264A7BC8),
+    purpleAccent: _purple,
+    green: Color(0xFF5EC99A),
+    greenSoft: Color(0x1F5EC99A),
+    red: Color(0xFFE07A7A),
+    redSoft: Color(0x1FE07A7A),
+    amber: Color(0xFFD4A544),
+    amberSoft: Color(0x1FD4A544),
+    line: Color(0x0DFFFFFF),
+    lineStrong: Color(0x17FFFFFF),
+  );
 
-  /// Hover state, gradient end.
-  static const goldBright = Color(0xFFE6C47A);
-
-  /// Pressed state, gradient start.
-  static const goldDim = Color(0xFF8E7634);
-
-  /// Subtle background tint — `rgba(201,168,87,0.12)`.
-  static const goldSoft = Color(0x1FC9A857);
-
-  /// Border for highlighted elements — `rgba(201,168,87,0.30)`.
-  static const goldLine = Color(0x4DC9A857);
-
-  // ── Diamond (Secondary Accent) ─────────────────────────────────
-  /// Logo facet, special highlights — pakai SANGAT jarang.
-  static const diamond = Color(0xFFE8EDF5);
-
-  /// Very subtle accent — `rgba(232,237,245,0.10)`.
-  static const diamondSoft = Color(0x1AE8EDF5);
-
-  // ── Navy Blue (Secondary) ──────────────────────────────────────
-  /// Data viz secondary, chat user bubble.
-  static const navyBlue = Color(0xFF4A7BC8);
-
-  /// Tint background — `rgba(74,123,200,0.15)`.
-  static const navySoft = Color(0x264A7BC8);
-
-  // ── Semantic ───────────────────────────────────────────────────
-  /// Success, positive trend, healthy status.
-  static const green = Color(0xFF5EC99A);
-
-  /// Background tint — `rgba(94,201,154,0.12)`.
-  static const greenSoft = Color(0x1F5EC99A);
-
-  /// Error, negative trend, alert.
-  static const red = Color(0xFFE07A7A);
-
-  /// Background tint — `rgba(224,122,122,0.12)`.
-  static const redSoft = Color(0x1FE07A7A);
-
-  /// Warning, requires attention.
-  static const amber = Color(0xFFD4A544);
-
-  /// Background tint — `rgba(212,165,68,0.12)`.
-  static const amberSoft = Color(0x1FD4A544);
-
-  // ── Lines & Dividers ───────────────────────────────────────────
-  /// Subtle divider — `rgba(255,255,255,0.05)`.
-  static const line = Color(0x0DFFFFFF);
-
-  /// Active border, input border — `rgba(255,255,255,0.09)`.
-  static const lineStrong = Color(0x17FFFFFF);
+  /// Light mode — putih bersih, brand biru tetap.
+  static const AppColors light = AppColors(
+    bgPage: Color(0xFFEDF0F4),
+    bgApp: Color(0xFFF4F6F8),
+    bgCard: Color(0xFFFFFFFF),
+    bgElev: Color(0xFFFFFFFF),
+    bgInput: Color(0xFFEEF1F5),
+    bgHighlight: Color(0xFFE4E9F0),
+    ink: Color(0xFF0A1124),
+    inkDim: Color(0xFF3D4561),
+    inkMuted: Color(0xFF6B7390),
+    inkFaint: Color(0xFF9AA1B5),
+    gold: _accentDim,
+    goldBright: _accent,
+    goldDim: Color(0xFF1D4ED8),
+    goldSoft: Color(0x163B9EFF),
+    goldLine: Color(0x382563EB),
+    diamond: Color(0xFF2563EB),
+    diamondSoft: Color(0x142563EB),
+    navyBlue: Color(0xFF3B6FB8),
+    navySoft: Color(0x1A3B6FB8),
+    purpleAccent: _purple,
+    green: Color(0xFF1FA871),
+    greenSoft: Color(0x1A1FA871),
+    red: Color(0xFFD64545),
+    redSoft: Color(0x1AD64545),
+    amber: Color(0xFFB8841F),
+    amberSoft: Color(0x1AB8841F),
+    line: Color(0x0F0A1124),
+    lineStrong: Color(0x1F0A1124),
+  );
 }

@@ -101,8 +101,8 @@ class _Content extends StatelessWidget {
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: onRefresh,
-      color: AppColors.gold,
-      backgroundColor: AppColors.bgElev,
+      color: context.colors.gold,
+      backgroundColor: context.colors.bgElev,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 90),
@@ -183,14 +183,14 @@ class _OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.amberSoft,
+      color: context.colors.amberSoft,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.s20,
         vertical: AppSpacing.s8,
       ),
       child: Text(
         'Menampilkan data terakhir karena offline',
-        style: AppTypography.bodyS.copyWith(color: AppColors.amber),
+        style: AppTypography.bodyS.copyWith(color: context.colors.amber),
       ),
     );
   }

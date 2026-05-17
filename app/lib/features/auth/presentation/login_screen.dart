@@ -44,12 +44,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment(0, -0.5),
+            center: const Alignment(0, -0.5),
             radius: 1.1,
-            colors: [Color(0x2E4A7BC8), AppColors.bgApp],
-            stops: [0.0, 0.55],
+            colors: [const Color(0x2E4A7BC8), context.colors.bgApp],
+            stops: const [0.0, 0.55],
           ),
         ),
         child: SafeArea(
@@ -79,7 +79,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             'Executive Business Intelligence',
                             textAlign: TextAlign.center,
                             style: AppTypography.bodyS.copyWith(
-                              color: AppColors.inkMuted,
+                              color: context.colors.inkMuted,
                               letterSpacing: 0.6,
                             ),
                           ),
@@ -108,7 +108,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           TextSpan(
             text: 'Insight',
             style: AppTypography.headlineL.copyWith(
-              color: AppColors.gold,
+              color: context.colors.gold,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -134,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Text(
           busy ? 'Memverifikasi...' : 'Sentuh untuk masuk',
           textAlign: TextAlign.center,
-          style: AppTypography.bodyL.copyWith(color: AppColors.ink),
+          style: AppTypography.bodyL.copyWith(color: context.colors.ink),
         ),
         const SizedBox(height: AppSpacing.s6),
         Text(
@@ -142,8 +142,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           textAlign: TextAlign.center,
           style: AppTypography.bodyS.copyWith(
             color: state.errorMessage != null
-                ? AppColors.red
-                : AppColors.inkMuted,
+                ? context.colors.red
+                : context.colors.inkMuted,
           ),
         ),
       ],
@@ -153,18 +153,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _footer() {
     return Column(
       children: [
-        const Divider(color: AppColors.line, height: 1),
+        Divider(color: context.colors.line, height: 1),
         const SizedBox(height: AppSpacing.s20),
         Text(
           'AKSES KHUSUS DIREKSI',
           textAlign: TextAlign.center,
-          style: AppTypography.labelS.copyWith(color: AppColors.inkFaint),
+          style: AppTypography.labelS.copyWith(color: context.colors.inkFaint),
         ),
         const SizedBox(height: AppSpacing.s4),
         Text(
           'v1.0.0 · 2026.05',
           textAlign: TextAlign.center,
-          style: AppTypography.labelS.copyWith(color: AppColors.inkFaint),
+          style: AppTypography.labelS.copyWith(color: context.colors.inkFaint),
         ),
       ],
     );

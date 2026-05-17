@@ -39,18 +39,19 @@ class _StatMiniCell extends StatelessWidget {
 
   final QuickStat stat;
 
-  ({Color color, IconData? icon}) get _delta {
+  ({Color color, IconData? icon}) _delta(BuildContext context) {
+    final c = context.colors;
     switch (stat.direction) {
       case TrendDirection.flat:
-        return (color: AppColors.inkMuted, icon: null);
+        return (color: c.inkMuted, icon: null);
       case TrendDirection.up:
         return (
-          color: stat.isCost ? AppColors.red : AppColors.green,
+          color: stat.isCost ? c.red : c.green,
           icon: Icons.arrow_upward,
         );
       case TrendDirection.down:
         return (
-          color: stat.isCost ? AppColors.green : AppColors.red,
+          color: stat.isCost ? c.green : c.red,
           icon: Icons.arrow_downward,
         );
     }
@@ -58,16 +59,16 @@ class _StatMiniCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final delta = _delta;
+    final delta = _delta(context);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.s12,
         vertical: AppSpacing.s14,
       ),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,7 +76,7 @@ class _StatMiniCell extends StatelessWidget {
           Text(
             stat.label.toUpperCase(),
             style: AppTypography.labelS.copyWith(
-              color: AppColors.inkMuted,
+              color: context.colors.inkMuted,
               fontSize: 9,
             ),
           ),
@@ -88,7 +89,7 @@ class _StatMiniCell extends StatelessWidget {
                 TextSpan(
                   text: ' ${stat.unit}',
                   style: AppTypography.bodyS.copyWith(
-                    color: AppColors.inkMuted,
+                    color: context.colors.inkMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

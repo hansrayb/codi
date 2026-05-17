@@ -41,30 +41,31 @@ class EmasAlert extends StatelessWidget {
   /// Ikon opsional (default per severity).
   final IconData? icon;
 
-  ({Color accent, Color soft, IconData icon}) get _style {
+  ({Color accent, Color soft, IconData icon}) _style(BuildContext context) {
+    final c = context.colors;
     switch (severity) {
       case EmasAlertSeverity.success:
         return (
-          accent: AppColors.green,
-          soft: AppColors.greenSoft,
+          accent: c.green,
+          soft: c.greenSoft,
           icon: Icons.check_circle_outline,
         );
       case EmasAlertSeverity.warning:
         return (
-          accent: AppColors.amber,
-          soft: AppColors.amberSoft,
+          accent: c.amber,
+          soft: c.amberSoft,
           icon: Icons.warning_amber_outlined,
         );
       case EmasAlertSeverity.danger:
         return (
-          accent: AppColors.red,
-          soft: AppColors.redSoft,
+          accent: c.red,
+          soft: c.redSoft,
           icon: Icons.error_outline,
         );
       case EmasAlertSeverity.info:
         return (
-          accent: AppColors.navyBlue,
-          soft: AppColors.navySoft,
+          accent: c.navyBlue,
+          soft: c.navySoft,
           icon: Icons.info_outline,
         );
     }
@@ -72,15 +73,15 @@ class EmasAlert extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = _style;
+    final s = _style(context);
     // Border kiri 3px berwarna semantic + radius: pakai accent bar terpisah,
     // bukan Border per-sisi (Flutter melarang borderRadius pada border
     // dengan warna sisi non-uniform).
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.r14),
@@ -118,7 +119,7 @@ class EmasAlert extends StatelessWidget {
                             Text(
                               title,
                               style: AppTypography.bodyL.copyWith(
-                                color: AppColors.ink,
+                                color: context.colors.ink,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

@@ -58,7 +58,7 @@ class EmasInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(_radius),
-      borderSide: const BorderSide(color: AppColors.lineStrong),
+      borderSide: BorderSide(color: context.colors.lineStrong),
     );
 
     return TextField(
@@ -67,13 +67,13 @@ class EmasInput extends StatelessWidget {
       onSubmitted: onSubmitted,
       obscureText: obscureText,
       maxLines: maxLines,
-      style: AppTypography.bodyM.copyWith(color: AppColors.ink),
-      cursorColor: AppColors.gold,
+      style: AppTypography.bodyM.copyWith(color: context.colors.ink),
+      cursorColor: context.colors.gold,
       decoration: InputDecoration(
         filled: true,
-        fillColor: AppColors.bgInput,
+        fillColor: context.colors.bgInput,
         hintText: hintText,
-        hintStyle: AppTypography.bodyM.copyWith(color: AppColors.inkFaint),
+        hintStyle: AppTypography.bodyM.copyWith(color: context.colors.inkFaint),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.s16,
           vertical: AppSpacing.s8,
@@ -83,7 +83,7 @@ class EmasInput extends StatelessWidget {
         enabledBorder: border,
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(_radius),
-          borderSide: const BorderSide(color: AppColors.gold),
+          borderSide: BorderSide(color: context.colors.gold),
         ),
       ),
     );

@@ -17,6 +17,9 @@ abstract final class AppSpacing {
   /// 8px — default gap small.
   static const s8 = 8.0;
 
+  /// 10px — rich card header gap (mockup `.rich-card`).
+  static const s10 = 10.0;
+
   /// 12px — default gap.
   static const s12 = 12.0;
 

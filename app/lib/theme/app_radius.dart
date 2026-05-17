@@ -28,6 +28,9 @@ abstract final class AppRadius {
   /// 20px — hero summary card.
   static const r20 = 20.0;
 
+  /// 24px — chat input bar (mockup `.chat-input`).
+  static const r24 = 24.0;
+
   /// 28px — logo container.
   static const r28 = 28.0;
 

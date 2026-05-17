@@ -45,16 +45,16 @@ class EmasSparkline extends StatelessWidget {
               spots: spots,
               isCurved: true,
               curveSmoothness: 0.3,
-              color: AppColors.gold,
+              color: context.colors.gold,
               barWidth: 1.8,
               dotData: FlDotData(
                 show: true,
                 checkToShowDot: (spot, _) => spot.x == spots.last.x,
                 getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
                   radius: 3.5,
-                  color: AppColors.gold,
+                  color: context.colors.gold,
                   strokeWidth: 1,
-                  strokeColor: AppColors.gold.withValues(alpha: 0.4),
+                  strokeColor: context.colors.gold.withValues(alpha: 0.4),
                 ),
               ),
               belowBarData: BarAreaData(
@@ -63,8 +63,8 @@ class EmasSparkline extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    AppColors.gold.withValues(alpha: 0.4),
-                    AppColors.gold.withValues(alpha: 0.0),
+                    context.colors.gold.withValues(alpha: 0.4),
+                    context.colors.gold.withValues(alpha: 0.0),
                   ],
                 ),
               ),

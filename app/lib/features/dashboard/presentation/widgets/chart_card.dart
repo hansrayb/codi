@@ -24,9 +24,9 @@ class ChartCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(AppSpacing.s16 + 2),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: context.colors.bgCard,
         borderRadius: BorderRadius.circular(AppRadius.r16),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.colors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,7 +41,7 @@ class ChartCard extends StatelessWidget {
                     Text(
                       'Tren Omzet 7 Hari Terakhir',
                       style: AppTypography.bodyL.copyWith(
-                        color: AppColors.ink,
+                        color: context.colors.ink,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -49,14 +49,14 @@ class ChartCard extends StatelessWidget {
                     Text(
                       'Penjualan emas vs Rotasi',
                       style: AppTypography.bodyS.copyWith(
-                        color: AppColors.inkMuted,
+                        color: context.colors.inkMuted,
                         fontSize: 10,
                       ),
                     ),
                   ],
                 ),
               ),
-              _legend(),
+              _legend(context),
             ],
           ),
           const SizedBox(height: AppSpacing.s14),
@@ -66,15 +66,15 @@ class ChartCard extends StatelessWidget {
     );
   }
 
-  Widget _legend() => Row(
+  Widget _legend(BuildContext context) => Row(
         children: [
-          _swatch(AppColors.gold, 'Retail'),
+          _swatch(context, context.colors.gold, 'Retail'),
           const SizedBox(width: AppSpacing.s12),
-          _swatch(AppColors.navyBlue, 'Rotasi'),
+          _swatch(context, context.colors.navyBlue, 'Rotasi'),
         ],
       );
 
-  Widget _swatch(Color color, String label) => Row(
+  Widget _swatch(BuildContext context, Color color, String label) => Row(
         children: [
           Container(
             width: 8,
@@ -88,7 +88,7 @@ class ChartCard extends StatelessWidget {
           Text(
             label,
             style: AppTypography.bodyS.copyWith(
-              color: AppColors.inkDim,
+              color: context.colors.inkDim,
               fontSize: 10,
             ),
           ),

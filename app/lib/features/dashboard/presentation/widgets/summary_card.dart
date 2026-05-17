@@ -43,7 +43,7 @@ class _SummaryCardState extends State<SummaryCard>
     final d = widget.data;
     final money = CurrencyFormatter.compact(d.omzet);
     final isUp = d.trendDirection == TrendDirection.up;
-    final trendColor = isUp ? AppColors.green : AppColors.red;
+    final trendColor = isUp ? context.colors.green : context.colors.red;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(
@@ -53,13 +53,13 @@ class _SummaryCardState extends State<SummaryCard>
         AppSpacing.s16,
       ),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.bgCard, AppColors.bgElev],
+          colors: [context.colors.bgCard, context.colors.bgElev],
         ),
         borderRadius: BorderRadius.circular(AppRadius.r20),
-        border: Border.all(color: AppColors.goldLine),
+        border: Border.all(color: context.colors.goldLine),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.r20),
@@ -69,13 +69,13 @@ class _SummaryCardState extends State<SummaryCard>
             Positioned(
               top: -50,
               right: -50,
-              child: _glow(180, AppColors.goldSoft),
+              child: _glow(180, context.colors.goldSoft),
             ),
             // Radial dekoratif navy (kiri bawah).
             Positioned(
               bottom: -80,
               left: -50,
-              child: _glow(200, AppColors.navySoft),
+              child: _glow(200, context.colors.navySoft),
             ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.s20 + 2),
@@ -118,10 +118,10 @@ class _SummaryCardState extends State<SummaryCard>
               height: 6,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.green,
+                color: context.colors.green,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.green.withValues(alpha: 0.6),
+                    color: context.colors.green.withValues(alpha: 0.6),
                     blurRadius: 8,
                   ),
                 ],
@@ -131,7 +131,7 @@ class _SummaryCardState extends State<SummaryCard>
           const SizedBox(width: AppSpacing.s6),
           Text(
             'OMZET ${d.periodLabel} · LIVE',
-            style: AppTypography.labelS.copyWith(color: AppColors.inkMuted),
+            style: AppTypography.labelS.copyWith(color: context.colors.inkMuted),
           ),
         ],
       );
@@ -145,7 +145,7 @@ class _SummaryCardState extends State<SummaryCard>
             text: '${m.currency} ',
             style: AppTypography.numLarge.copyWith(
               fontSize: 16,
-              color: AppColors.inkMuted,
+              color: context.colors.inkMuted,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -155,7 +155,7 @@ class _SummaryCardState extends State<SummaryCard>
               text: ' ${m.unit}',
               style: AppTypography.numLarge.copyWith(
                 fontSize: 18,
-                color: AppColors.inkMuted,
+                color: context.colors.inkMuted,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -184,7 +184,7 @@ class _SummaryCardState extends State<SummaryCard>
         Expanded(
           child: Text(
             d.periodInfo,
-            style: AppTypography.bodyS.copyWith(color: AppColors.inkMuted),
+            style: AppTypography.bodyS.copyWith(color: context.colors.inkMuted),
             overflow: TextOverflow.ellipsis,
           ),
         ),
