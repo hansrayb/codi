@@ -11,7 +11,7 @@ from core.memory import build_memory_context
 from core.prompts import build_chat_prompt
 from core.role_policy import get_role_policy
 from models.result import MessagePayload
-from utils.claude_executor import run_claude_task
+from utils.claude_executor import run_claude_task, run_claude_task_streaming
 from utils.formatter import format_error_payload, format_execution_payload
 
 from ._models import ChatSessionState
@@ -200,9 +200,9 @@ class ClaudeFlowMixin:
                 duration = time.perf_counter() - started
                 state.summary = self._summarize_session(state.summary, normalized_text)
                 self._logger.info(
-                    "user_id=%s | action=chat | backend=%s | exit_code=%s | duration=%.2fs",
+                    "user_id=%s | action=chat | model=%s | exit_code=%s | duration=%.2fs",
                     user_id,
-                    backend,
+                    self._settings.claude_model_fast,
                     result.exit_code,
                     duration,
                 )
@@ -240,3 +240,43 @@ class ClaudeFlowMixin:
                     "Terjadi kesalahan internal saat memproses /chat.",
                     assistant_name=self._settings.assistant_name,
                 )
+
+    async def run_chat_streaming(
+        self,
+        *,
+        message: str,
+        user_id: int,
+        on_token: Callable[[str], Awaitable[None]],
+        claude_session_id: str | None,
+        cancel_event=None,
+    ) -> tuple[str, str | None]:
+        """Stream a read-only dashboard chat turn token-by-token.
+
+        Isolated from Telegram /chat: history continuity is driven entirely by
+        ``claude_session_id`` (dashboard session_id -> CLI thread mapping lives
+        in the caller's CodiSessionStore, not in self._chat_sessions).
+
+        Returns (full_reply_text, new_claude_session_id). Raises on timeout /
+        CLI-missing so the caller can emit the right SSE error frame.
+        """
+        from html import escape  # noqa: F401 — parity with run_chat import style
+
+        execution_prompt = build_chat_prompt(
+            user_prompt=message.strip(),
+            session_summary="",
+            assistant_name=self._settings.assistant_name,
+            memory_context=build_memory_context(self._memory, user_id),
+        )
+        result = await run_claude_task_streaming(
+            prompt=execution_prompt,
+            cwd=str(self._settings.claude_work_dir),
+            timeout=self._settings.claude_timeout,
+            on_token=on_token,
+            claude_bin=self._settings.claude_bin,
+            claude_model=self._settings.claude_model_fast,
+            claude_session_id=claude_session_id,
+            mcp_config=self._settings.claude_mcp_config or None,
+            allowed_tools=self._settings.claude_allowed_tools or None,
+            cancel_event=cancel_event,
+        )
+        return result.stdout, result.thread_id

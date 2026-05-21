@@ -15,6 +15,7 @@ from telegram.ext import Application, ApplicationBuilder
 from config import ConfigError, Settings, load_settings
 from core.alert_targets import AlertTargetRegistry
 from core.case_manager import CaseManager
+from core.codi_sessions import CodiSessionStore
 from core.device_api import DeviceApiServer
 from core.device_registry import DeviceRegistryManager
 from core.device_tasks import DeviceContextStore, DeviceTaskQueue
@@ -222,6 +223,24 @@ async def _post_init(application: Application) -> None:
             return future.result(timeout=120)
 
         device_api_server.set_chat_fn(_chat_sync)
+
+        # ── Dashboard SSE streaming wiring ──────────────────────────────────
+        codi_session_store = CodiSessionStore()
+
+        async def _chat_stream(
+            *, session_id, message, user_id, on_token, claude_session_id, cancel_event
+        ):
+            return await _orch.run_chat_streaming(
+                message=message,
+                user_id=user_id or settings.admin_user_ids[0],
+                on_token=on_token,
+                claude_session_id=claude_session_id,
+                cancel_event=cancel_event,
+            )
+
+        device_api_server.set_chat_stream_factory(_chat_stream)
+        device_api_server.set_loop(loop)
+        device_api_server.set_session_store(codi_session_store)
 
     assistant_name = settings.assistant_name
     try:

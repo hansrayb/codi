@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import queue
 import threading
+import uuid
 from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from core.device_registry import (
     DeviceRegistryError,
@@ -15,6 +18,11 @@ from core.device_registry import (
     parse_device_registration,
 )
 from core.device_tasks import DeviceTaskError, DeviceTaskQueue
+
+# Sentinel pushed onto the SSE bridge queue to signal the stream is finished.
+_SSE_DONE = object()
+# Heartbeat interval (seconds) when no token arrives, keeps proxies from idling out.
+_SSE_HEARTBEAT_SECONDS = 15
 
 
 class DeviceApiServer:
@@ -40,6 +48,11 @@ class DeviceApiServer:
         self._thread: threading.Thread | None = None
         self._notify_fn_cell: list[Callable[[str], None] | None] = [None]
         self._chat_fn_cell: list[Optional[Callable[[str, int], str]]] = [None]
+        # Streaming chat: a coroutine factory + the asyncio loop + session store.
+        # stream_factory(session_id, message, user_id, on_token, cancel_event) -> coroutine
+        self._chat_stream_factory_cell: list[Optional[Callable[..., Any]]] = [None]
+        self._loop_cell: list[Optional[asyncio.AbstractEventLoop]] = [None]
+        self._session_store_cell: list[Any] = [None]
 
     def set_notify_fn(self, fn: Callable[[str], None]) -> None:
         """Set a thread-safe callback to send Telegram notifications."""
@@ -50,6 +63,27 @@ class DeviceApiServer:
         """Set a sync callable (message, user_id, scope) -> reply for the /api/chat endpoint."""
 
         self._chat_fn_cell[0] = fn
+
+    def set_chat_stream_factory(self, fn: Callable[..., Any]) -> None:
+        """Set a coroutine factory for SSE streaming.
+
+        Signature: factory(session_id, message, user_id, on_token, cancel_event)
+        -> awaitable returning the full reply text. ``on_token`` is an async
+        callable invoked per text delta; ``cancel_event`` is an asyncio.Event set
+        when the client disconnects.
+        """
+
+        self._chat_stream_factory_cell[0] = fn
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Provide the asyncio loop used to schedule streaming coroutines."""
+
+        self._loop_cell[0] = loop
+
+    def set_session_store(self, store: Any) -> None:
+        """Provide the CodiSessionStore for DELETE-based session clearing."""
+
+        self._session_store_cell[0] = store
 
     def start(self) -> None:
         """Start the device API server in a background thread."""
@@ -102,6 +136,9 @@ class DeviceApiServer:
         shared_token = self._shared_token
         notify_fn_cell = self._notify_fn_cell
         chat_fn_cell = self._chat_fn_cell
+        chat_stream_factory_cell = self._chat_stream_factory_cell
+        loop_cell = self._loop_cell
+        session_store_cell = self._session_store_cell
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "CodiDeviceAPI/1.0"
@@ -121,6 +158,14 @@ class DeviceApiServer:
                     return
 
                 if self.path == "/api/chat":
+                    accept = (self.headers.get("Accept") or "").lower()
+                    if (
+                        "text/event-stream" in accept
+                        and chat_stream_factory_cell[0] is not None
+                        and loop_cell[0] is not None
+                    ):
+                        self._handle_chat_stream()
+                        return
                     self._handle_chat()
                     return
                 if self.path == "/api/device/tasks/poll":
@@ -186,6 +231,157 @@ class DeviceApiServer:
                         "label": record.label,
                     },
                 )
+
+            def do_DELETE(self) -> None:  # noqa: N802
+                if not self._is_authorized():
+                    self._send_json(
+                        HTTPStatus.UNAUTHORIZED,
+                        {"ok": False, "error": "unauthorized"},
+                    )
+                    return
+                prefix = "/api/chat/session/"
+                if not self.path.startswith(prefix):
+                    self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
+                    return
+                sid = self.path[len(prefix):].strip()
+                store = session_store_cell[0]
+                if sid and store is not None:
+                    try:
+                        store.delete(sid)
+                    except Exception:
+                        logger.exception("action=session_delete_failed | sid=%s", sid)
+                self.send_response(HTTPStatus.NO_CONTENT.value)
+                self.end_headers()
+
+            def _handle_chat_stream(self) -> None:
+                factory = chat_stream_factory_cell[0]
+                loop = loop_cell[0]
+                store = session_store_cell[0]
+                if factory is None or loop is None:
+                    self._send_json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        {"ok": False, "error": "chat_stream_not_available"},
+                    )
+                    return
+
+                # Parse + validate BEFORE writing any SSE byte so we can still
+                # return a normal JSON error status on bad input.
+                try:
+                    payload = self._read_json_body()
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})
+                    return
+                except DeviceRegistryError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json"})
+                    return
+                message = str(payload.get("message") or "").strip()
+                user_id = int(payload.get("user_id") or 0)
+                session_id = str(payload.get("session_id") or "").strip()
+                if not message:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "message_required"})
+                    return
+                if not session_id:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "session_required"})
+                    return
+
+                # Resolve the prior CLI thread for this dashboard session (history).
+                prior_claude_sid = None
+                if store is not None:
+                    try:
+                        prior_claude_sid = store.get_claude_session_id(session_id)
+                    except Exception:
+                        logger.exception("action=session_lookup_failed | sid=%s", session_id)
+
+                # Open the SSE response.
+                self.send_response(HTTPStatus.OK.value)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+
+                frame_q: "queue.Queue[Any]" = queue.Queue()
+                cancel_event = asyncio.Event()
+
+                async def _on_token(delta: str) -> None:
+                    frame_q.put(("token", delta))
+
+                async def _drive() -> None:
+                    try:
+                        reply = await factory(
+                            session_id=session_id,
+                            message=message,
+                            user_id=user_id,
+                            on_token=_on_token,
+                            claude_session_id=prior_claude_sid,
+                            cancel_event=cancel_event,
+                        )
+                        # factory returns (text, new_claude_session_id)
+                        new_sid = None
+                        if isinstance(reply, tuple):
+                            _text, new_sid = reply
+                        if store is not None and new_sid:
+                            try:
+                                store.set_claude_session_id(session_id, new_sid)
+                            except Exception:
+                                logger.exception("action=session_persist_failed | sid=%s", session_id)
+                        frame_q.put(("done", None))
+                    except asyncio.TimeoutError:
+                        frame_q.put(("error", ("timeout", "Codi belum selesai menjawab.")))
+                    except FileNotFoundError:
+                        frame_q.put(("error", ("internal", "Claude CLI tidak ditemukan.")))
+                    except Exception as exc:  # noqa: BLE001
+                        logger.exception("action=chat_stream_failed | sid=%s", session_id)
+                        frame_q.put(("error", ("internal", str(exc)[:200])))
+                    finally:
+                        frame_q.put(_SSE_DONE)
+
+                future = asyncio.run_coroutine_threadsafe(_drive(), loop)
+
+                # Emit meta frame first.
+                meta = {"session_id": session_id, "message_id": str(uuid.uuid4())}
+                if not self._sse_write(f"event: meta\ndata: {json.dumps(meta)}\n\n"):
+                    loop.call_soon_threadsafe(cancel_event.set)
+                    future.cancel()
+                    return
+
+                # Drain the bridge queue on this HTTP thread.
+                while True:
+                    try:
+                        item = frame_q.get(timeout=_SSE_HEARTBEAT_SECONDS)
+                    except queue.Empty:
+                        if not self._sse_write(": ping\n\n"):
+                            loop.call_soon_threadsafe(cancel_event.set)
+                            break
+                        continue
+                    if item is _SSE_DONE:
+                        break
+                    kind, data = item
+                    if kind == "token":
+                        frame = f"event: token\ndata: {json.dumps({'delta': data})}\n\n"
+                    elif kind == "done":
+                        frame = "event: done\ndata: {\"finish_reason\":\"stop\"}\n\n"
+                    elif kind == "error":
+                        code, msg = data
+                        frame = (
+                            "event: error\n"
+                            f"data: {json.dumps({'code': code, 'message': msg})}\n\n"
+                        )
+                    else:
+                        continue
+                    if not self._sse_write(frame):
+                        # Client disconnected — cancel upstream so the LLM stops.
+                        loop.call_soon_threadsafe(cancel_event.set)
+                        break
+
+            def _sse_write(self, frame: str) -> bool:
+                """Write+flush an SSE frame. Returns False on client disconnect."""
+                try:
+                    self.wfile.write(frame.encode("utf-8"))
+                    self.wfile.flush()
+                    return True
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    return False
 
             def _handle_task_poll(self) -> None:
                 if task_queue is None:
