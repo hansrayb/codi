@@ -1,0 +1,115 @@
+name: emas_berlian_insight
+description: "Executive Business Intelligence for Lumbung Emas"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Routing
+  go_router: ^14.2.0
+
+  # Network
+  dio: ^5.5.0
+  dio_cache_interceptor: ^3.5.0
+  pretty_dio_logger: ^1.4.0
+
+  # Storage
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.0
+  hive_flutter: ^1.1.0
+
+  # Models
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # UI
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10
+  fl_chart: ^0.68.0
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.0
+
+  # Utils
+  intl: ^0.20.2
+  collection: ^1.18.0
+  fpdart: ^1.1.0
+
+  # Biometric
+  local_auth: ^2.3.0
+  local_auth_android: ^1.0.43
+  local_auth_darwin: ^1.4.0
+
+  # Logging
+  logger: ^2.4.0
+
+  # Device info
+  device_info_plus: ^10.1.0
+  package_info_plus: ^8.0.0
+
+  # Connectivity
+  connectivity_plus: ^6.0.0
+
+  # Crash reporting (Phase 1.5)
+  # sentry_flutter: ^8.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+  # Codegen
+  build_runner: ^2.4.11
+  freezed: ^2.5.2
+  json_serializable: ^6.8.0
+  riverpod_generator: ^2.4.0
+
+  # Lint
+  flutter_lints: ^4.0.0
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.10
+
+  # Test
+  mocktail: ^1.0.4
+  golden_toolkit: ^0.15.0
+
+  # CI
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/svg/
+    - assets/images/
+    - assets/icon/
+
+  # Fonts via google_fonts package
+
+# App launcher icon — generate: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/icon-dark.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#0A1124"
+  adaptive_icon_foreground: "assets/icon/icon-dark.png"
+  web:
+    generate: true
+  windows:
+    generate: false
+  macos:
+    generate: false

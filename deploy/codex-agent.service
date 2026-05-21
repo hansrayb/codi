@@ -1,0 +1,19 @@
+[Unit]
+Description=Codi Telegram Agent Bot
+After=network.target
+
+[Service]
+Type=simple
+User=hans
+WorkingDirectory=/home/hans/AI-Agent-Telegram
+EnvironmentFile=/home/hans/AI-Agent-Telegram/.env
+ExecStart=/home/hans/AI-Agent-Telegram/.venv/bin/python /home/hans/AI-Agent-Telegram/backend/main.py
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

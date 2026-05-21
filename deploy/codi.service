@@ -1,0 +1,19 @@
+[Unit]
+Description=Codi Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/odc/ai-agent-telegram
+EnvironmentFile=/home/odc/ai-agent-telegram/.env
+ExecStart=/home/odc/ai-agent-telegram/.venv/bin/python /home/odc/ai-agent-telegram/backend/main.py
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

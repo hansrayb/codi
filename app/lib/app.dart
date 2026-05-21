@@ -1,0 +1,36 @@
+import 'package:flutter/material.dart';
+
+import 'features/auth/presentation/login_screen.dart';
+import 'features/shell/presentation/app_shell.dart';
+import 'theme/app_theme.dart';
+
+/// Root widget aplikasi.
+///
+/// MVP: theme light & dark (brand biru-cyan, ikut sistem) + Login →
+/// `AppShell` (Beranda · Insight · Chat · placeholder), match
+/// `docs/emas-berlian-insight.html`. Bottom nav fungsional via shell
+/// `IndexedStack`. `go_router` penuh = Fase 2
+/// (`docs/05-ARCHITECTURE.md`, `docs/07-ROADMAP.md`).
+class EmasBerlianInsightApp extends StatelessWidget {
+  const EmasBerlianInsightApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Emas Berlian Insight',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      home: Builder(
+        builder: (context) => LoginScreen(
+          onAuthenticated: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => const AppShell(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
