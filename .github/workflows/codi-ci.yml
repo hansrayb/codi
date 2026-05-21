@@ -8,30 +8,12 @@ on:
       - develop
     paths:
       - ".github/workflows/**"
-      - "agent/**"
-      - "core/**"
-      - "handlers/**"
-      - "models/**"
-      - "scripts/**"
-      - "tests/**"
-      - "utils/**"
-      - "config.py"
-      - "main.py"
-      - "requirements.txt"
+      - "backend/**"
       - "codi-alert-targets.json"
   pull_request:
     paths:
       - ".github/workflows/**"
-      - "agent/**"
-      - "core/**"
-      - "handlers/**"
-      - "models/**"
-      - "scripts/**"
-      - "tests/**"
-      - "utils/**"
-      - "config.py"
-      - "main.py"
-      - "requirements.txt"
+      - "backend/**"
       - "codi-alert-targets.json"
   workflow_dispatch:
 
@@ -53,13 +35,17 @@ jobs:
         with:
           python-version: "3.9"
           cache: pip
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
+        working-directory: backend
         run: python -m pip install -r requirements.txt
 
       - name: Compile Python files
+        working-directory: backend
         run: python -m compileall config.py main.py handlers core models utils tests agent
 
       - name: Run unit tests
+        working-directory: backend
         run: python -m unittest discover -s tests -v
 

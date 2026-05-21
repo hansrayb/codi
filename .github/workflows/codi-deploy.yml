@@ -50,9 +50,9 @@ jobs:
             git fetch --prune origin
             git checkout main
             git pull --ff-only origin main
-            .venv/bin/python -m pip install -r requirements.txt
-            .venv/bin/python -m compileall config.py main.py handlers core models utils tests agent
-            .venv/bin/python -m unittest discover -s tests -v
+            .venv/bin/python -m pip install -r backend/requirements.txt
+            (cd backend && "$APP_DIR/.venv/bin/python" -m compileall config.py main.py handlers core models utils tests agent)
+            (cd backend && "$APP_DIR/.venv/bin/python" -m unittest discover -s tests -v)
             systemctl --user restart "$SERVICE_NAME"
             systemctl --user --no-pager status "$SERVICE_NAME"
             API_TOKEN=$(grep -E '^DEVICE_API_SHARED_TOKEN=' "$APP_DIR/.env" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
