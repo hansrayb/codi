@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from core.memory import build_memory_context
-from core.prompts import build_chat_prompt
+from core.prompts import build_chat_prompt, build_task_prompt
 from core.role_policy import get_role_policy
 from models.result import MessagePayload
 from utils.claude_executor import run_claude_task, run_claude_task_streaming
@@ -250,18 +250,23 @@ class ClaudeFlowMixin:
         claude_session_id: str | None,
         cancel_event=None,
     ) -> tuple[str, str | None]:
-        """Stream a read-only dashboard chat turn token-by-token.
+        """Stream a dashboard Codi turn token-by-token, with live DB read access.
 
-        Isolated from Telegram /chat: history continuity is driven entirely by
-        ``claude_session_id`` (dashboard session_id -> CLI thread mapping lives
-        in the caller's CodiSessionStore, not in self._chat_sessions).
+        Uses the read-only ``advisor`` role (allow_write=False) so the dashboard
+        can answer business-data questions — query payment_orders, rotasi,
+        catalog, etc. via mcp__customerchant-db__query — without any write/edit
+        capability against the production DB or workspace. This is deliberately
+        NOT the Telegram /chat path (build_chat_prompt), which refuses to query
+        and tells the user to send a "normal message".
+
+        History continuity is driven entirely by ``claude_session_id`` (dashboard
+        session_id -> CLI thread mapping lives in the caller's CodiSessionStore).
 
         Returns (full_reply_text, new_claude_session_id). Raises on timeout /
         CLI-missing so the caller can emit the right SSE error frame.
         """
-        from html import escape  # noqa: F401 — parity with run_chat import style
-
-        execution_prompt = build_chat_prompt(
+        execution_prompt = build_task_prompt(
+            role="advisor",
             user_prompt=message.strip(),
             session_summary="",
             assistant_name=self._settings.assistant_name,
