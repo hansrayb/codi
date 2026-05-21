@@ -225,7 +225,7 @@ async def _post_init(application: Application) -> None:
         device_api_server.set_chat_fn(_chat_sync)
 
         # ── Dashboard SSE streaming wiring ──────────────────────────────────
-        codi_session_store = CodiSessionStore()
+        codi_session_store = CodiSessionStore(db_path=settings.codi_sessions_db_path)
 
         async def _chat_stream(
             *, session_id, message, user_id, on_token, claude_session_id, cancel_event

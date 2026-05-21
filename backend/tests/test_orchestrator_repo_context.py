@@ -105,6 +105,7 @@ class OrchestratorRepoContextTests(unittest.IsolatedAsyncioTestCase):
             ai_backend="claude",
             claude_timeout=600,
             memory_db_path=self.workdir / "codi-memory.db",
+            codi_sessions_db_path=self.workdir / "codi-sessions.db",
         )
         self.orchestrator = Orchestrator(
             settings,

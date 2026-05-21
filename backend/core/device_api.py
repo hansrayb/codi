@@ -301,7 +301,14 @@ class DeviceApiServer:
                 self.end_headers()
 
                 frame_q: "queue.Queue[Any]" = queue.Queue()
-                cancel_event = asyncio.Event()
+                # asyncio.Event() calls get_event_loop() in Python 3.9, which
+                # fails on a bare threading.Thread with no loop. Create it on
+                # the asyncio loop thread instead.
+                async def _mk_event() -> asyncio.Event:
+                    return asyncio.Event()
+                cancel_event: asyncio.Event = asyncio.run_coroutine_threadsafe(
+                    _mk_event(), loop
+                ).result(timeout=5)
 
                 async def _on_token(delta: str) -> None:
                     frame_q.put(("token", delta))

@@ -59,6 +59,7 @@ class Settings:
     repo_pm2_map: dict[str, str]
     alert_targets_path: Path
     memory_db_path: Path
+    codi_sessions_db_path: Path
     enable_device_registry: bool
     device_registry_path: Path
     device_api_host: str
@@ -246,6 +247,9 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     memory_db_path = Path(
         os.getenv("MEMORY_DB_PATH", str(claude_work_dir / "codi-memory.db"))
     ).expanduser().resolve()
+    codi_sessions_db_path = Path(
+        os.getenv("CODI_SESSIONS_DB_PATH", str(claude_work_dir / "codi-sessions.db"))
+    ).expanduser().resolve()
 
     allowed_set = set(allowed_user_ids)
     for uid in admin_user_ids:
@@ -329,6 +333,7 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         repo_pm2_map=repo_pm2_map,
         alert_targets_path=alert_targets_path,
         memory_db_path=memory_db_path,
+        codi_sessions_db_path=codi_sessions_db_path,
         enable_device_registry=enable_device_registry,
         device_registry_path=device_registry_path,
         device_api_host=device_api_host,

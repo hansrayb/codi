@@ -105,6 +105,7 @@ class OrchestratorDeviceTargetTests(unittest.IsolatedAsyncioTestCase):
             claude_timeout=600,
             ai_backend="claude",
             memory_db_path=self.workdir / "codi-memory.db",
+            codi_sessions_db_path=self.workdir / "codi-sessions.db",
         )
         self.orchestrator = Orchestrator(
             settings,

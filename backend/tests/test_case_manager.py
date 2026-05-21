@@ -61,6 +61,7 @@ class CaseManagerTests(unittest.IsolatedAsyncioTestCase):
             claude_allowed_tools="",
             repo_pm2_map={},
             memory_db_path=workspace / "codi-memory.db",
+            codi_sessions_db_path=workspace / "codi-sessions.db",
             hr_enabled=False,
             hr_api_url="http://localhost:8000",
             hr_service_email="",
