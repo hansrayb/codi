@@ -37,6 +37,26 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Flavor dev/staging/prod — app terpasang berdampingan (suffix id) +
+    // label berbeda. Pakai: flutter run --flavor dev --dart-define=ENV=dev
+    flavorDimensions += "env"
+    productFlavors {
+        create("dev") {
+            dimension = "env"
+            applicationIdSuffix = ".dev"
+            resValue("string", "app_name", "EBI Dev")
+        }
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+            resValue("string", "app_name", "EBI Staging")
+        }
+        create("prod") {
+            dimension = "env"
+            resValue("string", "app_name", "Emas Berlian Insight")
+        }
+    }
 }
 
 flutter {

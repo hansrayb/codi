@@ -37,5 +37,23 @@ flutter analyze
 flutter test
 ```
 
-Multi-flavor (dev/staging/prod) di-setup di Fase 1 — lihat
-`docs/05-ARCHITECTURE.md` bagian Environment Configuration.
+## Flavor (Android)
+
+Setelah flavor di-setup, `flutter run`/`build` **wajib** `--flavor`:
+
+```bash
+# dev (app id .dev, label "EBI Dev")
+flutter run --flavor dev --dart-define=ENV=dev
+
+# tes ke backend lokal di HP (IP LAN laptop)
+flutter run --flavor dev \
+  --dart-define=API_BASE_URL=http://<ip-laptop>:8787/api/v1 \
+  --dart-define=CODI_SHARED_TOKEN=<token>
+
+# build prod
+flutter build apk --release --flavor prod --dart-define=ENV=prod
+```
+
+dev/staging/prod terpasang berdampingan (suffix application id berbeda).
+iOS flavor butuh setup scheme di Xcode (belum dikonfigurasi).
+Base URL & env: `lib/config/env.dart`.
