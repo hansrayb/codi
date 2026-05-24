@@ -1,9 +1,9 @@
 """Mobile API (`/api/v1/*`) untuk app Emas Berlian Insight.
 
-Fase A1 — **stub/fixture**. Endpoint mengembalikan JSON ber-bentuk sesuai
-`app/docs/04-API-CONTRACT.md` agar Flutter bisa integrasi HTTP nyata
-(Fase B), walau data masih dummy. Fase A2 nanti ganti fixture dengan
-agregasi business DB asli.
+Fase A2 (arsitektur Y) — `/dashboard/*` mem-PROXY agregasi nyata dari NestJS
+Lumbung (`core/mobile_metrics.py`), dengan **fallback ke fixture** bila NestJS
+tak terjangkau (app tetap jalan + log warning). Endpoint `auth`/`chat`/`me`
+masih stub. Semua JSON tetap sesuai `app/docs/04-API-CONTRACT.md`.
 
 Handler murni (tanpa ketergantungan internal server) — di-dispatch dari
 `core/device_api.py`. Auth via shared-token (Bearer) ditangani server.
@@ -11,8 +11,13 @@ Handler murni (tanpa ketergantungan internal server) — di-dispatch dari
 
 from __future__ import annotations
 
+import logging
 from http import HTTPStatus
 from typing import Any
+
+from core import mobile_metrics
+
+logger = logging.getLogger(__name__)
 
 # Token akses stub — pada A1 sama dengan DEVICE_API_SHARED_TOKEN. Flutter
 # kirim balik sebagai `Authorization: Bearer <token>` (divalidasi server).
@@ -114,6 +119,15 @@ def _me(preferences_override: dict[str, Any] | None = None) -> JsonResult:
 
 # ── Dashboard ───────────────────────────────────────────────────────
 def _dashboard_summary(period: str) -> JsonResult:
+    """Live NestJS metrics → kontrak app; fallback ke fixture bila tak terjangkau."""
+    try:
+        return HTTPStatus.OK, mobile_metrics.dashboard_summary(period)
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully to fixture
+        logger.warning("Lumbung metrics summary unavailable, serving fixture: %s", exc)
+        return _fixture_dashboard_summary(period)
+
+
+def _fixture_dashboard_summary(period: str) -> JsonResult:
     return HTTPStatus.OK, {
         "period": period,
         "period_label": "Mei 2026",
@@ -237,6 +251,15 @@ def _dashboard_summary(period: str) -> JsonResult:
 
 
 def _dashboard_insight(period: str) -> JsonResult:
+    """Live NestJS metrics → kontrak app; fallback ke fixture bila tak terjangkau."""
+    try:
+        return HTTPStatus.OK, mobile_metrics.dashboard_insight(period)
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully to fixture
+        logger.warning("Lumbung metrics insight unavailable, serving fixture: %s", exc)
+        return _fixture_dashboard_insight(period)
+
+
+def _fixture_dashboard_insight(period: str) -> JsonResult:
     return HTTPStatus.OK, {
         "period": period,
         "period_label": "1 – 17 Mei 2026",
