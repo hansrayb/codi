@@ -8,6 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:emas_berlian_insight/api/repositories/dashboard_repository.dart';
+import 'package:emas_berlian_insight/api/repositories/insight_repository.dart';
+import 'package:emas_berlian_insight/features/dashboard/domain/dashboard_state.dart';
+import 'package:emas_berlian_insight/models/dashboard_summary.dart';
+import 'package:emas_berlian_insight/models/insight_detail.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/app_shell.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/widgets/bottom_nav.dart';
 import 'package:emas_berlian_insight/features/dashboard/presentation/dashboard_screen.dart';
@@ -15,10 +20,55 @@ import 'package:emas_berlian_insight/features/insight/presentation/insight_scree
 import 'package:emas_berlian_insight/features/reports/presentation/reports_screen.dart';
 import 'package:emas_berlian_insight/features/profile/presentation/profile_screen.dart';
 
+class _FakeDashboardRepo implements DashboardRepository {
+  @override
+  Future<DashboardSummary> getSummary(Period period) async => DashboardSummary(
+        periodLabel: 'MEI 2026',
+        omzet: 828800000,
+        trendText: '+321% MoM',
+        trendDirection: TrendDirection.up,
+        periodInfo: '17 hari',
+        sparkline: const [10, 46],
+        stats: const [],
+        aiSummary: AiSummary(
+          paragraphs: const ['Sehat.'],
+          updatedAt: DateTime(2026, 5, 17),
+          dataPoints: 12,
+        ),
+        chart: const [ChartBar(label: '17', retail: 90, rotasi: 36)],
+        highlights: const [],
+        updatedAt: DateTime(2026, 5, 17),
+      );
+}
+
+class _FakeInsightRepo implements InsightRepository {
+  @override
+  Future<InsightDetail> getInsight(Period period) async => InsightDetail(
+        title: 'Insight Operasional',
+        periodLabel: 'Periode: 1 – 17 Mei 2026',
+        isLive: true,
+        kpis: const [],
+        donutTotalLabel: '828,8',
+        donutTotalUnit: 'jt',
+        donutSlices: const [],
+        donutCaption: 'Komposisi Omzet',
+        analysisTitle: 'Analisis Mendalam',
+        analysisAuthor: 'Codi',
+        analysisUpdatedAt: DateTime(2026, 5, 17),
+        analysisSections: const [],
+        analysisMeta: '12 data point',
+        updatedAt: DateTime(2026, 5, 17),
+      );
+}
+
 Future<void> _pump(WidgetTester tester) {
   return tester.pumpWidget(
-    const ProviderScope(
-      child: MaterialApp(home: AppShell()),
+    ProviderScope(
+      overrides: [
+        dashboardRepositoryProvider.overrideWithValue(_FakeDashboardRepo()),
+        insightRepositoryProvider.overrideWithValue(_FakeInsightRepo()),
+      ],
+      child: const MaterialApp(home: AppShell()),
     ),
   );
 }

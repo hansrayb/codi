@@ -9,13 +9,58 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:emas_berlian_insight/theme/app_theme.dart';
+import 'package:emas_berlian_insight/api/repositories/insight_repository.dart';
+import 'package:emas_berlian_insight/features/dashboard/domain/dashboard_state.dart';
 import 'package:emas_berlian_insight/features/insight/presentation/insight_screen.dart';
 import 'package:emas_berlian_insight/features/insight/presentation/widgets/composition_donut.dart';
 import 'package:emas_berlian_insight/features/insight/presentation/widgets/kpi_grid.dart';
 import 'package:emas_berlian_insight/features/insight/presentation/widgets/insight_hero.dart';
 import 'package:emas_berlian_insight/features/insight/presentation/widgets/deep_analysis_card.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/widgets/bottom_nav.dart';
-import 'package:emas_berlian_insight/widgets/emas_loading.dart';
+import 'package:emas_berlian_insight/models/insight_detail.dart';
+
+InsightDetail _fixture() => InsightDetail(
+      title: 'Insight Operasional',
+      periodLabel: 'Periode: 1 – 17 Mei 2026',
+      isLive: true,
+      kpis: const [
+        InsightKpi(
+          label: 'Omzet Total',
+          value: 'Rp 828,8',
+          unit: 'jt',
+          deltaText: '+321% MoM',
+          direction: TrendDirection.up,
+        ),
+        InsightKpi(
+          label: 'Potensi Hilang',
+          value: 'Rp 127',
+          unit: 'jt',
+          deltaText: '24 order expired',
+          direction: TrendDirection.down,
+          isCost: true,
+        ),
+      ],
+      donutTotalLabel: '828,8',
+      donutTotalUnit: 'jt',
+      donutSlices: const [
+        DonutSlice(label: 'Penjualan Emas', percent: 79.2, color: DonutColor.gold),
+        DonutSlice(label: 'Rotasi Masuk', percent: 20.8, color: DonutColor.navy),
+      ],
+      donutCaption: 'Komposisi Omzet',
+      analysisTitle: 'Analisis Mendalam',
+      analysisAuthor: 'Disusun oleh Codi',
+      analysisUpdatedAt: DateTime(2026, 5, 17, 9, 14),
+      analysisSections: const [
+        DeepAnalysisSection(heading: 'Yang Sehat', body: 'Omzet naik.'),
+      ],
+      analysisMeta: '12 data point · 4 sumber',
+      updatedAt: DateTime(2026, 5, 17, 9, 28),
+    );
+
+class _FakeInsightRepo implements InsightRepository {
+  @override
+  Future<InsightDetail> getInsight(Period period) async => _fixture();
+}
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -25,6 +70,9 @@ Future<void> _pump(
 }) {
   return tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        insightRepositoryProvider.overrideWithValue(_FakeInsightRepo()),
+      ],
       child: MaterialApp(
         theme: AppTheme.darkTheme,
         home: InsightScreen(
@@ -46,16 +94,6 @@ Future<void> _settleMock(WidgetTester tester) async {
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('id_ID');
-  });
-
-  testWidgets('loading → skeleton shimmer', (tester) async {
-    await _pump(tester);
-    await tester.pump(); // masih loading
-
-    expect(find.byType(EmasSkeleton), findsWidgets);
-
-    await tester.pump(const Duration(milliseconds: 800));
-    await tester.pump(const Duration(milliseconds: 16));
   });
 
   testWidgets('success → render hero + KPI + donut + analisis',

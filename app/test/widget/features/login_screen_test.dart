@@ -1,13 +1,25 @@
-// Widget test Login — mode dummy (tombol Masuk, biometric dinonaktifkan
-// sementara; kode biometric tetap ada di controller).
+// Widget test Login — mode dummy (tombol Masuk). authRepository
+// di-override fake (tanpa HTTP).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:emas_berlian_insight/theme/app_theme.dart';
+import 'package:emas_berlian_insight/api/repositories/auth_repository.dart';
 import 'package:emas_berlian_insight/features/auth/presentation/login_screen.dart';
 import 'package:emas_berlian_insight/widgets/emas_button.dart';
+
+class _FakeAuthRepo implements AuthRepository {
+  @override
+  Future<void> login({
+    required String deviceId,
+    required String platform,
+  }) async {}
+
+  @override
+  Future<void> logout() async {}
+}
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -15,6 +27,9 @@ Future<void> _pump(
 }) async {
   await tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(_FakeAuthRepo()),
+      ],
       child: MaterialApp(
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
@@ -41,7 +56,8 @@ void main() {
 
     await tester.tap(find.byType(EmasButton));
     await tester.pump(); // loggingIn
-    await tester.pump(const Duration(milliseconds: 900)); // mock delay
+    await tester.pump(); // login future resolves
+    await tester.pump(const Duration(milliseconds: 16));
 
     expect(authed, isTrue);
   });
