@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 
-import '../../../theme/app_theme.dart';
-import '../../../widgets/emas_empty_view.dart';
+import '../../auth/presentation/login_screen.dart';
 import '../../chat/presentation/chat_screen.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../insight/presentation/insight_screen.dart';
+import '../../profile/presentation/profile_screen.dart';
+import '../../reports/presentation/reports_screen.dart';
 import 'widgets/bottom_nav.dart';
 
 /// Host 4 tab utama + navigasi bottom nav fungsional.
 ///
-/// `IndexedStack` agar state tiap tab tetap hidup saat pindah (scroll,
-/// provider). Beranda & Insight = screen nyata; Laporan & Profil =
-/// placeholder (belum di-scope MVP). FAB Codi → Chat via `push`
-/// (overlay penuh, bukan tab). Routing `go_router` penuh = Fase 2
-/// (`docs/07-ROADMAP.md`); shell ini cukup untuk MVP 4 screen.
+/// Stack + `_TabLayer` agar state tiap tab tetap hidup saat pindah
+/// (scroll, provider) — slide+fade transisi. 4 screen nyata: Beranda,
+/// Insight, Laporan, Profil. FAB Codi → Chat via `push` (overlay
+/// penuh). Routing `go_router` penuh = Fase 2 (`docs/07-ROADMAP.md`);
+/// shell ini cukup untuk MVP.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -47,6 +48,20 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// Logout dari Profil → balik ke Login (replace stack). Login di-wire
+  /// ulang: auth sukses → AppShell baru (sesi fresh).
+  void _logout() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (ctx) => LoginScreen(
+          onAuthenticated: () => Navigator.of(ctx).pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => const AppShell()),
+          ),
+        ),
+      ),
+    );
+  }
+
   static const _fade = Duration(milliseconds: 200);
 
   @override
@@ -68,13 +83,16 @@ class _AppShellState extends State<AppShell> {
         onNavTap: _select,
         showBottomNav: false,
       ),
-      const _Placeholder(
-        icon: Icons.description_outlined,
-        label: 'Laporan',
+      ReportsScreen(
+        onOpenChat: _openChat,
+        onNavTap: _select,
+        showBottomNav: false,
       ),
-      const _Placeholder(
-        icon: Icons.person_outline,
-        label: 'Profil',
+      ProfileScreen(
+        onOpenChat: _openChat,
+        onNavTap: _select,
+        onLogout: _logout,
+        showBottomNav: false,
       ),
     ];
 
@@ -186,24 +204,3 @@ class _TabLayerState extends State<_TabLayer>
   }
 }
 
-/// Tab belum di-scope MVP — empty state. Navbar di-host shell.
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: context.colors.bgApp,
-      child: SafeArea(
-        bottom: false,
-        child: EmasEmptyView(
-          icon: icon,
-          message: '$label akan tersedia di rilis berikutnya.',
-        ),
-      ),
-    );
-  }
-}

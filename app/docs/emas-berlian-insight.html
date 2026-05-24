@@ -1049,6 +1049,278 @@
   .ic-sm { width: 14px; height: 14px; }
   .ic-lg { width: 24px; height: 24px; }
 
+  /* === LAPORAN === */
+  .list-screen {
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 90px;
+  }
+  .list-screen::-webkit-scrollbar { width: 0; }
+
+  .list-head {
+    padding: 14px 20px 16px;
+  }
+  .list-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .list-head .sub {
+    color: var(--ink-muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .filter-bar {
+    margin: 0 20px 16px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+  }
+  .filter-bar::-webkit-scrollbar { height: 0; }
+  .filter-chip {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-muted);
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .filter-chip.active {
+    background: var(--gold-soft);
+    color: var(--gold);
+    border-color: var(--gold-line);
+    font-weight: 600;
+  }
+
+  .report-list {
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .report-card {
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+  }
+  .report-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: var(--gold-soft);
+    border: 1px solid var(--gold-line);
+    display: grid;
+    place-items: center;
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+  .report-icon.navy {
+    background: var(--navy-soft);
+    border-color: rgba(74,123,200,0.3);
+    color: var(--navy-blue);
+  }
+  .report-icon.green {
+    background: var(--green-soft);
+    border-color: rgba(94,201,154,0.3);
+    color: var(--green);
+  }
+  .report-body { flex: 1; min-width: 0; }
+  .report-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .report-meta {
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .report-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .badge-final { background: var(--green-soft); color: var(--green); }
+  .badge-draft { background: var(--amber-soft); color: var(--amber); }
+  .report-chev { color: var(--ink-faint); flex-shrink: 0; }
+
+  .list-section-label {
+    padding: 20px 20px 8px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+
+  /* === PROFIL === */
+  .profile-screen {
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 90px;
+  }
+  .profile-screen::-webkit-scrollbar { width: 0; }
+
+  .profile-hero {
+    padding: 28px 20px 24px;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(74,123,200,0.12), transparent);
+  }
+  .profile-avatar {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy-blue), #2a4a7f);
+    display: grid;
+    place-items: center;
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    border: 2px solid var(--gold-line);
+    box-shadow: 0 10px 30px rgba(74,123,200,0.25);
+  }
+  .profile-name {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .profile-role {
+    color: var(--gold);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 5px;
+    font-weight: 500;
+  }
+  .profile-org {
+    color: var(--ink-muted);
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  .settings-group {
+    margin: 8px 20px 0;
+  }
+  .settings-group-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    padding: 16px 4px 8px;
+  }
+  .settings-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .settings-row {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--bg-elev);
+    display: grid;
+    place-items: center;
+    color: var(--ink-dim);
+    flex-shrink: 0;
+  }
+  .settings-row-body { flex: 1; min-width: 0; }
+  .settings-row-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .settings-row-sub {
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+  .settings-row-val {
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+  .settings-row .chev { color: var(--ink-faint); }
+  .toggle {
+    width: 40px;
+    height: 23px;
+    border-radius: 999px;
+    background: var(--bg-elev);
+    border: 1px solid var(--line-strong);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--gold-soft); border-color: var(--gold-line); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--ink-muted);
+    transition: all 0.2s;
+  }
+  .toggle.on::after {
+    left: 19px;
+    background: var(--gold);
+  }
+
+  .logout-btn {
+    margin: 24px 20px 8px;
+    padding: 14px;
+    border-radius: 14px;
+    background: var(--red-soft);
+    border: 1px solid rgba(224,122,122,0.3);
+    color: var(--red);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .profile-footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 16px 20px 8px;
+  }
+
   /* === BRAND IDENTITY SHOWCASE === */
   .brand-section {
     max-width: 1200px;
@@ -1758,6 +2030,277 @@
             <span>Laporan</span>
           </div>
           <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.5 8.5 0 0113 0"/></svg>
+            <span>Profil</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 5: LAPORAN ============ -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 5 · <strong>Laporan</strong></div>
+    <div class="phone">
+      <div class="status-bar">
+        <span>9:51</span>
+        <span class="icons">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M2 12h.01M5.5 9.5a8 8 0 0113 0M8.5 12.5a4 4 0 017 0M12 16h.01"/></svg>
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M5 12V7a7 7 0 0114 0v5M3 12h18v9H3z"/></svg>
+          <span style="font-size:11px;">97%</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="list-screen">
+          <div class="list-head">
+            <h2>Laporan</h2>
+            <div class="sub">Dokumen operasional tergenerate oleh Codi</div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="filter-chip active">Semua</div>
+            <div class="filter-chip">Bulan Ini</div>
+            <div class="filter-chip">Kuartal</div>
+            <div class="filter-chip">Tahun</div>
+          </div>
+
+          <div class="list-section-label">Terbaru</div>
+          <div class="report-list">
+            <div class="report-card">
+              <div class="report-icon">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+              </div>
+              <div class="report-body">
+                <div class="report-title">Ringkasan Omzet — Mei 2026</div>
+                <div class="report-meta">
+                  17 Mei 2026 · 4 hal
+                  <span class="report-badge badge-final">Final</span>
+                </div>
+              </div>
+              <svg class="ic ic-sm report-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="report-card">
+              <div class="report-icon navy">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6"/></svg>
+              </div>
+              <div class="report-body">
+                <div class="report-title">Payroll Run — Mei 2026</div>
+                <div class="report-meta">
+                  15 Mei 2026 · 22 karyawan · Rp 159 jt
+                  <span class="report-badge badge-draft">Draft</span>
+                </div>
+              </div>
+              <svg class="ic ic-sm report-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="report-card">
+              <div class="report-icon green">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              </div>
+              <div class="report-body">
+                <div class="report-title">Rekap Absensi — Mei 2026</div>
+                <div class="report-meta">
+                  14 Mei 2026 · 22 karyawan
+                  <span class="report-badge badge-final">Final</span>
+                </div>
+              </div>
+              <svg class="ic ic-sm report-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="list-section-label">Bulan Lalu</div>
+          <div class="report-list">
+            <div class="report-card">
+              <div class="report-icon">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+              </div>
+              <div class="report-body">
+                <div class="report-title">Ringkasan Omzet — April 2026</div>
+                <div class="report-meta">
+                  30 Apr 2026 · 3 hal
+                  <span class="report-badge badge-final">Final</span>
+                </div>
+              </div>
+              <svg class="ic ic-sm report-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="report-card">
+              <div class="report-icon navy">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6"/></svg>
+              </div>
+              <div class="report-body">
+                <div class="report-title">Payroll Run — April 2026</div>
+                <div class="report-meta">
+                  16 Apr 2026 · 22 karyawan · Rp 154 jt
+                  <span class="report-badge badge-final">Final</span>
+                </div>
+              </div>
+              <svg class="ic ic-sm report-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            <span>Beranda</span>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+            <span>Insight</span>
+          </div>
+          <div class="nav-fab">
+            <svg class="ic" style="stroke-width:2.5" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+          </div>
+          <div class="nav-item active">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <span>Laporan</span>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.5 8.5 0 0113 0"/></svg>
+            <span>Profil</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 6: PROFIL ============ -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 6 · <strong>Profil</strong></div>
+    <div class="phone">
+      <div class="status-bar">
+        <span>9:53</span>
+        <span class="icons">
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M2 12h.01M5.5 9.5a8 8 0 0113 0M8.5 12.5a4 4 0 017 0M12 16h.01"/></svg>
+          <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M5 12V7a7 7 0 0114 0v5M3 12h18v9H3z"/></svg>
+          <span style="font-size:11px;">96%</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="profile-screen">
+          <div class="profile-hero">
+            <div class="profile-avatar">LS</div>
+            <div class="profile-name">Leo Sastra C.W.</div>
+            <div class="profile-role">Direktur Utama</div>
+            <div class="profile-org">PT Emas Berlian · Kantor Operasional</div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Akun</div>
+            <div class="settings-card">
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5.5 21a8.5 8.5 0 0113 0"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Identitas</div>
+                  <div class="settings-row-sub">leo.sastra · Akses Direksi</div>
+                </div>
+                <svg class="ic ic-sm chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Perusahaan</div>
+                  <div class="settings-row-sub">PT Emas Berlian</div>
+                </div>
+                <svg class="ic ic-sm chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Preferensi</div>
+            <div class="settings-card">
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 01-8.54-8.54c-.44-.06-.9-.1-1.36-.1z"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Tema</div>
+                  <div class="settings-row-sub">Ikuti sistem</div>
+                </div>
+                <span class="settings-row-val">Sistem</span>
+                <svg class="ic ic-sm chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Notifikasi</div>
+                  <div class="settings-row-sub">Ringkasan harian & alert</div>
+                </div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Refresh otomatis</div>
+                  <div class="settings-row-sub">Perbarui data tiap buka app</div>
+                </div>
+                <div class="toggle on"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Codi</div>
+            <div class="settings-card">
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Sesi Codi</div>
+                  <div class="settings-row-sub">2 sesi aktif · idle 12 mnt</div>
+                </div>
+                <svg class="ic ic-sm chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-icon">
+                  <svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+                </div>
+                <div class="settings-row-body">
+                  <div class="settings-row-title">Tentang</div>
+                  <div class="settings-row-sub">Versi & lisensi</div>
+                </div>
+                <span class="settings-row-val">v1.0.0</span>
+                <svg class="ic ic-sm chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="logout-btn">
+            <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            Keluar
+          </div>
+          <div class="profile-footer">
+            Emas Berlian Insight · Powered by Codi<br>
+            Untuk Bapak Leo Sastra C.W.
+          </div>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            <span>Beranda</span>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+            <span>Insight</span>
+          </div>
+          <div class="nav-fab">
+            <svg class="ic" style="stroke-width:2.5" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+          </div>
+          <div class="nav-item">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <span>Laporan</span>
+          </div>
+          <div class="nav-item active">
             <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.5 8.5 0 0113 0"/></svg>
             <span>Profil</span>
           </div>
