@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../api/api_exception.dart';
+import '../../../api/repositories/auth_repository.dart';
 import '../../../utils/biometric_helper.dart';
 import '../domain/auth_state.dart';
 
@@ -59,7 +61,7 @@ class AuthController extends Notifier<AuthState> {
       case BiometricResult.failed:
         _registerFailure();
       case BiometricResult.success:
-        await _mockLogin();
+        await _doLogin();
     }
   }
 
@@ -79,19 +81,26 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Login dummy tanpa biometric (sementara untuk testing — biometric
-  /// path tetap ada via [authenticate]). Tombol "Masuk" → langsung lolos.
+  /// Login dummy tanpa biometric (tombol "Masuk") — tetap panggil
+  /// `/auth/login` nyata, hanya lewati prompt biometric.
   Future<void> loginDummy() async {
     if (state.isBusy) return;
-    await _mockLogin();
+    await _doLogin();
   }
 
-  /// Stub login — ganti dengan call `POST /auth/login` saat backend siap.
-  Future<void> _mockLogin() async {
+  /// Panggil `POST /auth/login` via repository → simpan token → success.
+  Future<void> _doLogin() async {
     state = state.copyWith(status: LoginStatus.loggingIn, clearError: true);
-    await Future<void>.delayed(const Duration(milliseconds: 800));
-    _failedAttempts = 0;
-    state = state.copyWith(status: LoginStatus.success);
+    try {
+      await ref.read(authRepositoryProvider).login(
+            deviceId: 'emas-berlian-insight-device',
+            platform: 'android',
+          );
+      _failedAttempts = 0;
+      state = state.copyWith(status: LoginStatus.success);
+    } on ApiException catch (e) {
+      state = state.copyWith(status: LoginStatus.failed, errorMessage: e.message);
+    }
   }
 }
 
