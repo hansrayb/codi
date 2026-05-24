@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../api/api_exception.dart';
+import '../../../api/repositories/chat_repository.dart';
 import '../../../models/chat_message.dart';
 import '../domain/chat_state.dart';
 
@@ -93,42 +95,42 @@ class ChatController extends Notifier<ChatState> {
     ];
   }
 
-  /// Kirim pesan user → canned bot reply setelah delay.
+  String? _conversationId;
+
+  /// Kirim pesan user → balasan Codi via `POST /chat/messages`.
   Future<void> send(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || state.isSending) return;
 
-    final now = DateTime.now();
     final userMsg = ChatMessage(
       id: _nextId(),
       sender: MessageSender.user,
       text: trimmed,
-      time: now,
+      time: DateTime.now(),
     );
-
     state = state.copyWith(
       messages: [...state.messages, userMsg],
       isSending: true,
       clearError: true,
     );
 
-    await Future<void>.delayed(const Duration(milliseconds: 1100));
-
-    final botMsg = ChatMessage(
-      id: _nextId(),
-      sender: MessageSender.bot,
-      text: 'Mohon maaf Bapak, kemampuan analisis real-time masih '
-          'dalam pengembangan. Integrasi dengan sistem Codi akan '
-          'segera tersedia agar saya bisa menjawab pertanyaan ini '
-          'secara akurat.',
-      time: DateTime.now(),
-      responSeconds: 1.1,
-    );
-
-    state = state.copyWith(
-      messages: [...state.messages, botMsg],
-      isSending: false,
-    );
+    try {
+      final reply = await ref.read(chatRepositoryProvider).send(
+            message: trimmed,
+            conversationId: _conversationId,
+            screen: 'chat',
+          );
+      _conversationId = reply.conversationId;
+      state = state.copyWith(
+        messages: [...state.messages, reply.message],
+        suggestions: reply.suggestions.isNotEmpty
+            ? reply.suggestions
+            : state.suggestions,
+        isSending: false,
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(isSending: false, error: e.message);
+    }
   }
 }
 

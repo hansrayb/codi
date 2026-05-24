@@ -11,6 +11,7 @@ from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Optional
+from urllib.parse import parse_qs, urlsplit
 
 from core.device_registry import (
     DeviceRegistryError,
@@ -18,6 +19,10 @@ from core.device_registry import (
     parse_device_registration,
 )
 from core.device_tasks import DeviceTaskError, DeviceTaskQueue
+from core.mobile_api import mobile_handle
+
+# Prefix endpoint app mobile (Emas Berlian Insight).
+_MOBILE_PREFIX = "/api/v1"
 
 # Sentinel pushed onto the SSE bridge queue to signal the stream is finished.
 _SSE_DONE = object()
@@ -144,17 +149,38 @@ class DeviceApiServer:
             server_version = "CodiDeviceAPI/1.0"
 
             def do_GET(self) -> None:  # noqa: N802
-                if self.path != "/healthz":
+                split = urlsplit(self.path)
+                if split.path.startswith(_MOBILE_PREFIX):
+                    self._handle_mobile("GET", split, require_auth=True)
+                    return
+                if split.path != "/healthz":
                     self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
                     return
                 self._send_json(HTTPStatus.OK, {"ok": True, "status": "ok"})
 
+            def do_PATCH(self) -> None:  # noqa: N802
+                split = urlsplit(self.path)
+                if split.path.startswith(_MOBILE_PREFIX):
+                    self._handle_mobile("PATCH", split, require_auth=True)
+                    return
+                self._send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
+
             def do_POST(self) -> None:  # noqa: N802
+                split = urlsplit(self.path)
+                # Login mobile tak butuh token (token belum ada).
+                if split.path == f"{_MOBILE_PREFIX}/auth/login":
+                    self._handle_mobile("POST", split, require_auth=False)
+                    return
+
                 if not self._is_authorized():
                     self._send_json(
                         HTTPStatus.UNAUTHORIZED,
                         {"ok": False, "error": "unauthorized"},
                     )
+                    return
+
+                if split.path.startswith(_MOBILE_PREFIX):
+                    self._handle_mobile("POST", split, require_auth=False)
                     return
 
                 if self.path == "/api/chat":
@@ -539,6 +565,40 @@ class DeviceApiServer:
 
             def log_message(self, fmt: str, *args) -> None:
                 return
+
+            def _handle_mobile(self, method: str, split, *, require_auth: bool) -> None:
+                if require_auth and not self._is_authorized():
+                    self._send_json(
+                        HTTPStatus.UNAUTHORIZED,
+                        {"error": {"code": "unauthorized", "message": "Token tidak valid."}},
+                    )
+                    return
+                sub_path = split.path[len(_MOBILE_PREFIX) :] or "/"
+                query = {k: v[0] for k, v in parse_qs(split.query).items()}
+                body: dict[str, Any] | None = None
+                if method in {"POST", "PATCH"}:
+                    try:
+                        body = self._read_json_body()
+                    except json.JSONDecodeError:
+                        self._send_json(
+                            HTTPStatus.BAD_REQUEST,
+                            {"error": {"code": "invalid_json", "message": "Body bukan JSON valid."}},
+                        )
+                        return
+                    except DeviceRegistryError:
+                        body = None
+                try:
+                    status, payload = mobile_handle(
+                        method, sub_path, query, body, access_token=shared_token or ""
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("mobile_api error: %s", exc)
+                    self._send_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": {"code": "internal", "message": "Kesalahan server."}},
+                    )
+                    return
+                self._send_json(status, payload)
 
             def _read_json_body(self) -> dict[str, object]:
                 content_length = int(self.headers.get("Content-Length", "0"))

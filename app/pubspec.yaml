@@ -113,3 +113,16 @@ flutter_launcher_icons:
     generate: false
   macos:
     generate: false
+
+# Splash screen — generate: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#F4F6F8"           # light mode bg
+  color_dark: "#0A1124"      # dark mode bg (navy brand)
+  image: "assets/icon/icon-dark.png"
+  android_12:
+    color: "#F4F6F8"
+    color_dark: "#0A1124"
+    image: "assets/icon/icon-dark.png"
+  android: true
+  ios: true
+  web: false

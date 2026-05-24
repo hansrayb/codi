@@ -30,5 +30,6 @@ app/*.iml
 app/.gradle/
 app/android/.gradle/
 app/android/.kotlin/
+app/flutter_*.png
 app/ios/Pods/
 app/ios/.symlinks/
