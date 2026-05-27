@@ -48,12 +48,14 @@ _CHART_SUBTITLE = "Penjualan emas vs Rotasi"
 
 # ── orchestration (live fetch + reshape) ─────────────────────────────────────
 def build_client() -> LumbungMetricsClient | None:
-    """Build a client from env, or None if no token is configured."""
-    token = (os.getenv("LUMBUNG_METRICS_TOKEN") or "").strip()
-    if not token:
+    """Build a client from env, or None if service credentials are not set."""
+    email = (os.getenv("LUMBUNG_METRICS_EMAIL") or "").strip()
+    password = (os.getenv("LUMBUNG_METRICS_PASSWORD") or "").strip()
+    if not email or not password:
         return None
     base_url = (os.getenv("LUMBUNG_METRICS_URL") or _DEFAULT_URL).strip() or _DEFAULT_URL
-    return LumbungMetricsClient(base_url, token)
+    login_url = (os.getenv("LUMBUNG_METRICS_LOGIN_URL") or "").strip() or None
+    return LumbungMetricsClient(base_url, email, password, login_url=login_url)
 
 
 def dashboard_summary(

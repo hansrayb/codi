@@ -71,7 +71,8 @@ class Settings:
     hr_service_email: str
     hr_service_password: str
     lumbung_metrics_url: str
-    lumbung_metrics_token: str
+    lumbung_metrics_email: str
+    lumbung_metrics_password: str
 
     @property
     def session_idle_ttl_seconds(self) -> int:
@@ -217,7 +218,8 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         os.getenv("LUMBUNG_METRICS_URL", "http://localhost:4001/api/executive/metrics")
         or "http://localhost:4001/api/executive/metrics"
     ).strip()
-    lumbung_metrics_token = (os.getenv("LUMBUNG_METRICS_TOKEN", "") or "").strip()
+    lumbung_metrics_email = (os.getenv("LUMBUNG_METRICS_EMAIL", "") or "").strip()
+    lumbung_metrics_password = (os.getenv("LUMBUNG_METRICS_PASSWORD", "") or "").strip()
 
     enable_device_registry = _parse_bool(os.getenv("ENABLE_DEVICE_REGISTRY", "false"))
     device_registry_path = Path(
@@ -352,7 +354,8 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         hr_service_email=hr_service_email,
         hr_service_password=hr_service_password,
         lumbung_metrics_url=lumbung_metrics_url,
-        lumbung_metrics_token=lumbung_metrics_token,
+        lumbung_metrics_email=lumbung_metrics_email,
+        lumbung_metrics_password=lumbung_metrics_password,
     )
 
 

@@ -157,13 +157,33 @@ class _FakeResp:
         return False
 
 
-def test_client_get_parses_json(monkeypatch):
-    monkeypatch.setattr(
-        client_mod.urllib.request, "urlopen",
-        lambda req, timeout=0: _FakeResp(NEST_DASHBOARD),
-    )
-    client = LumbungMetricsClient("http://nest/api/executive/metrics", "tok")
+def test_client_logs_in_then_gets(monkeypatch):
+    def _fn(req, timeout=0):
+        if req.full_url.endswith("/auth/login"):
+            return _FakeResp({"tokens": {"accessToken": "svc-token"}})
+        return _FakeResp(NEST_DASHBOARD)
+
+    monkeypatch.setattr(client_mod.urllib.request, "urlopen", _fn)
+    client = LumbungMetricsClient("http://nest/api/executive/metrics", "svc@lumbung", "pw")
     assert client.get_dashboard("month")["revenue"]["total"] == 1321457105
+
+
+def test_client_relogin_on_401(monkeypatch):
+    state = {"logins": 0, "gets": 0}
+
+    def _fn(req, timeout=0):
+        if req.full_url.endswith("/auth/login"):
+            state["logins"] += 1
+            return _FakeResp({"tokens": {"accessToken": f"tok{state['logins']}"}})
+        state["gets"] += 1
+        if state["gets"] == 1:
+            raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, None)
+        return _FakeResp(NEST_INSIGHT)
+
+    monkeypatch.setattr(client_mod.urllib.request, "urlopen", _fn)
+    client = LumbungMetricsClient("http://nest/api/executive/metrics", "svc@x", "pw")
+    assert client.get_insight("month")["composition"]["total"] == 1111469250
+    assert state["logins"] == 2  # initial login + re-login after 401
 
 
 def test_client_retries_then_raises(monkeypatch):
@@ -174,18 +194,19 @@ def test_client_retries_then_raises(monkeypatch):
         raise urllib.error.URLError("down")
 
     monkeypatch.setattr(client_mod.urllib.request, "urlopen", _boom)
-    client = LumbungMetricsClient("http://nest", "tok", retries=1)
+    client = LumbungMetricsClient("http://nest/api/executive/metrics", "svc@x", "pw", retries=1)
     try:
         client.get_insight("month")
         raise AssertionError("expected LumbungMetricsError")
     except LumbungMetricsError:
         pass
-    assert len(calls) == 2  # initial try + 1 retry
+    assert len(calls) == 2  # login attempt per _get retry (×2)
 
 
 # ── mobile_api fallback ──────────────────────────────────────────────────────
 def test_mobile_api_falls_back_to_fixture_when_unconfigured(monkeypatch):
-    monkeypatch.delenv("LUMBUNG_METRICS_TOKEN", raising=False)
+    monkeypatch.delenv("LUMBUNG_METRICS_EMAIL", raising=False)
+    monkeypatch.delenv("LUMBUNG_METRICS_PASSWORD", raising=False)
     status, payload = mobile_api.mobile_handle(
         "GET", "/dashboard/summary", {"period": "month"}, None, access_token="t"
     )
