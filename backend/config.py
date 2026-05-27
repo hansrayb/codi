@@ -70,9 +70,9 @@ class Settings:
     hr_api_url: str
     hr_service_email: str
     hr_service_password: str
-    lumbung_metrics_url: str
-    lumbung_metrics_email: str
-    lumbung_metrics_password: str
+    lumbung_metrics_url: str = "http://localhost:4001/api/executive/metrics"
+    lumbung_metrics_email: str = ""
+    lumbung_metrics_password: str = ""
 
     @property
     def session_idle_ttl_seconds(self) -> int:
