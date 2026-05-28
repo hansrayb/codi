@@ -142,7 +142,7 @@ class Orchestrator(
         if not normalized_prompt:
             raise OrchestratorUserError("Kirim task dalam bentuk pesan teks.")
 
-        if _is_self_modification_action(normalized_prompt, self._settings.assistant_name):
+        if scope != "advisor" and _is_self_modification_action(normalized_prompt, self._settings.assistant_name):
             self_root = self._self_maintenance_manager.project_root
             if self._settings.is_workdir_allowed(self_root):
                 self._logger.info(
@@ -265,6 +265,8 @@ class Orchestrator(
             _REPO_ROLES = {"builder", "reviewer", "debugger", "general"}
             if decision.role not in _REPO_ROLES:
                 decision = dataclass_replace(decision, role="general", reason="scope_restricted")
+        elif scope == "advisor":
+            decision = dataclass_replace(decision, role="advisor", reason="scope_advisor_mobile")
         policy = get_role_policy(decision.role)
         if (
             policy.allow_write
