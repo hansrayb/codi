@@ -109,36 +109,48 @@ class _AccountDetailSheetState extends State<AccountDetailSheet> {
     final nameCtrl = TextEditingController(text: acc.name);
     final titleCtrl = TextEditingController(text: acc.title);
     final emailCtrl = TextEditingController(text: acc.email);
+    var pickedRole = acc.role;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: c.bgElev,
-        title: Text('Edit profil', style: AppTypography.headlineS),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              EmasInput(controller: nameCtrl, hintText: 'Nama lengkap'),
-              const SizedBox(height: AppSpacing.s8),
-              EmasInput(controller: titleCtrl, hintText: 'Jabatan'),
-              const SizedBox(height: AppSpacing.s8),
-              EmasInput(controller: emailCtrl, hintText: 'Email'),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: c.bgElev,
+          title: Text('Edit profil', style: AppTypography.headlineS),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                EmasInput(controller: nameCtrl, hintText: 'Nama lengkap'),
+                const SizedBox(height: AppSpacing.s8),
+                EmasInput(controller: titleCtrl, hintText: 'Jabatan'),
+                const SizedBox(height: AppSpacing.s8),
+                EmasInput(controller: emailCtrl, hintText: 'Email'),
+                const SizedBox(height: AppSpacing.s8),
+                _RoleSelect(
+                  roles: widget.roles,
+                  selected: pickedRole,
+                  enabled: _canMutateThis,
+                  onChanged: (v) => setLocal(() => pickedRole = v),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Simpan'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Simpan'),
-          ),
-        ],
       ),
     );
     if (ok != true) return;
+    // Profile fields (name/title/email).
     await _run(
       () => widget.onUpdateProfile(
         name: nameCtrl.text != acc.name ? nameCtrl.text : null,
@@ -147,6 +159,16 @@ class _AccountDetailSheetState extends State<AccountDetailSheet> {
       ),
       okMsg: 'Profil diubah.',
     );
+    // Role berubah → panggil onUpdateRole (RBAC server cek).
+    if (pickedRole != acc.role) {
+      await _run(
+        () => widget.onUpdateRole(pickedRole),
+        okMsg: 'Role diubah.',
+      );
+      if (mounted) {
+        setState(() => _role = pickedRole);
+      }
+    }
   }
 
   Future<void> _resetPasswordDialog() async {
