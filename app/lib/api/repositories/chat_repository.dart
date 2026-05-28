@@ -26,6 +26,9 @@ class ChatRepository {
   int _seq = 0;
 
   /// Kirim pesan → balasan Codi. Throw [ApiException] jika gagal.
+  ///
+  /// Timeout 120s — Claude CLI subprocess di backend bisa lambat
+  /// (~30-90s untuk pertanyaan kompleks). Default Dio 30s tak cukup.
   Future<ChatReply> send({
     required String message,
     String? conversationId,
@@ -34,6 +37,10 @@ class ChatRepository {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/chat/messages',
+        options: Options(
+          receiveTimeout: const Duration(seconds: 120),
+          sendTimeout: const Duration(seconds: 30),
+        ),
         data: {
           'conversation_id': conversationId,
           'message': message,
