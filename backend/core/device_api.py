@@ -616,6 +616,7 @@ class DeviceApiServer:
                         body,
                         auth_ctx=auth_ctx,
                         auth_service=auth_service,
+                        chat_fn=chat_fn_cell[0],
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("mobile_api error: %s", exc)

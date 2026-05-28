@@ -14,6 +14,9 @@ import 'package:emas_berlian_insight/features/dashboard/domain/dashboard_state.d
 import 'package:emas_berlian_insight/models/dashboard_summary.dart';
 import 'package:emas_berlian_insight/models/insight_detail.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/app_shell.dart';
+import 'package:emas_berlian_insight/providers/token_store.dart';
+
+import '../../helpers/fake_token_store.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/widgets/bottom_nav.dart';
 import 'package:emas_berlian_insight/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:emas_berlian_insight/features/insight/presentation/insight_screen.dart';
@@ -67,6 +70,7 @@ Future<void> _pump(WidgetTester tester) {
       overrides: [
         dashboardRepositoryProvider.overrideWithValue(_FakeDashboardRepo()),
         insightRepositoryProvider.overrideWithValue(_FakeInsightRepo()),
+        tokenStoreProvider.overrideWithValue(FakeTokenStore()),
       ],
       child: const MaterialApp(home: AppShell()),
     ),

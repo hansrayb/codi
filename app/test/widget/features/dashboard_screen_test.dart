@@ -14,6 +14,9 @@ import 'package:emas_berlian_insight/features/dashboard/presentation/dashboard_s
 import 'package:emas_berlian_insight/features/dashboard/presentation/widgets/summary_card.dart';
 import 'package:emas_berlian_insight/features/dashboard/presentation/widgets/stats_row.dart';
 import 'package:emas_berlian_insight/models/dashboard_summary.dart';
+import 'package:emas_berlian_insight/providers/token_store.dart';
+
+import '../../helpers/fake_token_store.dart';
 
 DashboardSummary _fixture() => DashboardSummary(
       periodLabel: 'MEI 2026',
@@ -58,6 +61,7 @@ Future<void> _pump(WidgetTester tester) {
     ProviderScope(
       overrides: [
         dashboardRepositoryProvider.overrideWithValue(_FakeDashboardRepo()),
+        tokenStoreProvider.overrideWithValue(FakeTokenStore()),
       ],
       child: MaterialApp(
         theme: AppTheme.darkTheme,

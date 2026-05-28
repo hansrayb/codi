@@ -5,14 +5,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:emas_berlian_insight/theme/app_theme.dart';
+import 'package:emas_berlian_insight/providers/token_store.dart';
 import 'package:emas_berlian_insight/features/profile/presentation/profile_screen.dart';
 import 'package:emas_berlian_insight/features/profile/presentation/widgets/profile_hero.dart';
 import 'package:emas_berlian_insight/features/profile/presentation/widgets/settings_card.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/widgets/bottom_nav.dart';
 
+import '../../helpers/fake_token_store.dart';
+
 Future<void> _pump(WidgetTester tester, {VoidCallback? onLogout}) {
   return tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        tokenStoreProvider.overrideWithValue(FakeTokenStore()),
+      ],
       child: MaterialApp(
         theme: AppTheme.darkTheme,
         home: ProfileScreen(onLogout: onLogout),

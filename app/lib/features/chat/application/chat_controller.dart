@@ -3,23 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../api/api_exception.dart';
 import '../../../api/repositories/chat_repository.dart';
 import '../../../models/chat_message.dart';
+import '../../../providers/token_store.dart';
 import '../domain/chat_state.dart';
 
 /// Controller Chat.
 ///
-/// **Mock** — history awal = percakapan mockup
-/// `docs/emas-berlian-insight.html`. Kirim pesan → canned reply setelah
-/// delay (backend `POST /chat/messages` belum ada,
-/// `docs/04-API-CONTRACT.md`, `docs/07-ROADMAP.md` Risk Register).
+/// Backend `POST /chat/messages` real — `backend/core/mobile_api.py`
+/// wire ke orchestrator Claude CLI (role advisor). History dimulai
+/// dengan welcome message; user/bot turn ditambah saat kirim.
 class ChatController extends Notifier<ChatState> {
   int _seq = 0;
 
   @override
   ChatState build() {
+    final store = ref.read(tokenStoreProvider);
+    final name = store.name.isNotEmpty ? store.name.split(' ').first : '';
     return ChatState(
-      messages: _seedConversation(),
+      messages: [_welcome(name)],
       suggestions: const [
-        '📊 Perbandingan dengan April',
+        '📊 Ringkasan kondisi hari ini',
         '📈 Proyeksi akhir bulan',
         '👥 Status karyawan',
       ],
@@ -28,71 +30,16 @@ class ChatController extends Notifier<ChatState> {
 
   String _nextId() => 'm${_seq++}';
 
-  List<ChatMessage> _seedConversation() {
-    final base = DateTime(2026, 5, 17, 9, 42);
-    return [
-      ChatMessage(
-        id: _nextId(),
-        sender: MessageSender.user,
-        text: 'Bagaimana kondisi operasional hari ini, Codi?',
-        time: base,
-      ),
-      ChatMessage(
-        id: _nextId(),
-        sender: MessageSender.bot,
-        text: 'Selamat pagi Bapak Leo. Berikut ringkasan kondisi kantor '
-            'hari ini:',
-        time: base,
-        responSeconds: 0.8,
-        card: const RichCard(
-          title: 'Status Mei 2026',
-          badge: 'SEHAT',
-          badgeColor: RichBadgeColor.green,
-          rows: [
-            RichRow(
-              label: 'Omzet',
-              value: 'Rp 828,8 jt',
-              trend: RichTrend.up,
-            ),
-            RichRow(
-              label: 'Pertumbuhan MoM',
-              value: '+321%',
-              trend: RichTrend.up,
-            ),
-            RichRow(
-              label: 'Conv. Rate',
-              value: '68,8%',
-              trend: RichTrend.down,
-            ),
-            RichRow(label: 'Beban Komisi', value: '1,3% omzet'),
-          ],
-          sparkline: [12, 15, 10, 22, 30, 36, 42, 50],
-          actions: [
-            RichAction(label: 'Lihat Ringkasan'),
-            RichAction(label: 'Export PDF', primary: false),
-          ],
-        ),
-      ),
-      ChatMessage(
-        id: _nextId(),
-        sender: MessageSender.user,
-        text: 'Apa yang perlu jadi prioritas Bapak?',
-        time: DateTime(2026, 5, 17, 9, 44),
-      ),
-      ChatMessage(
-        id: _nextId(),
-        sender: MessageSender.bot,
-        text: 'Tiga hal yang sebaiknya Bapak ketahui:\n\n'
-            '1. Conversion rate turun ke 68,8% — ada Rp 127 jt potensi '
-            'yang lolos. Tim Marketing & Kemitraan dapat menindaklanjuti.\n\n'
-            '2. Susi Susan (Komisaris) absen 7 hari berturut-turut — '
-            'perlu klarifikasi dari HRGA.\n\n'
-            '3. Pertumbuhan retail sangat positif — momentum yang bisa '
-            'diperkuat.',
-        time: DateTime(2026, 5, 17, 9, 44),
-        responSeconds: 1.1,
-      ),
-    ];
+  ChatMessage _welcome(String firstName) {
+    final salutation = firstName.isNotEmpty ? 'Bapak $firstName' : 'Bapak';
+    return ChatMessage(
+      id: _nextId(),
+      sender: MessageSender.bot,
+      text: 'Selamat datang $salutation. Saya Codi, asisten analitik '
+          'Bapak. Silakan ajukan pertanyaan tentang operasional, '
+          'keuangan, atau HR — saya akan bantu rangkum dari data terkini.',
+      time: DateTime.now(),
+    );
   }
 
   String? _conversationId;

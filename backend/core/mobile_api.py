@@ -16,12 +16,15 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Callable
 
 from core import mobile_metrics
 from core.auth.models import AuthContext
 from core.auth.rbac import AuthError, require_scope
 from core.auth.service import AuthService, AuthServiceError
+
+# Sync chat callable signature: (message, user_id, scope) -> reply text.
+ChatFn = Callable[[str, int, str], str]
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +40,15 @@ def mobile_handle(
     *,
     auth_ctx: AuthContext | None,
     auth_service: AuthService | None,
+    chat_fn: ChatFn | None = None,
 ) -> JsonResult:
     """Dispatch satu request mobile.
 
     `path` sudah tanpa prefix `/api/v1` dan tanpa query string.
     `auth_ctx` = hasil verifikasi token (None untuk login/refresh).
     `auth_service` = service auth; bila None, endpoint auth/accounts gagal.
+    `chat_fn` = sync chat callable (msg, user_id, scope) -> reply text.
+                Bila None, `/chat/messages` return stub fallback.
     """
     try:
         return _dispatch(
@@ -52,6 +58,7 @@ def mobile_handle(
             body=body,
             auth_ctx=auth_ctx,
             auth_service=auth_service,
+            chat_fn=chat_fn,
         )
     except AuthError as exc:
         return _http(exc.http_status), _error(exc.code, exc.message)
@@ -67,6 +74,7 @@ def _dispatch(
     body: dict[str, Any] | None,
     auth_ctx: AuthContext | None,
     auth_service: AuthService | None,
+    chat_fn: ChatFn | None,
 ) -> JsonResult:
     # ── Public auth endpoints ────────────────────────────────
     if method == "POST" and path == "/auth/login":
@@ -96,7 +104,7 @@ def _dispatch(
         return _dashboard_insight(query.get("period", "month"))
     if method == "POST" and path == "/chat/messages":
         require_scope(auth_ctx, "chat:use")
-        return _chat_messages(body)
+        return _chat_messages(body, chat_fn)
     if method == "GET" and path == "/chat/conversations":
         require_scope(auth_ctx, "chat:use")
         return _chat_conversations()
@@ -672,26 +680,56 @@ def _fixture_dashboard_insight(period: str) -> JsonResult:
 
 
 # ── Chat ────────────────────────────────────────────────────────────
-def _chat_messages(body: dict[str, Any] | None) -> JsonResult:
+import time as _time  # noqa: E402 — keep import inline for module organization
+
+_STUB_REPLY = (
+    "Mohon maaf Bapak, kemampuan analisis real-time masih dalam "
+    "pengembangan. Integrasi data Codi akan segera tersedia."
+)
+
+_DEFAULT_SUGGESTIONS = [
+    "Perbandingan dengan April",
+    "Proyeksi akhir bulan",
+    "Status karyawan",
+]
+
+
+def _chat_messages(
+    body: dict[str, Any] | None, chat_fn: ChatFn | None
+) -> JsonResult:
+    payload = body or {}
+    message = str(payload.get("message") or "").strip()
+    conversation_id = str(payload.get("conversation_id") or "") or "conv_001"
+    if not message:
+        return HTTPStatus.BAD_REQUEST, _error(
+            "invalid_payload", "message wajib diisi."
+        )
+
+    reply_text = _STUB_REPLY
+    response_ms = 0
+    model = "stub"
+    if chat_fn is not None:
+        start = _time.monotonic()
+        try:
+            reply_text = chat_fn(message, 0, "advisor") or _STUB_REPLY
+            model = "claude-sonnet-4-6"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("chat_fn error: %s", exc)
+            reply_text = (
+                "Maaf, terjadi kesalahan saat memproses pesan. "
+                "Silakan coba lagi sebentar lagi."
+            )
+        response_ms = int((_time.monotonic() - start) * 1000)
+
     return HTTPStatus.OK, {
-        "conversation_id": (body or {}).get("conversation_id") or "conv_001",
-        "message_id": "msg_stub",
+        "conversation_id": conversation_id,
+        "message_id": f"msg_{int(_time.time() * 1000)}",
         "role": "assistant",
-        "content": {
-            "type": "text",
-            "text": (
-                "Mohon maaf Bapak, kemampuan analisis real-time masih dalam "
-                "pengembangan. Integrasi data Codi akan segera tersedia."
-            ),
-        },
-        "suggestions": [
-            "Perbandingan dengan April",
-            "Proyeksi akhir bulan",
-            "Status karyawan",
-        ],
+        "content": {"type": "text", "text": reply_text},
+        "suggestions": _DEFAULT_SUGGESTIONS,
         "metadata": {
-            "response_time_ms": 820,
-            "model": "claude-sonnet-4-6",
+            "response_time_ms": response_ms,
+            "model": model,
             "tokens_used": 0,
         },
     }

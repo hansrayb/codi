@@ -1,7 +1,4 @@
-// Widget test Chat — mock conversation + canned reply.
-//
-// Catatan: messages pakai ListView.builder (lazy) — tak semua bubble
-// ter-build sekaligus. Test fokus ke item yang pasti visible + interaksi.
+// Widget test Chat — welcome message + real API call via fake repository.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,21 +48,17 @@ Future<void> _pump(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('render header + seed conversation', (tester) async {
+  testWidgets('render header + welcome message', (tester) async {
     await _pump(tester);
     await tester.pump();
 
     expect(find.text('Codi'), findsOneWidget);
-    expect(
-      find.text('Bagaimana kondisi operasional hari ini, Codi?'),
-      findsOneWidget,
-    );
-    // Lazy ListView — minimal beberapa bubble ter-render.
-    expect(find.byType(MessageBubble), findsWidgets);
+    // Welcome message muncul (1 bubble dari controller).
+    expect(find.byType(MessageBubble), findsOneWidget);
+    expect(find.textContaining('Selamat datang'), findsOneWidget);
   });
 
-  testWidgets('kirim pesan → user bubble + canned bot reply',
-      (tester) async {
+  testWidgets('kirim pesan → user bubble + bot reply', (tester) async {
     await _pump(tester);
     await tester.pump();
 
@@ -75,7 +68,6 @@ void main() {
     await tester.pump(); // reply future resolves
     await tester.pump(const Duration(milliseconds: 16));
 
-    // ListView.builder lazy — reply terbaru di bawah, scroll dulu.
     await tester.scrollUntilVisible(
       find.textContaining(_replyText),
       300,
@@ -89,9 +81,8 @@ void main() {
     await _pump(tester);
     await tester.pump();
 
-    // Chip pertama pasti dalam viewport (chip ke-3 off-screen di test
-    // 800px). Tap → controller input terisi teks chip.
-    const firstChip = '📊 Perbandingan dengan April';
+    // Chip pertama: "📊 Ringkasan kondisi hari ini" (controller seed).
+    const firstChip = '📊 Ringkasan kondisi hari ini';
     await tester.tap(find.text(firstChip));
     await tester.pump();
 
