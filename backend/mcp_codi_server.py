@@ -473,7 +473,7 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
         }
         if args.get("thread_id"):
             body["thread_id"] = args["thread_id"]
-        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/send", body))
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/v1/agent/send", body))
 
     if name == "agent_inbox":
         body = {
@@ -481,7 +481,7 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
             "limit": args.get("limit", 50),
             "mark_read": args.get("mark_read", True),
         }
-        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/inbox", body))
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/v1/agent/inbox", body))
 
     if name == "agent_wait_reply":
         body: dict[str, Any] = {
@@ -491,7 +491,7 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
         }
         if args.get("thread_id"):
             body["thread_id"] = args["thread_id"]
-        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/wait", body))
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/v1/agent/wait", body))
 
     if name == "agent_history":
         body = {"limit": args.get("limit", 100)}
@@ -501,7 +501,7 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
             body["peer_a"] = args["peer_a"]
         if args.get("peer_b"):
             body["peer_b"] = args["peer_b"]
-        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/history", body))
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/v1/agent/history", body))
 
     return _err(f"Unknown tool: {name}")
 

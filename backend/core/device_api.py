@@ -192,6 +192,36 @@ class DeviceApiServer:
                     self._handle_mobile("POST", split, require_auth=False)
                     return
 
+                # Alias `/api/v1/agent/*` → `/api/agent/*` agar lolos
+                # Cloudflare proxy yang cuma forward path `/api/v1/*`.
+                # Auth tetap pakai shared-token, bukan JWT user.
+                if split.path.startswith(f"{_MOBILE_PREFIX}/agent/"):
+                    inner_path = split.path[len(_MOBILE_PREFIX):]
+                    self.path = inner_path  # rewrite untuk handler lokal
+                    if not self._is_authorized():
+                        self._send_json(
+                            HTTPStatus.UNAUTHORIZED,
+                            {"ok": False, "error": "unauthorized"},
+                        )
+                        return
+                    if inner_path == "/api/agent/send":
+                        self._handle_agent_send()
+                        return
+                    if inner_path == "/api/agent/inbox":
+                        self._handle_agent_inbox()
+                        return
+                    if inner_path == "/api/agent/wait":
+                        self._handle_agent_wait()
+                        return
+                    if inner_path == "/api/agent/history":
+                        self._handle_agent_history()
+                        return
+                    self._send_json(
+                        HTTPStatus.NOT_FOUND,
+                        {"ok": False, "error": "not_found"},
+                    )
+                    return
+
                 if split.path.startswith(_MOBILE_PREFIX):
                     # Mobile endpoint authed — auth context di-resolve di
                     # _handle_mobile (JWT account ATAU bootstrap shared-token).
