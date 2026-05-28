@@ -204,11 +204,27 @@ def test_client_retries_then_raises(monkeypatch):
 
 
 # ── mobile_api fallback ──────────────────────────────────────────────────────
+from core.auth.models import AuthContext  # noqa: E402
+
+_BOOTSTRAP_CTX = AuthContext(
+    account_id="bootstrap",
+    email="bootstrap@codi",
+    role_slug="bootstrap",
+    scopes=("dashboard:read", "insight:read", "chat:use"),
+    is_bootstrap=True,
+)
+
+
 def test_mobile_api_falls_back_to_fixture_when_unconfigured(monkeypatch):
     monkeypatch.delenv("LUMBUNG_METRICS_EMAIL", raising=False)
     monkeypatch.delenv("LUMBUNG_METRICS_PASSWORD", raising=False)
     status, payload = mobile_api.mobile_handle(
-        "GET", "/dashboard/summary", {"period": "month"}, None, access_token="t"
+        "GET",
+        "/dashboard/summary",
+        {"period": "month"},
+        None,
+        auth_ctx=_BOOTSTRAP_CTX,
+        auth_service=None,
     )
     assert status == HTTPStatus.OK
     assert payload["revenue"]["total"] == 828882000  # the fixture value
@@ -220,7 +236,12 @@ def test_mobile_api_uses_live_metrics_when_available(monkeypatch):
         lambda period: {"period": period, "live": True},
     )
     status, payload = mobile_api.mobile_handle(
-        "GET", "/dashboard/summary", {"period": "week"}, None, access_token="t"
+        "GET",
+        "/dashboard/summary",
+        {"period": "week"},
+        None,
+        auth_ctx=_BOOTSTRAP_CTX,
+        auth_service=None,
     )
     assert status == HTTPStatus.OK
     assert payload == {"period": "week", "live": True}

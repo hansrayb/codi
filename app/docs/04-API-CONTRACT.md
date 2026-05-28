@@ -22,14 +22,16 @@ URL config disimpan di `lib/config/env.dart` dan switch via `--dart-define`.
 
 ### Mekanisme
 
-- JWT Bearer Token
-- Token issued via biometric login endpoint
-- Token disimpan di `flutter_secure_storage`
-- Token TTL: 7 hari, auto-refresh saat tinggal 1 hari
+- JWT Bearer Token (HS256), payload bawa `sub`, `email`, `role`, `scopes`.
+- Login pertama: email + password → JWT access + refresh.
+- Login berikutnya: biometric local + `device_id + device_fingerprint`
+  yang sudah di-enroll → JWT.
+- Token disimpan di `flutter_secure_storage`.
+- Access TTL default 7 hari, refresh TTL 30 hari (configurable di server).
 
 ### Header
 
-Setiap request (kecuali login) wajib include:
+Setiap request (kecuali endpoint public auth) wajib include:
 
 ```
 Authorization: Bearer <jwt-token>
@@ -39,23 +41,48 @@ X-Client: emas-berlian-insight
 X-Client-Version: 1.0.0
 ```
 
+### Roles & Scopes
+
+| Role | Slug | Scopes |
+|---|---|---|
+| Super Admin | `superadmin` | `accounts:*`, `dashboard:read`, `reports:*`, `chat:use`, `insight:read` |
+| Admin | `admin` | `accounts:read`, `accounts:update_role`, `dashboard:read`, `reports:*`, `chat:use`, `insight:read` |
+| Direksi | `director` | `dashboard:read`, `reports:read`, `chat:use`, `insight:read` |
+| Viewer | `viewer` | `dashboard:read`, `insight:read` |
+
+RBAC dicek server-side via `scopes` di JWT. Client juga store `scopes` untuk
+hide/show menu (mis. row "Kelola Akun" hanya muncul jika `accounts:read`).
+
+Superadmin diseed di server lewat `python -m scripts.seed_auth` dengan env
+`SUPERADMIN_EMAIL` dan `SUPERADMIN_PASSWORD`. Superadmin tak bisa dihapus
+atau di-suspend dari mobile.
+
+### Bootstrap token (legacy)
+
+Kalau server di-set `ALLOW_BOOTSTRAP_TOKEN=true` dan `DEVICE_API_SHARED_TOKEN`
+ada, request dengan Bearer = shared-token tetap diterima dengan scope minimal
+(`dashboard:read`, `insight:read`, `chat:use`) untuk kompatibilitas Fase A1.
+Tidak bisa akses `/accounts/*` atau `/auth/enroll-biometric`.
+
 ---
 
 ## Endpoints
 
 ### 1. Authentication
 
+Fase B — auth real berbasis akun (email + password) di server Codi. Login
+pertama: email + password → JWT. Setelah login, app enroll device fingerprint
+agar login berikutnya cukup tap biometric. JWT membawa `scopes[]` untuk RBAC.
+
 #### `POST /auth/login`
 
-Login dengan device fingerprint setelah biometric local berhasil.
+Login email + password (mode bootstrap & untuk akun baru).
 
 **Request**:
 ```json
 {
-  "device_id": "iPhone-15-Pro-Leo-2026",
-  "device_fingerprint": "sha256:abc123...",
-  "platform": "ios",
-  "app_version": "1.0.0"
+  "email": "hans@emasberlian.com",
+  "password": "<password>"
 }
 ```
 
@@ -65,30 +92,74 @@ Login dengan device fingerprint setelah biometric local berhasil.
   "access_token": "eyJhbGc...",
   "refresh_token": "eyJhbGc...",
   "expires_in": 604800,
+  "scopes": [
+    "accounts:read", "accounts:create", "accounts:update", "accounts:delete",
+    "dashboard:read", "reports:read", "reports:write", "chat:use", "insight:read"
+  ],
   "user": {
-    "id": "user_leo_001",
-    "name": "Leo Sastra C.W.",
-    "title": "Direktur Utama",
-    "initials": "LS",
-    "role": "director"
+    "id": "acc_a1b2c3d4",
+    "email": "hans@emasberlian.com",
+    "name": "Hans",
+    "title": "Super Admin",
+    "role": "superadmin",
+    "status": "active",
+    "created_at": "2026-05-28T10:00:00+00:00",
+    "last_login_at": "2026-05-28T10:05:00+00:00"
   }
 }
 ```
 
-**Response 401** — device belum di-enroll:
-```json
-{
-  "error": "device_not_enrolled",
-  "message": "Device belum terdaftar. Hubungi admin untuk enrollment."
-}
-```
+**Response 401**:
+- `invalid_credentials` — email/password salah
+- `account_suspended` — akun di-suspend superadmin
 
 **Response 429** — too many failed attempts:
 ```json
 {
-  "error": "too_many_attempts",
-  "message": "Terlalu banyak percobaan gagal. Coba lagi dalam 5 menit.",
-  "retry_after": 300
+  "error": { "code": "too_many_attempts",
+             "message": "Terlalu banyak percobaan gagal. Coba lagi dalam 5 menit." }
+}
+```
+
+#### `POST /auth/login-biometric`
+
+Login pakai device yang sudah di-enroll. App lokal hanya validasi biometric;
+server cocokkan `device_id + device_fingerprint` ke binding tabel.
+
+**Request**:
+```json
+{
+  "device_id": "pixel-9-hans-2026",
+  "device_fingerprint": "sha256:abc123..."
+}
+```
+
+**Response 200**: sama bentuk dengan `/auth/login`.
+
+**Response 401** — `device_not_enrolled`: device belum di-bind ke akun. App
+arahkan ke flow email+password lagi.
+
+#### `POST /auth/enroll-biometric` (authed)
+
+Bind device fingerprint ke akun yang sedang login (token Bearer wajib).
+Bootstrap token (legacy) tidak diizinkan memanggil endpoint ini.
+
+**Request**:
+```json
+{
+  "device_id": "pixel-9-hans-2026",
+  "device_fingerprint": "sha256:abc123...",
+  "platform": "android"
+}
+```
+
+**Response 200**:
+```json
+{
+  "binding_id": "dvc_a1b2c3d4",
+  "device_id": "pixel-9-hans-2026",
+  "platform": "android",
+  "enrolled_at": "2026-05-28T10:08:00+00:00"
 }
 ```
 
@@ -98,18 +169,112 @@ Refresh access token.
 
 **Request**:
 ```json
-{
-  "refresh_token": "eyJhbGc..."
-}
+{ "refresh_token": "eyJhbGc..." }
 ```
 
-**Response 200**: same as login
+**Response 200**: same shape as `/auth/login` (token + scopes + user).
 
 #### `POST /auth/logout`
 
-Invalidate token.
+Invalidate token client-side (server stateless untuk Fase B; logout = drop
+token di app).
 
-**Response 204**
+**Response 200**: `{ "ok": true }`
+
+---
+
+### 1b. Account Management (RBAC: `accounts:*`)
+
+Visible di mobile lewat sub-page Profile → "Kelola Akun" (S7). Superadmin
+punya semua scope; admin punya `accounts:read` + `accounts:update_role`.
+
+#### `GET /accounts` — list semua akun
+
+Scope: `accounts:read`.
+
+**Response 200**:
+```json
+{
+  "accounts": [
+    {
+      "id": "acc_a1b2c3d4", "email": "hans@emasberlian.com", "name": "Hans",
+      "title": "Super Admin", "role": "superadmin", "status": "active",
+      "created_at": "2026-05-28T10:00:00+00:00",
+      "last_login_at": "2026-05-28T10:05:00+00:00"
+    }
+  ]
+}
+```
+
+#### `GET /accounts/roles`
+
+Scope: `accounts:read`. List role + scope yang tersedia.
+
+**Response 200**:
+```json
+{
+  "roles": [
+    { "slug": "superadmin", "name": "Super Admin",
+      "scopes": ["accounts:read", "accounts:create", "accounts:update",
+                 "accounts:delete", "dashboard:read", "reports:read",
+                 "reports:write", "chat:use", "insight:read"] },
+    { "slug": "admin",   "name": "Admin",   "scopes": [...] },
+    { "slug": "director","name": "Direksi", "scopes": [...] },
+    { "slug": "viewer",  "name": "Viewer",  "scopes": [...] }
+  ]
+}
+```
+
+#### `POST /accounts` — buat akun baru
+
+Scope: `accounts:create`.
+
+**Request**:
+```json
+{
+  "email": "leo@lumbungemas.co.id",
+  "password": "<min 8 char>",
+  "name": "Leo Sastra C.W.",
+  "title": "Direktur Utama",
+  "role": "director"
+}
+```
+
+**Response 201**: bentuk akun (sama dengan item di GET /accounts).
+**Response 409** — `email_exists`.
+
+#### `PATCH /accounts/{id}/role`
+
+Scope: `accounts:update` atau `accounts:update_role`. Superadmin lain tak
+bisa diubah (server reject 403 `forbidden`).
+
+**Request**: `{ "role": "viewer" }` → Response 200 (akun updated).
+
+#### `PATCH /accounts/{id}/status`
+
+Scope: `accounts:update`. Status: `active` | `suspended`.
+
+#### `PATCH /accounts/{id}/password`
+
+Scope: `accounts:update`. Reset password (min 8 char).
+
+**Request**: `{ "password": "<new password>" }` → Response 200 `{ "ok": true }`.
+
+#### `DELETE /accounts/{id}`
+
+Scope: `accounts:delete`. Superadmin tak bisa dihapus. Tidak bisa hapus akun
+sendiri.
+
+**Response 204** (no content).
+
+#### `GET /accounts/{id}/devices`
+
+Scope: `accounts:read`. List device binding milik akun.
+
+#### `DELETE /accounts/{id}/devices/{binding_id}`
+
+Scope: `accounts:update`. Revoke binding (mark `revoked_at`). Device tak
+bisa login biometric lagi sampai re-enroll.
 
 ---
 

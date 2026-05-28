@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlsplit
 
+from core.auth.models import AuthContext
+from core.auth.service import AuthService, AuthServiceError
 from core.device_registry import (
     DeviceRegistryError,
     DeviceRegistryManager,
@@ -42,6 +44,8 @@ class DeviceApiServer:
         registry: DeviceRegistryManager,
         logger,
         task_queue: DeviceTaskQueue | None = None,
+        auth_service: AuthService | None = None,
+        allow_bootstrap_token: bool = True,
     ) -> None:
         self._host = host
         self._port = port
@@ -49,6 +53,8 @@ class DeviceApiServer:
         self._registry = registry
         self._task_queue = task_queue
         self._logger = logger
+        self._auth_service = auth_service
+        self._allow_bootstrap_token = allow_bootstrap_token
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._notify_fn_cell: list[Callable[[str], None] | None] = [None]
@@ -144,6 +150,8 @@ class DeviceApiServer:
         chat_stream_factory_cell = self._chat_stream_factory_cell
         loop_cell = self._loop_cell
         session_store_cell = self._session_store_cell
+        auth_service = self._auth_service
+        allow_bootstrap = self._allow_bootstrap_token
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "CodiDeviceAPI/1.0"
@@ -167,9 +175,19 @@ class DeviceApiServer:
 
             def do_POST(self) -> None:  # noqa: N802
                 split = urlsplit(self.path)
-                # Login mobile tak butuh token (token belum ada).
-                if split.path == f"{_MOBILE_PREFIX}/auth/login":
+                # Login mobile endpoints tak butuh token (token belum ada).
+                if split.path in {
+                    f"{_MOBILE_PREFIX}/auth/login",
+                    f"{_MOBILE_PREFIX}/auth/login-biometric",
+                    f"{_MOBILE_PREFIX}/auth/refresh",
+                }:
                     self._handle_mobile("POST", split, require_auth=False)
+                    return
+
+                if split.path.startswith(_MOBILE_PREFIX):
+                    # Mobile endpoint authed — auth context di-resolve di
+                    # _handle_mobile (JWT account ATAU bootstrap shared-token).
+                    self._handle_mobile("POST", split, require_auth=True)
                     return
 
                 if not self._is_authorized():
@@ -177,10 +195,6 @@ class DeviceApiServer:
                         HTTPStatus.UNAUTHORIZED,
                         {"ok": False, "error": "unauthorized"},
                     )
-                    return
-
-                if split.path.startswith(_MOBILE_PREFIX):
-                    self._handle_mobile("POST", split, require_auth=False)
                     return
 
                 if self.path == "/api/chat":
@@ -259,6 +273,10 @@ class DeviceApiServer:
                 )
 
             def do_DELETE(self) -> None:  # noqa: N802
+                split = urlsplit(self.path)
+                if split.path.startswith(_MOBILE_PREFIX):
+                    self._handle_mobile("DELETE", split, require_auth=True)
+                    return
                 if not self._is_authorized():
                     self._send_json(
                         HTTPStatus.UNAUTHORIZED,
@@ -567,16 +585,19 @@ class DeviceApiServer:
                 return
 
             def _handle_mobile(self, method: str, split, *, require_auth: bool) -> None:
-                if require_auth and not self._is_authorized():
-                    self._send_json(
-                        HTTPStatus.UNAUTHORIZED,
-                        {"error": {"code": "unauthorized", "message": "Token tidak valid."}},
-                    )
-                    return
+                auth_ctx: AuthContext | None = None
+                if require_auth:
+                    auth_ctx = self._resolve_mobile_auth()
+                    if auth_ctx is None:
+                        self._send_json(
+                            HTTPStatus.UNAUTHORIZED,
+                            {"error": {"code": "unauthorized", "message": "Token tidak valid."}},
+                        )
+                        return
                 sub_path = split.path[len(_MOBILE_PREFIX) :] or "/"
                 query = {k: v[0] for k, v in parse_qs(split.query).items()}
                 body: dict[str, Any] | None = None
-                if method in {"POST", "PATCH"}:
+                if method in {"POST", "PATCH", "DELETE"}:
                     try:
                         body = self._read_json_body()
                     except json.JSONDecodeError:
@@ -589,7 +610,12 @@ class DeviceApiServer:
                         body = None
                 try:
                     status, payload = mobile_handle(
-                        method, sub_path, query, body, access_token=shared_token or ""
+                        method,
+                        sub_path,
+                        query,
+                        body,
+                        auth_ctx=auth_ctx,
+                        auth_service=auth_service,
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("mobile_api error: %s", exc)
@@ -599,6 +625,33 @@ class DeviceApiServer:
                     )
                     return
                 self._send_json(status, payload)
+
+            def _resolve_mobile_auth(self) -> AuthContext | None:
+                """Verifikasi token Authorization untuk endpoint mobile.
+
+                Urutan: JWT (auth_service) → fallback bootstrap shared-token
+                (kalau diizinkan dan match `shared_token`).
+                """
+                header = (self.headers.get("Authorization") or "").strip()
+                if not header.lower().startswith("bearer "):
+                    return None
+                token = header[7:].strip()
+                if not token:
+                    return None
+                if auth_service is not None:
+                    try:
+                        return auth_service.verify_access_token(token)
+                    except AuthServiceError:
+                        pass  # fall through to bootstrap fallback
+                if allow_bootstrap and shared_token and token == shared_token:
+                    return AuthContext(
+                        account_id="bootstrap",
+                        email="bootstrap@codi",
+                        role_slug="bootstrap",
+                        scopes=("dashboard:read", "insight:read", "chat:use"),
+                        is_bootstrap=True,
+                    )
+                return None
 
             def _read_json_body(self) -> dict[str, object]:
                 content_length = int(self.headers.get("Content-Length", "0"))

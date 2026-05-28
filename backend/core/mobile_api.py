@@ -1,12 +1,15 @@
 """Mobile API (`/api/v1/*`) untuk app Emas Berlian Insight.
 
-Fase A2 (arsitektur Y) — `/dashboard/*` mem-PROXY agregasi nyata dari NestJS
-Lumbung (`core/mobile_metrics.py`), dengan **fallback ke fixture** bila NestJS
-tak terjangkau (app tetap jalan + log warning). Endpoint `auth`/`chat`/`me`
-masih stub. Semua JSON tetap sesuai `app/docs/04-API-CONTRACT.md`.
+Fase B — auth + RBAC nyata:
+- `/auth/login` email + password → JWT access/refresh
+- `/auth/login-biometric` device_id + fingerprint → JWT (post-enroll)
+- `/auth/enroll-biometric` (authed) bind device fingerprint ke account
+- `/auth/refresh` rotasi access token
+- `/accounts/*` CRUD (RBAC: scope `accounts:*`)
+- `/dashboard/*`, `/insight`, `/chat/*`, `/me` gate via `require_scope`
 
-Handler murni (tanpa ketergantungan internal server) — di-dispatch dari
-`core/device_api.py`. Auth via shared-token (Bearer) ditangani server.
+Dispatch dari `core/device_api.py` — `auth_ctx` diisi server setelah
+verifikasi JWT (atau shared-token bootstrap fase A1).
 """
 
 from __future__ import annotations
@@ -16,86 +19,270 @@ from http import HTTPStatus
 from typing import Any
 
 from core import mobile_metrics
+from core.auth.models import AuthContext
+from core.auth.rbac import AuthError, require_scope
+from core.auth.service import AuthService, AuthServiceError
 
 logger = logging.getLogger(__name__)
-
-# Token akses stub — pada A1 sama dengan DEVICE_API_SHARED_TOKEN. Flutter
-# kirim balik sebagai `Authorization: Bearer <token>` (divalidasi server).
-_STUB_USER = {
-    "id": "user_leo_001",
-    "name": "Leo Sastra C.W.",
-    "title": "Direktur Utama",
-    "initials": "LS",
-    "role": "director",
-}
 
 JsonResult = tuple[HTTPStatus, dict[str, Any]]
 
 
+# ── Entry point ─────────────────────────────────────────────────────
 def mobile_handle(
     method: str,
     path: str,
     query: dict[str, str],
     body: dict[str, Any] | None,
     *,
-    access_token: str,
+    auth_ctx: AuthContext | None,
+    auth_service: AuthService | None,
 ) -> JsonResult:
     """Dispatch satu request mobile.
 
     `path` sudah tanpa prefix `/api/v1` dan tanpa query string.
-    `access_token` = token yang server pakai untuk auth (dikembalikan
-    di login agar request berikutnya lolos `_is_authorized`).
+    `auth_ctx` = hasil verifikasi token (None untuk login/refresh).
+    `auth_service` = service auth; bila None, endpoint auth/accounts gagal.
     """
+    try:
+        return _dispatch(
+            method=method,
+            path=path,
+            query=query,
+            body=body,
+            auth_ctx=auth_ctx,
+            auth_service=auth_service,
+        )
+    except AuthError as exc:
+        return _http(exc.http_status), _error(exc.code, exc.message)
+    except AuthServiceError as exc:
+        return _http(exc.http_status), _error(exc.code, exc.message)
+
+
+def _dispatch(
+    *,
+    method: str,
+    path: str,
+    query: dict[str, str],
+    body: dict[str, Any] | None,
+    auth_ctx: AuthContext | None,
+    auth_service: AuthService | None,
+) -> JsonResult:
+    # ── Public auth endpoints ────────────────────────────────
     if method == "POST" and path == "/auth/login":
-        return _auth_login(body, access_token=access_token)
+        return _auth_login(body, auth_service)
+    if method == "POST" and path == "/auth/login-biometric":
+        return _auth_login_biometric(body, auth_service)
     if method == "POST" and path == "/auth/refresh":
-        return _auth_refresh(access_token=access_token)
+        return _auth_refresh(body, auth_service)
     if method == "POST" and path == "/auth/logout":
         return HTTPStatus.OK, {"ok": True}
+
+    # ── Authed endpoints ────────────────────────────────────
+    if auth_ctx is None:
+        return HTTPStatus.UNAUTHORIZED, _error("unauthorized", "Token tidak valid.")
+
+    if method == "POST" and path == "/auth/enroll-biometric":
+        return _auth_enroll_biometric(body, auth_ctx, auth_service)
     if method == "GET" and path == "/me":
-        return _me()
+        return _me(auth_ctx, auth_service)
     if method == "PATCH" and path == "/me/preferences":
-        return _me(preferences_override=body)
+        return _me(auth_ctx, auth_service, preferences_override=body)
     if method == "GET" and path == "/dashboard/summary":
+        require_scope(auth_ctx, "dashboard:read")
         return _dashboard_summary(query.get("period", "month"))
     if method == "GET" and path == "/dashboard/insight":
+        require_scope(auth_ctx, "insight:read")
         return _dashboard_insight(query.get("period", "month"))
     if method == "POST" and path == "/chat/messages":
+        require_scope(auth_ctx, "chat:use")
         return _chat_messages(body)
     if method == "GET" and path == "/chat/conversations":
+        require_scope(auth_ctx, "chat:use")
         return _chat_conversations()
     if (
         method == "GET"
         and path.startswith("/chat/conversations/")
         and path.endswith("/messages")
     ):
+        require_scope(auth_ctx, "chat:use")
         conv_id = path[len("/chat/conversations/") : -len("/messages")]
         return _chat_conversation_messages(conv_id)
 
-    return HTTPStatus.NOT_FOUND, {
-        "error": {"code": "not_found", "message": "Endpoint tidak ditemukan."},
+    # ── Account management ─────────────────────────────────
+    if method == "GET" and path == "/accounts":
+        require_scope(auth_ctx, "accounts:read")
+        return _accounts_list(auth_service)
+    if method == "POST" and path == "/accounts":
+        require_scope(auth_ctx, "accounts:create")
+        return _accounts_create(body, auth_service)
+    if method == "GET" and path == "/accounts/roles":
+        require_scope(auth_ctx, "accounts:read")
+        return _accounts_roles(auth_service)
+    if method == "PATCH" and path.startswith("/accounts/") and path.endswith("/role"):
+        require_scope_any(auth_ctx, ("accounts:update", "accounts:update_role"))
+        account_id = path[len("/accounts/") : -len("/role")]
+        return _accounts_update_role(account_id, body, auth_ctx, auth_service)
+    if method == "PATCH" and path.startswith("/accounts/") and path.endswith("/status"):
+        require_scope(auth_ctx, "accounts:update")
+        account_id = path[len("/accounts/") : -len("/status")]
+        return _accounts_update_status(account_id, body, auth_ctx, auth_service)
+    if method == "PATCH" and path.startswith("/accounts/") and path.endswith("/password"):
+        require_scope(auth_ctx, "accounts:update")
+        account_id = path[len("/accounts/") : -len("/password")]
+        return _accounts_reset_password(account_id, body, auth_service)
+    if (
+        method == "DELETE"
+        and path.startswith("/accounts/")
+        and "/devices/" not in path
+        and not path.endswith("/role")
+        and not path.endswith("/status")
+        and not path.endswith("/password")
+    ):
+        require_scope(auth_ctx, "accounts:delete")
+        account_id = path[len("/accounts/") :]
+        return _accounts_delete(account_id, auth_ctx, auth_service)
+    if method == "GET" and path.startswith("/accounts/") and path.endswith("/devices"):
+        require_scope(auth_ctx, "accounts:read")
+        account_id = path[len("/accounts/") : -len("/devices")]
+        return _accounts_devices(account_id, auth_service)
+    if (
+        method == "DELETE"
+        and path.startswith("/accounts/")
+        and "/devices/" in path
+    ):
+        require_scope(auth_ctx, "accounts:update")
+        binding_id = path.rsplit("/", 1)[-1]
+        return _accounts_revoke_device(binding_id, auth_service)
+
+    return HTTPStatus.NOT_FOUND, _error("not_found", "Endpoint tidak ditemukan.")
+
+
+# ── Helpers ─────────────────────────────────────────────────────────
+def _ensure_service(service: AuthService | None) -> AuthService:
+    if service is None:
+        raise AuthServiceError(
+            "auth_unavailable",
+            "Auth service belum siap di server.",
+            http_status=503,
+        )
+    return service
+
+
+def require_scope_any(auth_ctx: AuthContext | None, scopes: tuple[str, ...]) -> None:
+    """Helper: butuh salah satu scope di tuple."""
+    from core.auth.rbac import has_scope as _has_scope
+
+    for scope in scopes:
+        if _has_scope(auth_ctx, scope):
+            return
+    raise AuthError(
+        "forbidden",
+        f"Akses ditolak. Salah satu scope diperlukan: {', '.join(scopes)}.",
+        http_status=403,
+    )
+
+
+def _http(status_code: int) -> HTTPStatus:
+    try:
+        return HTTPStatus(status_code)
+    except ValueError:
+        return HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def _error(code: str, message: str) -> dict[str, Any]:
+    return {"error": {"code": code, "message": message}}
+
+
+def _account_to_dict(account: Any) -> dict[str, Any]:
+    return {
+        "id": account.id,
+        "email": account.email,
+        "name": account.name,
+        "title": account.title,
+        "role": account.role_slug,
+        "status": account.status,
+        "created_at": account.created_at.isoformat(),
+        "last_login_at": account.last_login_at.isoformat() if account.last_login_at else None,
     }
 
 
-# ── Auth ────────────────────────────────────────────────────────────
-def _auth_login(body: dict[str, Any] | None, *, access_token: str) -> JsonResult:
+def _login_result_to_dict(result: Any) -> dict[str, Any]:
+    return {
+        "access_token": result.access_token,
+        "refresh_token": result.refresh_token,
+        "expires_in": result.expires_in,
+        "scopes": list(result.scopes),
+        "user": _account_to_dict(result.account),
+    }
+
+
+# ── Auth handlers ───────────────────────────────────────────────────
+def _auth_login(body: dict[str, Any] | None, service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    payload = body or {}
+    email = str(payload.get("email") or "")
+    password = str(payload.get("password") or "")
+    result = service.login_email(email, password)
+    return HTTPStatus.OK, _login_result_to_dict(result)
+
+
+def _auth_login_biometric(
+    body: dict[str, Any] | None, service: AuthService | None
+) -> JsonResult:
+    service = _ensure_service(service)
+    payload = body or {}
+    device_id = str(payload.get("device_id") or "")
+    fingerprint = str(payload.get("device_fingerprint") or payload.get("fingerprint") or "")
+    result = service.login_biometric(device_id=device_id, fingerprint=fingerprint)
+    return HTTPStatus.OK, _login_result_to_dict(result)
+
+
+def _auth_refresh(body: dict[str, Any] | None, service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    payload = body or {}
+    refresh_token = str(payload.get("refresh_token") or "")
+    if not refresh_token:
+        raise AuthServiceError("invalid_payload", "refresh_token wajib.")
+    result = service.refresh(refresh_token)
+    return HTTPStatus.OK, _login_result_to_dict(result)
+
+
+def _auth_enroll_biometric(
+    body: dict[str, Any] | None,
+    auth_ctx: AuthContext,
+    service: AuthService | None,
+) -> JsonResult:
+    service = _ensure_service(service)
+    if auth_ctx.is_bootstrap:
+        raise AuthError(
+            "forbidden",
+            "Bootstrap token tak bisa enroll device.",
+            http_status=403,
+        )
+    payload = body or {}
+    device_id = str(payload.get("device_id") or "")
+    fingerprint = str(payload.get("device_fingerprint") or payload.get("fingerprint") or "")
+    platform = str(payload.get("platform") or "")
+    binding = service.enroll_device(
+        account_id=auth_ctx.account_id,
+        device_id=device_id,
+        fingerprint=fingerprint,
+        platform=platform,
+    )
     return HTTPStatus.OK, {
-        "access_token": access_token,
-        "refresh_token": access_token,
-        "expires_in": 604800,
-        "user": _STUB_USER,
+        "binding_id": binding.id,
+        "device_id": binding.device_id,
+        "platform": binding.platform,
+        "enrolled_at": binding.enrolled_at.isoformat(),
     }
 
 
-def _auth_refresh(*, access_token: str) -> JsonResult:
-    return HTTPStatus.OK, {
-        "access_token": access_token,
-        "refresh_token": access_token,
-        "expires_in": 604800,
-    }
-
-
-def _me(preferences_override: dict[str, Any] | None = None) -> JsonResult:
+def _me(
+    auth_ctx: AuthContext,
+    service: AuthService | None,
+    preferences_override: dict[str, Any] | None = None,
+) -> JsonResult:
     prefs: dict[str, Any] = {
         "language": "id",
         "notification": {
@@ -106,15 +293,131 @@ def _me(preferences_override: dict[str, Any] | None = None) -> JsonResult:
     }
     if preferences_override:
         prefs = {**prefs, **preferences_override}
+    if auth_ctx.is_bootstrap or service is None:
+        return HTTPStatus.OK, {
+            "id": auth_ctx.account_id,
+            "email": auth_ctx.email or "bootstrap@codi",
+            "name": "Bootstrap",
+            "title": "",
+            "role": auth_ctx.role_slug,
+            "scopes": list(auth_ctx.scopes),
+            "preferences": prefs,
+        }
+    account = service._db.get_account_by_id(auth_ctx.account_id)  # noqa: SLF001
+    if account is None:
+        raise AuthServiceError("not_found", "Akun tidak ditemukan.", http_status=404)
     return HTTPStatus.OK, {
-        **_STUB_USER,
-        "email": "leo@lumbungemas.co.id",
+        **_account_to_dict(account),
+        "scopes": list(auth_ctx.scopes),
         "preferences": prefs,
         "session": {
-            "last_login_at": "2026-05-17T07:30:00+07:00",
-            "device": "Android",
+            "last_login_at": account.last_login_at.isoformat() if account.last_login_at else None,
         },
     }
+
+
+# ── Account CRUD ────────────────────────────────────────────────────
+def _accounts_list(service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    accounts = service.list_accounts()
+    return HTTPStatus.OK, {
+        "accounts": [_account_to_dict(a) for a in accounts],
+    }
+
+
+def _accounts_create(body: dict[str, Any] | None, service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    payload = body or {}
+    account = service.create_account(
+        email=str(payload.get("email") or ""),
+        password=str(payload.get("password") or ""),
+        name=str(payload.get("name") or ""),
+        title=str(payload.get("title") or ""),
+        role_slug=str(payload.get("role") or payload.get("role_slug") or ""),
+    )
+    return HTTPStatus.CREATED, _account_to_dict(account)
+
+
+def _accounts_roles(service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    roles = service.list_roles()
+    return HTTPStatus.OK, {
+        "roles": [
+            {"slug": r.slug, "name": r.name, "scopes": list(r.scopes)} for r in roles
+        ],
+    }
+
+
+def _accounts_update_role(
+    account_id: str,
+    body: dict[str, Any] | None,
+    auth_ctx: AuthContext,
+    service: AuthService | None,
+) -> JsonResult:
+    service = _ensure_service(service)
+    role_slug = str((body or {}).get("role") or (body or {}).get("role_slug") or "")
+    account = service.update_account_role(
+        account_id, role_slug, actor_id=auth_ctx.account_id
+    )
+    return HTTPStatus.OK, _account_to_dict(account)
+
+
+def _accounts_update_status(
+    account_id: str,
+    body: dict[str, Any] | None,
+    auth_ctx: AuthContext,
+    service: AuthService | None,
+) -> JsonResult:
+    service = _ensure_service(service)
+    status = str((body or {}).get("status") or "")
+    account = service.update_account_status(
+        account_id, status, actor_id=auth_ctx.account_id
+    )
+    return HTTPStatus.OK, _account_to_dict(account)
+
+
+def _accounts_reset_password(
+    account_id: str,
+    body: dict[str, Any] | None,
+    service: AuthService | None,
+) -> JsonResult:
+    service = _ensure_service(service)
+    new_password = str((body or {}).get("password") or "")
+    service.reset_password(account_id, new_password)
+    return HTTPStatus.OK, {"ok": True}
+
+
+def _accounts_delete(
+    account_id: str,
+    auth_ctx: AuthContext,
+    service: AuthService | None,
+) -> JsonResult:
+    service = _ensure_service(service)
+    service.delete_account(account_id, actor_id=auth_ctx.account_id)
+    return HTTPStatus.NO_CONTENT, {}
+
+
+def _accounts_devices(account_id: str, service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    bindings = service.list_devices(account_id)
+    return HTTPStatus.OK, {
+        "devices": [
+            {
+                "id": b.id,
+                "device_id": b.device_id,
+                "platform": b.platform,
+                "enrolled_at": b.enrolled_at.isoformat(),
+                "revoked_at": b.revoked_at.isoformat() if b.revoked_at else None,
+            }
+            for b in bindings
+        ],
+    }
+
+
+def _accounts_revoke_device(binding_id: str, service: AuthService | None) -> JsonResult:
+    service = _ensure_service(service)
+    service.revoke_device(binding_id)
+    return HTTPStatus.OK, {"ok": True}
 
 
 # ── Dashboard ───────────────────────────────────────────────────────

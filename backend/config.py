@@ -73,6 +73,16 @@ class Settings:
     lumbung_metrics_url: str = "http://localhost:4001/api/executive/metrics"
     lumbung_metrics_email: str = ""
     lumbung_metrics_password: str = ""
+    # Fase B — auth direksi (mobile)
+    auth_db_path: Path = Path("backend/data/codi-auth.db")
+    codi_jwt_secret: str = ""
+    codi_jwt_access_ttl_minutes: int = 60 * 24 * 7  # 7 hari
+    codi_jwt_refresh_ttl_days: int = 30
+    superadmin_email: str = "hans@emasberlian.com"
+    superadmin_password: str = ""
+    superadmin_name: str = "Hans"
+    superadmin_title: str = "Super Admin"
+    allow_bootstrap_token: bool = True
 
     @property
     def session_idle_ttl_seconds(self) -> int:
@@ -221,6 +231,24 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
     lumbung_metrics_email = (os.getenv("LUMBUNG_METRICS_EMAIL", "") or "").strip()
     lumbung_metrics_password = (os.getenv("LUMBUNG_METRICS_PASSWORD", "") or "").strip()
 
+    auth_db_path = Path(
+        os.getenv("AUTH_DB_PATH", str(claude_work_dir / "backend" / "data" / "codi-auth.db"))
+    ).expanduser().resolve()
+    codi_jwt_secret = (os.getenv("CODI_JWT_SECRET", "") or "").strip()
+    codi_jwt_access_ttl_minutes = _parse_positive_int(
+        os.getenv("CODI_JWT_ACCESS_TTL_MINUTES", str(60 * 24 * 7)),
+        "CODI_JWT_ACCESS_TTL_MINUTES",
+    )
+    codi_jwt_refresh_ttl_days = _parse_positive_int(
+        os.getenv("CODI_JWT_REFRESH_TTL_DAYS", "30"),
+        "CODI_JWT_REFRESH_TTL_DAYS",
+    )
+    superadmin_email = (os.getenv("SUPERADMIN_EMAIL", "hans@emasberlian.com") or "hans@emasberlian.com").strip().lower()
+    superadmin_password = (os.getenv("SUPERADMIN_PASSWORD", "") or "").strip()
+    superadmin_name = (os.getenv("SUPERADMIN_NAME", "Hans") or "Hans").strip()
+    superadmin_title = (os.getenv("SUPERADMIN_TITLE", "Super Admin") or "Super Admin").strip()
+    allow_bootstrap_token = _parse_bool(os.getenv("ALLOW_BOOTSTRAP_TOKEN", "true"))
+
     enable_device_registry = _parse_bool(os.getenv("ENABLE_DEVICE_REGISTRY", "false"))
     device_registry_path = Path(
         os.getenv("DEVICE_REGISTRY_PATH", str(claude_work_dir / "codi-devices.json"))
@@ -356,6 +384,15 @@ def load_settings(env_file: str | os.PathLike[str] = ".env") -> Settings:
         lumbung_metrics_url=lumbung_metrics_url,
         lumbung_metrics_email=lumbung_metrics_email,
         lumbung_metrics_password=lumbung_metrics_password,
+        auth_db_path=auth_db_path,
+        codi_jwt_secret=codi_jwt_secret,
+        codi_jwt_access_ttl_minutes=codi_jwt_access_ttl_minutes,
+        codi_jwt_refresh_ttl_days=codi_jwt_refresh_ttl_days,
+        superadmin_email=superadmin_email,
+        superadmin_password=superadmin_password,
+        superadmin_name=superadmin_name,
+        superadmin_title=superadmin_title,
+        allow_bootstrap_token=allow_bootstrap_token,
     )
 
 

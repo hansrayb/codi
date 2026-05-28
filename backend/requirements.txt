@@ -3,4 +3,6 @@ python-dotenv==1.2.1
 psutil==7.2.2
 psycopg[binary]==3.2.12
 PyMySQL==1.1.2
+bcrypt==4.2.0
+PyJWT==2.9.0
 # mcp>=1.0.0  # requires Python >=3.10; install separately if needed for mcp_codi_server.py

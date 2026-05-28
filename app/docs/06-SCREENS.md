@@ -14,16 +14,26 @@ Spesifikasi detail untuk 4 screen utama di Emas Berlian Insight.
 | S4 | Insight | `/insight` | MVP |
 | S5 | Reports | `/reports` | Phase 2 |
 | S6 | Profile | `/profile` | Phase 2 |
+| S7 | Management (Kelola Akun) | `/profile/accounts` | Fase B/C |
 
 ---
 
 ## S1 — Login Screen
 
 ### Purpose
-Otentikasi Bapak Leo menggunakan biometric (Face ID / Fingerprint). Tanpa username/password.
+Otentikasi direksi/admin dua mode: **email + password** (login pertama atau setelah biometric error) dan **biometric tap** (setelah device di-enroll). Fase B: server kini punya account-based auth (`/auth/login`) + RBAC.
 
 ### Route
 `/login` — accessible saat tidak ada valid token.
+
+### Modes
+
+| Mode | Trigger | Backend |
+|---|---|---|
+| Email + Password | Pertama kali install / belum enroll device / biometric error | `POST /auth/login` |
+| Biometric Tap | Device sudah enroll (binding tersimpan server-side) | `POST /auth/login-biometric` |
+
+Mode dipilih client berdasarkan flag lokal `hasEnrolledBiometric` (per device) di `SharedPreferences` / `flutter_secure_storage`. Login email pertama-kali otomatis trigger `POST /auth/enroll-biometric` setelah sukses → flag di-set true.
 
 ### Layout (top to bottom)
 
@@ -77,34 +87,58 @@ Otentikasi Bapak Leo menggunakan biometric (Face ID / Fingerprint). Tanpa userna
 
 ### Interactions
 
+#### Mode A: Biometric Tap (hasEnrolledBiometric=true)
+
 1. **On screen load**:
    - Check biometric availability via `local_auth`
-   - If unavailable → show error "Aktifkan Face ID/Fingerprint di settings device"
-   - If available → render normal
+   - If unavailable → fallback ke Mode B (form email+password) + show hint "Biometric tak tersedia, login dengan email"
+   - If available → render biometric button
 
 2. **Tap biometric button**:
-   - Trigger `LocalAuthentication.authenticate()`
-   - Show iOS/Android native biometric prompt
-   - On success → call `POST /auth/login` with device fingerprint
-   - On API success → store token in secure storage → navigate `/`
-   - On API fail → show error message + retry button
+   - Trigger `LocalAuthentication.authenticate()` (lokal saja)
+   - On success → call `POST /auth/login-biometric` dengan `device_id + device_fingerprint`
+   - On 200 → store JWT + scopes di secure storage → navigate `/`
+   - On 401 `device_not_enrolled` → clear flag `hasEnrolledBiometric` → switch ke Mode B
 
-3. **Auto-trigger biometric on first load**:
-   - Untuk smoother UX, auto-prompt biometric saat screen muncul (jika allowed by spec)
-   - Bisa di-toggle di settings (Phase 2)
+#### Mode B: Email + Password (first time / fallback)
+
+1. **Tampilkan form**: email + password + tombol "Masuk".
+2. **Tap Masuk**:
+   - Validasi client: email format + password tidak kosong
+   - `POST /auth/login` dengan `{email, password}`
+   - On 200:
+     - Store JWT + refresh + scopes di secure storage
+     - **Auto-enroll device**: panggil `POST /auth/enroll-biometric` dengan
+       `{device_id, device_fingerprint, platform}` setelah dapat token →
+       set flag `hasEnrolledBiometric=true`
+     - Navigate `/`
+   - On 401 `invalid_credentials` → inline error
+   - On 429 `too_many_attempts` → lock 5 menit dengan countdown
+3. **Link "Pakai biometric"**: visible kalau flag true → switch ke Mode A.
 
 ### State
 
 ```dart
+enum LoginMode { biometric, email }
+
 enum LoginStatus {
   initial,          // screen loaded
   checking,         // checking biometric availability
   unavailable,      // biometric not available on device
-  authenticating,   // biometric prompt active
-  loggingIn,        // calling /auth/login
+  authenticating,   // biometric prompt active OR submitting email login
+  enrolling,        // auto-enroll device after email login
   success,          // navigating to dashboard
   failed,           // show error
   locked,           // too many attempts
+}
+
+class AuthState {
+  LoginMode mode;
+  LoginStatus status;
+  String email; String password;
+  String? errorMessage;
+  List<String> scopes;          // dari JWT, dipakai untuk UI gating
+  bool hasEnrolledBiometric;    // flag lokal per device
 }
 ```
 
@@ -113,8 +147,11 @@ enum LoginStatus {
 | Error | UX |
 |---|---|
 | Biometric cancelled | Stay on screen, no error message |
-| Biometric failed (multiple times) | Lock screen 5 min, show countdown |
-| API 401 (device not enrolled) | "Device belum terdaftar. Hubungi admin." |
+| Biometric failed (multiple) | Lock screen 5 min, show countdown |
+| API 401 `invalid_credentials` | Inline error di field password |
+| API 401 `device_not_enrolled` | Clear flag, switch ke Mode B otomatis |
+| API 401 `account_suspended` | Pesan "Akun ditangguhkan, hubungi admin" |
+| API 429 | Snackbar countdown 5 min |
 | Network error | "Tidak ada koneksi internet. Cek WiFi/data Anda." |
 | API 5xx | "Layanan sedang tidak tersedia. Coba lagi nanti." |
 
@@ -664,3 +701,120 @@ Konsisten across screens:
 ```
 
 Component: `EmasErrorView(message, onRetry)` reusable.
+
+---
+
+## S7 — Management (Kelola Akun)
+
+### Purpose
+
+Superadmin & admin kelola akun direksi: list, tambah, ubah role, suspend,
+reset password, hapus. Juga revoke device binding. Visible sebagai
+**sub-page Profile** — bukan tab di bottom nav.
+
+### Route
+
+`/profile/accounts` — push dari Profile screen lewat row "Kelola Akun"
+(icon: `Icons.manage_accounts_outlined`). Row hanya tampil bila scope
+auth user mengandung `accounts:read`.
+
+### Visibility guard
+
+```dart
+// di Profile screen, scope berasal dari authState
+if (authState.scopes.contains('accounts:read'))
+  SettingsRow(
+    icon: Icons.manage_accounts_outlined,
+    label: 'Kelola Akun',
+    onTap: () => Navigator.push(... ManagementScreen()),
+  ),
+```
+
+### Layout
+
+```
+┌──────────────────────────────┐
+│ ← Kelola Akun        [+ Add] │   AppBar
+├──────────────────────────────┤
+│ [Filter chip: Semua/Direksi/ │
+│                      Viewer] │
+├──────────────────────────────┤
+│ ╭──────────────────────────╮ │
+│ │ Hans · Super Admin       │ │   AccountCard
+│ │ hans@emasberlian.com     │ │
+│ │ ● active · login 2 jam   │ │
+│ ╰──────────────────────────╯ │
+│ ╭──────────────────────────╮ │
+│ │ Leo · Direksi            │ │
+│ │ leo@lumbungemas.co.id    │ │
+│ │ ● active · 2 device      │ │
+│ ╰──────────────────────────╯ │
+│        ...                   │
+└──────────────────────────────┘
+```
+
+### Components Detail
+
+#### AppBar
+- Back arrow → pop ke Profile
+- Title: "Kelola Akun"
+- Action `+ Add`: visible kalau scope `accounts:create` → buka
+  `CreateAccountSheet` (bottom sheet).
+
+#### Filter chip row
+- "Semua" / "Direksi" / "Admin" / "Viewer" — filter list local.
+
+#### AccountCard
+- Nama + role badge (warna per role).
+- Email.
+- Status indicator dot: `active` (hijau) / `suspended` (abu).
+- Sub-info: jumlah device aktif + last_login_at relatif.
+- Tap → bottom sheet `AccountDetailSheet`:
+  - Ubah role (dropdown 4 role) — butuh `accounts:update_role` atau
+    `accounts:update`. Superadmin lain di-disable.
+  - Toggle status active/suspended — butuh `accounts:update`. Disabled
+    untuk superadmin & akun sendiri.
+  - Reset password — tombol → dialog input password baru → `PATCH /accounts/{id}/password`.
+  - List device → `GET /accounts/{id}/devices`. Tiap row: device_id +
+    platform + tombol "Revoke" (kalau `accounts:update`).
+  - Hapus akun (tombol merah di bawah) — butuh `accounts:delete`. Confirm
+    dialog. Disabled untuk superadmin & akun sendiri.
+
+#### CreateAccountSheet
+- Form: email, password (min 8 char, ada toggle visibility), name, title,
+  role (dropdown). Submit → `POST /accounts` → on success pop sheet + refresh list.
+- Validation client-side: email format, password length, name wajib.
+
+### Data Source
+
+- `GET /accounts` saat masuk screen + setelah mutation
+- `GET /accounts/roles` di-cache di provider, refresh per session
+- Pull-to-refresh = re-fetch list
+
+### State
+
+```dart
+ManagementState = sealed:
+  - Loading
+  - Success(accounts: List<Account>, roles: List<Role>, filter: RoleFilter)
+  - Error(message: String)
+```
+
+### Interactions
+
+- Optimistic update untuk ubah role/status (rollback kalau API fail).
+- Delete: animasi slide-out + Snackbar "Akun dihapus" dengan tombol Undo
+  (re-POST account in <5s — opsional, bisa skip awal).
+
+### Error States
+
+- 403 forbidden → tampilkan banner "Anda tidak punya akses ke menu ini"
+  + auto-pop ke Profile dalam 2 detik (defensif kalau scope berubah).
+- 409 email_exists → tampilkan inline error di field email.
+- 429 too_many_attempts → snackbar "Coba lagi nanti".
+
+### Out-of-scope (Fase C MVP)
+
+- Audit log perubahan akun (bisa nyusul).
+- Bulk action (multi-select).
+- Search/filter by email.

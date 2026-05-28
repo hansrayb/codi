@@ -1,32 +1,43 @@
-"""Test stub mobile API (`/api/v1/*`) — bentuk JSON sesuai kontrak."""
+"""Test bentuk JSON mobile API (`/api/v1/*`) — pakai bootstrap auth context.
+
+Login/CRUD account flow di-cover oleh `test_auth.py`. Test ini fokus shape
+endpoint baca (dashboard, insight, chat) yang tetap aksesibel pakai bootstrap
+token legacy.
+"""
 
 from http import HTTPStatus
 
+from core.auth.models import AuthContext
 from core.mobile_api import mobile_handle
 
-TOKEN = "test-token"
+
+_BOOTSTRAP_CTX = AuthContext(
+    account_id="bootstrap",
+    email="bootstrap@codi",
+    role_slug="bootstrap",
+    scopes=("dashboard:read", "insight:read", "chat:use"),
+    is_bootstrap=True,
+)
 
 
 def _ok(method, path, query=None, body=None):
     status, payload = mobile_handle(
-        method, path, query or {}, body, access_token=TOKEN
+        method,
+        path,
+        query or {},
+        body,
+        auth_ctx=_BOOTSTRAP_CTX,
+        auth_service=None,
     )
     assert status == HTTPStatus.OK, (path, status, payload)
     return payload
 
 
-def test_login_returns_token_and_user():
-    p = _ok("POST", "/auth/login", body={"device_id": "x"})
-    assert p["access_token"] == TOKEN
-    assert p["user"]["initials"] == "LS"
-    assert p["expires_in"] == 604800
-
-
-def test_me_shape():
+def test_me_bootstrap_shape():
     p = _ok("GET", "/me")
-    assert p["role"] == "director"
-    assert "preferences" in p
+    assert p["role"] == "bootstrap"
     assert p["preferences"]["language"] == "id"
+    assert "dashboard:read" in p["scopes"]
 
 
 def test_dashboard_summary_shape():
@@ -65,5 +76,28 @@ def test_chat_conversation_messages():
 
 
 def test_unknown_path_404():
-    status, _ = mobile_handle("GET", "/nope", {}, None, access_token=TOKEN)
+    status, _ = mobile_handle(
+        "GET", "/nope", {}, None, auth_ctx=_BOOTSTRAP_CTX, auth_service=None
+    )
     assert status == HTTPStatus.NOT_FOUND
+
+
+def test_no_ctx_returns_401():
+    status, payload = mobile_handle(
+        "GET", "/me", {}, None, auth_ctx=None, auth_service=None
+    )
+    assert status == HTTPStatus.UNAUTHORIZED
+    assert payload["error"]["code"] == "unauthorized"
+
+
+def test_login_without_service_returns_503():
+    status, payload = mobile_handle(
+        "POST",
+        "/auth/login",
+        {},
+        {"email": "x@x.com", "password": "x"},
+        auth_ctx=None,
+        auth_service=None,
+    )
+    assert status == HTTPStatus.SERVICE_UNAVAILABLE
+    assert payload["error"]["code"] == "auth_unavailable"

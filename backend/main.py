@@ -14,6 +14,7 @@ from telegram.ext import Application, ApplicationBuilder
 
 from config import ConfigError, Settings, load_settings
 from core.alert_targets import AlertTargetRegistry
+from core.auth import AuthDb, AuthService, JwtHelper
 from core.case_manager import CaseManager
 from core.codi_sessions import CodiSessionStore
 from core.device_api import DeviceApiServer
@@ -92,6 +93,23 @@ def build_application(settings: Settings) -> Application:
         context_path=settings.claude_work_dir / "codi-device-contexts.json",
         logger=logger,
     )
+    auth_service: AuthService | None = None
+    if settings.codi_jwt_secret:
+        auth_db = AuthDb.connect(settings.auth_db_path)
+        auth_db.seed_default_roles()
+        jwt_helper = JwtHelper(
+            secret=settings.codi_jwt_secret,
+            access_ttl_minutes=settings.codi_jwt_access_ttl_minutes,
+            refresh_ttl_days=settings.codi_jwt_refresh_ttl_days,
+        )
+        auth_service = AuthService(auth_db, jwt_helper)
+        logger.info("action=auth_service_ready | db=%s", settings.auth_db_path)
+    else:
+        logger.warning(
+            "CODI_JWT_SECRET tidak di-set — mobile auth real dinonaktifkan, "
+            "hanya bootstrap shared-token yang berfungsi.",
+        )
+
     device_api_server = DeviceApiServer(
         host=settings.device_api_host,
         port=settings.device_api_port,
@@ -99,6 +117,8 @@ def build_application(settings: Settings) -> Application:
         registry=device_registry_manager,
         task_queue=device_task_queue,
         logger=logger,
+        auth_service=auth_service,
+        allow_bootstrap_token=settings.allow_bootstrap_token,
     )
     desktop_action_manager = DesktopActionManager()
     desktop_screenshot_service = DesktopScreenshotService()
