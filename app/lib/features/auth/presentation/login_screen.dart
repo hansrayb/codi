@@ -3,20 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../theme/app_theme.dart';
 import '../../../widgets/emas_button.dart';
+import '../../../widgets/emas_input.dart';
 import '../application/auth_controller.dart';
 import '../domain/auth_state.dart';
+import 'widgets/biometric_button.dart';
 import 'widgets/login_logo.dart';
 
-/// Login screen — layout match mockup `docs/emas-berlian-insight.html`
-/// (`.login-screen`). Biometric auth, tanpa username/password
-/// (`docs/06-SCREENS.md` S1).
+/// Login screen — dual mode email/biometric (`docs/06-SCREENS.md` S1).
 ///
-/// Auth = mock in-memory (backend belum ada). On success: callback
-/// [onAuthenticated] (routing di-wire saat go_router siap, Fase 1+).
+/// Mode email: form email + password → `POST /auth/login` → auto-enroll.
+/// Mode biometric: tap → `POST /auth/login-biometric`.
+/// Mode dipilih otomatis berdasarkan flag `hasEnrolledBiometric` lokal.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({this.onAuthenticated, super.key});
 
-  /// Dipanggil saat login sukses (sementara: tampilkan placeholder).
+  /// Dipanggil saat login sukses.
   final VoidCallback? onAuthenticated;
 
   @override
@@ -24,6 +25,26 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  late final TextEditingController _passwordCtrl;
+  late final TextEditingController _emailCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialEmail = ref.read(authControllerProvider).email;
+    _emailCtrl = TextEditingController(text: initialEmail);
+    _passwordCtrl = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authControllerProvider.notifier).checkAvailability();
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,15 +78,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.s32,
-                        AppSpacing.s40,
                         AppSpacing.s32,
                         AppSpacing.s32,
+                        AppSpacing.s24,
                       ),
                       child: Column(
                         children: [
-                          const SizedBox(height: AppSpacing.s40),
+                          const SizedBox(height: AppSpacing.s32),
                           const LoginLogo(),
-                          const SizedBox(height: AppSpacing.s24 + 4),
+                          const SizedBox(height: AppSpacing.s24),
                           _brand(),
                           const SizedBox(height: AppSpacing.s8),
                           Text(
@@ -78,7 +99,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const Spacer(),
                           _authArea(state),
-                          const SizedBox(height: AppSpacing.s32),
+                          const SizedBox(height: AppSpacing.s24),
                           _footer(),
                         ],
                       ),
@@ -113,25 +134,109 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _authArea(AuthState state) {
+    if (state.mode == LoginMode.biometric) {
+      return _biometricArea(state);
+    }
+    return _emailArea(state);
+  }
+
+  Widget _emailArea(AuthState state) {
+    final ctrl = ref.read(authControllerProvider.notifier);
     final busy = state.isBusy;
+    final hasError = (state.errorMessage ?? '').isNotEmpty;
+    final canShowBiometricSwitch =
+        state.biometricAvailable && state.hasEnrolledBiometric;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        EmasInput(
+          controller: _emailCtrl,
+          hintText: 'Email direksi',
+          onChanged: ctrl.setEmail,
+        ),
+        const SizedBox(height: AppSpacing.s12),
+        EmasInput(
+          controller: _passwordCtrl,
+          hintText: 'Password',
+          obscureText: true,
+        ),
+        const SizedBox(height: AppSpacing.s16),
         EmasButton(
           label: busy ? 'Memverifikasi...' : 'Masuk',
           icon: Icons.login,
           expand: true,
           onPressed: busy
               ? null
-              : () =>
-                  ref.read(authControllerProvider.notifier).loginDummy(),
+              : () => ctrl.loginEmail(password: _passwordCtrl.text),
         ),
-        const SizedBox(height: AppSpacing.s12),
+        if (hasError) ...[
+          const SizedBox(height: AppSpacing.s12),
+          Text(
+            state.errorMessage!,
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyS.copyWith(color: context.colors.red),
+          ),
+        ],
+        if (canShowBiometricSwitch) ...[
+          const SizedBox(height: AppSpacing.s16),
+          TextButton.icon(
+            onPressed: busy ? null : () => ctrl.switchMode(LoginMode.biometric),
+            icon: Icon(Icons.fingerprint, color: context.colors.gold),
+            label: Text(
+              'Pakai biometric',
+              style: AppTypography.bodyS.copyWith(color: context.colors.gold),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _biometricArea(AuthState state) {
+    final ctrl = ref.read(authControllerProvider.notifier);
+    final busy = state.isBusy;
+    final disabled = state.status == LoginStatus.locked;
+    final error = state.errorMessage;
+    final hasError = error != null && error.isNotEmpty;
+
+    return Column(
+      children: [
+        BiometricButton(
+          enabled: !busy && !disabled,
+          onTap: () => ctrl.loginBiometric(),
+        ),
+        const SizedBox(height: AppSpacing.s20),
         Text(
-          'Akses dummy — biometrik dinonaktifkan sementara',
+          busy ? 'Memverifikasi...' : 'Sentuh untuk masuk',
           textAlign: TextAlign.center,
-          style: AppTypography.bodyS.copyWith(
-            color: context.colors.inkMuted,
+          style: AppTypography.bodyM.copyWith(
+            color: context.colors.ink,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s4),
+        if (hasError)
+          Text(
+            error,
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyS.copyWith(color: context.colors.red),
+          )
+        else
+          Text(
+            'Gunakan Face ID atau sidik jari',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyS.copyWith(
+              color: context.colors.inkMuted,
+            ),
+          ),
+        const SizedBox(height: AppSpacing.s16),
+        TextButton.icon(
+          onPressed: busy ? null : () => ctrl.switchMode(LoginMode.email),
+          icon: Icon(Icons.mail_outline, color: context.colors.gold),
+          label: Text(
+            'Pakai email',
+            style: AppTypography.bodyS.copyWith(color: context.colors.gold),
           ),
         ),
       ],
@@ -142,7 +247,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Column(
       children: [
         Divider(color: context.colors.line, height: 1),
-        const SizedBox(height: AppSpacing.s20),
+        const SizedBox(height: AppSpacing.s16),
         Text(
           'AKSES KHUSUS DIREKSI',
           textAlign: TextAlign.center,

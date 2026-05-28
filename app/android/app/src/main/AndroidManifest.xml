@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network akses backend Codi (HTTPS). WAJIB di main manifest — tanpa
+         ini release build tak bisa HTTP sama sekali (debug manifest auto-add,
+         jadi bug hanya muncul di APK release). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- local_auth: biometric authentication (docs/06-SCREENS.md S1) -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application

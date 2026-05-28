@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'api/repositories/auth_repository.dart';
 import 'app.dart';
+import 'providers/device_id_store.dart';
 import 'providers/token_store.dart';
 
 /// Entry point Emas Berlian Insight.
@@ -15,7 +16,8 @@ void main() async {
   // pertama (interceptor butuh token sinkron).
   final container = ProviderContainer();
   final tokenStore = container.read(tokenStoreProvider);
-  await tokenStore.load();
+  final deviceIdStore = container.read(deviceIdStoreProvider);
+  await Future.wait([tokenStore.load(), deviceIdStore.load()]);
   await applyBootstrapToken(tokenStore);
 
   runApp(

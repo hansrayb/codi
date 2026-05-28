@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../providers/token_store.dart';
 import '../../../theme/app_theme.dart';
+import '../../management/presentation/management_screen.dart';
 import '../../shell/presentation/widgets/bottom_nav.dart';
 import '../application/profile_controller.dart';
 import 'widgets/profile_hero.dart';
@@ -59,6 +61,8 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(profileControllerProvider);
     final ctrl = ref.read(profileControllerProvider.notifier);
+    final tokenStore = ref.read(tokenStoreProvider);
+    final canManage = tokenStore.hasScope('accounts:read');
     final c = context.colors;
 
     return Scaffold(
@@ -84,6 +88,7 @@ class ProfileScreen extends ConsumerWidget {
                     onToggle: ctrl.toggle,
                     onTapItem: (_) {},
                   ),
+                if (canManage) const _ManagementRow(),
                 _LogoutButton(onTap: onLogout),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -117,6 +122,56 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _ManagementRow extends StatelessWidget {
+  const _ManagementRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s20,
+        AppSpacing.s8,
+        AppSpacing.s20,
+        AppSpacing.s4,
+      ),
+      child: Material(
+        color: c.bgElev,
+        borderRadius: BorderRadius.circular(AppRadius.r14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.r14),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const ManagementScreen(),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.s14),
+            child: Row(
+              children: [
+                Icon(Icons.manage_accounts_outlined,
+                    size: 20, color: c.gold),
+                const SizedBox(width: AppSpacing.s12),
+                Expanded(
+                  child: Text(
+                    'Kelola Akun',
+                    style: AppTypography.bodyL.copyWith(
+                      color: c.ink,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: c.inkFaint, size: 20),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

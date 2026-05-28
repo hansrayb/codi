@@ -5,9 +5,9 @@ import '../../../../theme/app_theme.dart';
 
 /// Logo Login sesuai mockup `docs/emas-berlian-insight.html` (`.login-logo`).
 ///
-/// Container 96x96, radius 28, gradient `bgElev → bgApp`, border `goldLine`,
-/// glow gold di belakang (CSS `::before` blur). SVG 52x52 dari
-/// `assets/svg/logo.svg`.
+/// Container 96x96, radius 28, gradient `bgElev → bgApp`, border brand biru,
+/// glow biru di belakang (CSS `::before` blur). SVG 56x56 monogram "C" biru
+/// (`assets/svg/logo_c.svg`) — match icon aplikasi.
 class LoginLogo extends StatelessWidget {
   const LoginLogo({super.key});
 
@@ -57,9 +57,9 @@ class LoginLogo extends StatelessWidget {
               ],
             ),
             child: SvgPicture.asset(
-              'assets/svg/logo.svg',
-              width: 52,
-              height: 52,
+              'assets/svg/logo_c.svg',
+              width: 56,
+              height: 56,
             ),
           ),
         ],
