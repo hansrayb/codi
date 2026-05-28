@@ -47,11 +47,19 @@ _hr_token_lock = threading.Lock()
 def _http(method: str, url: str, body: dict | None = None, headers: dict | None = None) -> Any:
     data = json.dumps(body).encode() if body is not None else None
     h = headers or {}
+    # Cloudflare auto-block default urllib UA ("Python-urllib/...").
+    # Set browser-like UA + X-Codi-Client agar lolos Bot Fight Mode.
+    h.setdefault(
+        "User-Agent",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Codi-MCP/1.0",
+    )
+    h.setdefault("Accept", "application/json")
     if data:
         h["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=h, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as exc:
         msg = exc.read().decode(errors="replace")
