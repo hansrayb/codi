@@ -53,7 +53,7 @@ class ProfileController extends Notifier<ProfileData> {
       name: name,
       initials: initials,
       role: role,
-      org: 'PT Emas Berlian · Kantor Operasional',
+      org: 'PT Odc Inter Rotasi · Kantor Operasional',
       footer: 'Emas Berlian Insight · Powered by Codi',
       groups: [
         SettingsGroup(
@@ -68,7 +68,7 @@ class ProfileController extends Notifier<ProfileData> {
             const SettingsItem(
               id: 'perusahaan',
               title: 'Perusahaan',
-              subtitle: 'PT Emas Berlian',
+              subtitle: 'PT Odc Inter Rotasi',
               trailing: SettingsTrailing.chevron,
             ),
           ],
