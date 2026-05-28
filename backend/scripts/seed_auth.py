@@ -30,7 +30,9 @@ from core.auth import AuthDb, AuthService, JwtHelper  # noqa: E402
 
 
 def main() -> int:
-    settings = load_settings()
+    # Load .env dari repo root (bukan cwd) supaya bisa dijalankan dari folder
+    # backend/ seperti yang diinstruksikan PROMPT_DEPLOY_AUTH.md.
+    settings = load_settings(env_file=ROOT.parent / ".env")
     if not settings.superadmin_password:
         print(
             "ERROR: SUPERADMIN_PASSWORD belum di-set di .env.\n"
