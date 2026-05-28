@@ -144,7 +144,11 @@ class _DashboardBody extends StatelessWidget {
         final period = ref.watch(selectedPeriodProvider);
         final store = ref.read(tokenStoreProvider);
         final name = store.name.isNotEmpty ? store.name : 'Direksi';
-        final title = store.title.isNotEmpty ? store.title : '';
+        // Superadmin → "IT Supervisor" (override cosmetic, lihat
+        // profile_controller). Role lain pakai title personal dari DB.
+        final title = store.role == 'superadmin'
+            ? 'IT Supervisor'
+            : (store.title.isNotEmpty ? store.title : '');
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
