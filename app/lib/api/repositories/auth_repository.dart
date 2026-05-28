@@ -148,6 +148,8 @@ class AuthRepository {
       role: result.role,
       email: result.email,
       accountId: result.accountId,
+      name: result.name,
+      title: result.title,
     );
     return result;
   }

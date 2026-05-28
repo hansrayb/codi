@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/dashboard_summary.dart';
+import '../../../providers/token_store.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/emas_error_view.dart';
 import '../../../widgets/emas_loading.dart';
@@ -141,12 +142,15 @@ class _DashboardBody extends StatelessWidget {
     return Consumer(
       builder: (context, ref, _) {
         final period = ref.watch(selectedPeriodProvider);
+        final store = ref.read(tokenStoreProvider);
+        final name = store.name.isNotEmpty ? store.name : 'Direksi';
+        final title = store.title.isNotEmpty ? store.title : '';
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const GreetingHeader(
-              name: 'Leo Sastra C.W.',
-              title: 'Direktur Utama',
+            GreetingHeader(
+              name: name,
+              title: title,
             ),
             PeriodSelector(
               selected: period,

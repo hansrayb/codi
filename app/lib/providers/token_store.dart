@@ -15,6 +15,8 @@ class TokenStore {
   static const _kRole = 'role_slug';
   static const _kEmail = 'email';
   static const _kAccountId = 'account_id';
+  static const _kName = 'name';
+  static const _kTitle = 'title';
   static const _kEnrolled = 'biometric_enrolled';
 
   final FlutterSecureStorage _storage;
@@ -23,6 +25,8 @@ class TokenStore {
   String _roleCache = '';
   String _emailCache = '';
   String _accountIdCache = '';
+  String _nameCache = '';
+  String _titleCache = '';
   bool _enrolledCache = false;
 
   /// Token akses saat ini (sinkron, dari cache memory).
@@ -40,6 +44,12 @@ class TokenStore {
   /// Account ID user.
   String get accountId => _accountIdCache;
 
+  /// Nama lengkap user.
+  String get name => _nameCache;
+
+  /// Jabatan user.
+  String get title => _titleCache;
+
   /// Flag lokal: device sudah enroll biometric?
   bool get hasEnrolledBiometric => _enrolledCache;
 
@@ -51,6 +61,8 @@ class TokenStore {
     _roleCache = (await _storage.read(key: _kRole)) ?? '';
     _emailCache = (await _storage.read(key: _kEmail)) ?? '';
     _accountIdCache = (await _storage.read(key: _kAccountId)) ?? '';
+    _nameCache = (await _storage.read(key: _kName)) ?? '';
+    _titleCache = (await _storage.read(key: _kTitle)) ?? '';
     _enrolledCache = (await _storage.read(key: _kEnrolled)) == '1';
   }
 
@@ -62,12 +74,16 @@ class TokenStore {
     String? role,
     String? email,
     String? accountId,
+    String? name,
+    String? title,
   }) async {
     _accessCache = accessToken;
     if (scopes != null) _scopesCache = scopes;
     if (role != null) _roleCache = role;
     if (email != null) _emailCache = email;
     if (accountId != null) _accountIdCache = accountId;
+    if (name != null) _nameCache = name;
+    if (title != null) _titleCache = title;
     await _storage.write(key: _kAccess, value: accessToken);
     if (refreshToken != null) {
       await _storage.write(key: _kRefresh, value: refreshToken);
@@ -83,6 +99,12 @@ class TokenStore {
     }
     if (accountId != null) {
       await _storage.write(key: _kAccountId, value: accountId);
+    }
+    if (name != null) {
+      await _storage.write(key: _kName, value: name);
+    }
+    if (title != null) {
+      await _storage.write(key: _kTitle, value: title);
     }
   }
 
@@ -105,6 +127,8 @@ class TokenStore {
     _roleCache = '';
     _emailCache = '';
     _accountIdCache = '';
+    _nameCache = '';
+    _titleCache = '';
     // hasEnrolledBiometric DIPERTAHANKAN — supaya logout tidak mereset
     // enrollment device. User tetap bisa login biometric setelah logout.
     await _storage.delete(key: _kAccess);
@@ -113,6 +137,8 @@ class TokenStore {
     await _storage.delete(key: _kRole);
     await _storage.delete(key: _kEmail);
     await _storage.delete(key: _kAccountId);
+    await _storage.delete(key: _kName);
+    await _storage.delete(key: _kTitle);
   }
 
   /// Hapus juga flag enrollment (saat backend balas `device_not_enrolled`).

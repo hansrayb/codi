@@ -125,6 +125,10 @@ class _FakeTokenStore implements TokenStore {
   @override
   String get accountId => '';
   @override
+  String get name => '';
+  @override
+  String get title => '';
+  @override
   bool get hasEnrolledBiometric => enrolled;
   @override
   bool get hasToken => false;
@@ -143,6 +147,8 @@ class _FakeTokenStore implements TokenStore {
     String? role,
     String? email,
     String? accountId,
+    String? name,
+    String? title,
   }) async {}
 
   @override

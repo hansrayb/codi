@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/profile_data.dart';
+import '../../../providers/token_store.dart';
 
 /// Controller Profil (S6).
 ///
@@ -10,7 +11,10 @@ import '../../../models/profile_data.dart';
 /// `docs/04-API-CONTRACT.md`). Tak ada async load: data lokal, instan.
 class ProfileController extends Notifier<ProfileData> {
   @override
-  ProfileData build() => _seed();
+  ProfileData build() {
+    final store = ref.read(tokenStoreProvider);
+    return _seed(store);
+  }
 
   /// Toggle item preferensi (notifikasi, refresh otomatis).
   void toggle(String id) {
@@ -36,11 +40,15 @@ class ProfileController extends Notifier<ProfileData> {
     );
   }
 
-  ProfileData _seed() {
-    return const ProfileData(
-      name: 'Leo Sastra C.W.',
-      initials: 'LS',
-      role: 'Direktur Utama',
+  ProfileData _seed(TokenStore store) {
+    final name = store.name.isNotEmpty ? store.name : 'Direksi';
+    final title = store.title.isNotEmpty ? store.title : '';
+    final email = store.email.isNotEmpty ? store.email : '-';
+    final initials = _initialsFromName(name);
+    return ProfileData(
+      name: name,
+      initials: initials,
+      role: title,
       org: 'PT Emas Berlian · Kantor Operasional',
       footer: 'Emas Berlian Insight · Powered by Codi',
       groups: [
@@ -50,10 +58,10 @@ class ProfileController extends Notifier<ProfileData> {
             SettingsItem(
               id: 'identitas',
               title: 'Identitas',
-              subtitle: 'leo.sastra · Akses Direksi',
+              subtitle: '$email · ${_roleLabel(store.role)}',
               trailing: SettingsTrailing.chevron,
             ),
-            SettingsItem(
+            const SettingsItem(
               id: 'perusahaan',
               title: 'Perusahaan',
               subtitle: 'PT Emas Berlian',
@@ -61,7 +69,7 @@ class ProfileController extends Notifier<ProfileData> {
             ),
           ],
         ),
-        SettingsGroup(
+        const SettingsGroup(
           label: 'Preferensi',
           items: [
             SettingsItem(
@@ -87,7 +95,7 @@ class ProfileController extends Notifier<ProfileData> {
             ),
           ],
         ),
-        SettingsGroup(
+        const SettingsGroup(
           label: 'Codi',
           items: [
             SettingsItem(
@@ -108,6 +116,22 @@ class ProfileController extends Notifier<ProfileData> {
       ],
     );
   }
+
+  static String _initialsFromName(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  static String _roleLabel(String slug) => switch (slug) {
+        'superadmin' => 'Super Admin',
+        'admin' => 'Admin',
+        'director' => 'Direksi',
+        'viewer' => 'Viewer',
+        '' => 'Akses Direksi',
+        _ => slug,
+      };
 }
 
 /// Provider state Profil.
