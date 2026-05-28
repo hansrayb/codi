@@ -12,7 +12,7 @@ class RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final (label, bg, fg) = switch (roleSlug) {
-      'superadmin' => ('Super Admin', c.goldSoft, c.gold),
+      'superadmin' => ('IT Supervisor', c.goldSoft, c.gold),
       'admin' => ('Admin', c.navySoft, c.navyBlue),
       'director' => ('Direksi', c.navySoft, c.navyBlue),
       'viewer' => ('Viewer', c.bgElev, c.inkMuted),

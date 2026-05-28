@@ -42,13 +42,17 @@ class ProfileController extends Notifier<ProfileData> {
 
   ProfileData _seed(TokenStore store) {
     final name = store.name.isNotEmpty ? store.name : 'Direksi';
-    final title = store.title.isNotEmpty ? store.title : '';
     final email = store.email.isNotEmpty ? store.email : '-';
     final initials = _initialsFromName(name);
+    // Superadmin → "IT Supervisor" override (cosmetic). Role lain pakai
+    // title personal dari DB, fallback ke role label.
+    final role = store.role == 'superadmin'
+        ? 'IT Supervisor'
+        : (store.title.isNotEmpty ? store.title : _roleLabel(store.role));
     return ProfileData(
       name: name,
       initials: initials,
-      role: title,
+      role: role,
       org: 'PT Emas Berlian · Kantor Operasional',
       footer: 'Emas Berlian Insight · Powered by Codi',
       groups: [
@@ -125,7 +129,7 @@ class ProfileController extends Notifier<ProfileData> {
   }
 
   static String _roleLabel(String slug) => switch (slug) {
-        'superadmin' => 'Super Admin',
+        'superadmin' => 'IT Supervisor',
         'admin' => 'Admin',
         'director' => 'Direksi',
         'viewer' => 'Viewer',
