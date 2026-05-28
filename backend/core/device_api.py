@@ -196,24 +196,24 @@ class DeviceApiServer:
                 # Cloudflare proxy yang cuma forward path `/api/v1/*`.
                 # Auth tetap pakai shared-token, bukan JWT user.
                 if split.path.startswith(f"{_MOBILE_PREFIX}/agent/"):
-                    inner_path = split.path[len(_MOBILE_PREFIX):]
-                    self.path = inner_path  # rewrite untuk handler lokal
+                    # split.path = /api/v1/agent/send → suffix = /agent/send
+                    suffix = split.path[len(_MOBILE_PREFIX):]
                     if not self._is_authorized():
                         self._send_json(
                             HTTPStatus.UNAUTHORIZED,
                             {"ok": False, "error": "unauthorized"},
                         )
                         return
-                    if inner_path == "/api/agent/send":
+                    if suffix == "/agent/send":
                         self._handle_agent_send()
                         return
-                    if inner_path == "/api/agent/inbox":
+                    if suffix == "/agent/inbox":
                         self._handle_agent_inbox()
                         return
-                    if inner_path == "/api/agent/wait":
+                    if suffix == "/agent/wait":
                         self._handle_agent_wait()
                         return
-                    if inner_path == "/api/agent/history":
+                    if suffix == "/agent/history":
                         self._handle_agent_history()
                         return
                     self._send_json(
