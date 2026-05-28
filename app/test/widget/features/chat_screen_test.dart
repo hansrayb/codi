@@ -8,7 +8,10 @@ import 'package:emas_berlian_insight/theme/app_theme.dart';
 import 'package:emas_berlian_insight/api/repositories/chat_repository.dart';
 import 'package:emas_berlian_insight/models/chat_message.dart';
 import 'package:emas_berlian_insight/features/chat/presentation/chat_screen.dart';
-import 'package:emas_berlian_insight/features/chat/presentation/widgets/message_bubble.dart';
+import 'package:emas_berlian_insight/features/chat/presentation/widgets/chat_hero.dart';
+import 'package:emas_berlian_insight/providers/token_store.dart';
+
+import '../../helpers/fake_token_store.dart';
 
 const _replyText = 'Terima kasih, ini balasan Codi.';
 
@@ -38,6 +41,7 @@ Future<void> _pump(WidgetTester tester) {
     ProviderScope(
       overrides: [
         chatRepositoryProvider.overrideWithValue(_FakeChatRepo()),
+        tokenStoreProvider.overrideWithValue(FakeTokenStore()),
       ],
       child: MaterialApp(
         theme: AppTheme.darkTheme,
@@ -48,14 +52,12 @@ Future<void> _pump(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('render header + welcome message', (tester) async {
+  testWidgets('render header + ChatHero saat empty', (tester) async {
     await _pump(tester);
     await tester.pump();
 
     expect(find.text('Codi'), findsOneWidget);
-    // Welcome message muncul (1 bubble dari controller).
-    expect(find.byType(MessageBubble), findsOneWidget);
-    expect(find.textContaining('Selamat'), findsOneWidget);
+    expect(find.byType(ChatHero), findsOneWidget);
   });
 
   testWidgets('kirim pesan → user bubble + bot reply', (tester) async {

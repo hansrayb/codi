@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../providers/token_store.dart';
 import '../../../theme/app_theme.dart';
 import '../application/chat_controller.dart';
+import 'widgets/chat_hero.dart';
 import 'widgets/chat_input.dart';
 import 'widgets/codi_avatar.dart';
 import 'widgets/message_bubble.dart';
@@ -51,6 +53,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
+    final isEmpty = state.messages.isEmpty;
+    final store = ref.read(tokenStoreProvider);
+    final firstName = store.name.isNotEmpty ? store.name.split(' ').first : '';
 
     return Scaffold(
       body: SafeArea(
@@ -58,21 +63,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             _header(state.isSending),
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.s16,
-                  AppSpacing.s16,
-                  AppSpacing.s16,
-                  AppSpacing.s8,
-                ),
-                itemCount: state.messages.length + 1,
-                itemBuilder: (context, i) {
-                  if (i == 0) return const _DayMarker();
-                  final msg = state.messages[i - 1];
-                  return MessageBubble(message: msg);
-                },
-              ),
+              child: isEmpty
+                  ? ChatHero(firstName: firstName)
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.s16,
+                        AppSpacing.s16,
+                        AppSpacing.s16,
+                        AppSpacing.s8,
+                      ),
+                      itemCount: state.messages.length + 1,
+                      itemBuilder: (context, i) {
+                        if (i == 0) return const _DayMarker();
+                        final msg = state.messages[i - 1];
+                        return MessageBubble(message: msg);
+                      },
+                    ),
             ),
             if (state.isSending) const _TypingIndicator(),
             SuggestionChips(

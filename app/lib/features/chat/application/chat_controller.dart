@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../api/api_exception.dart';
 import '../../../api/repositories/chat_repository.dart';
 import '../../../models/chat_message.dart';
-import '../../../providers/token_store.dart';
 import '../domain/chat_state.dart';
 
 /// Controller Chat.
@@ -16,11 +15,9 @@ class ChatController extends Notifier<ChatState> {
 
   @override
   ChatState build() {
-    final store = ref.read(tokenStoreProvider);
-    final name = store.name.isNotEmpty ? store.name.split(' ').first : '';
-    return ChatState(
-      messages: [_welcome(name)],
-      suggestions: const [
+    return const ChatState(
+      messages: [],
+      suggestions: [
         '📊 Ringkasan kondisi hari ini',
         '📈 Proyeksi akhir bulan',
         '👥 Status karyawan',
@@ -29,37 +26,6 @@ class ChatController extends Notifier<ChatState> {
   }
 
   String _nextId() => 'm${_seq++}';
-
-  ChatMessage _welcome(String firstName) {
-    final now = DateTime.now();
-    final hour = now.hour;
-    final timeOfDay = hour < 11
-        ? 'pagi'
-        : hour < 15
-            ? 'siang'
-            : hour < 19
-                ? 'sore'
-                : 'malam';
-    final salutation = firstName.isNotEmpty
-        ? 'Selamat $timeOfDay, Bapak $firstName.'
-        : 'Selamat $timeOfDay.';
-    // Rotasi per sesi — pilih prompt berdasarkan minute (deterministic per
-    // launch, ganti otomatis setiap menit refresh state).
-    const prompts = [
-      'Ada yang bisa saya bantu hari ini?',
-      'Mau lihat ringkasan apa hari ini?',
-      'Apa yang ingin Bapak ketahui?',
-      'Saya siap bantu — silakan tanya.',
-      'Mulai dari mana hari ini?',
-    ];
-    final prompt = prompts[now.minute % prompts.length];
-    return ChatMessage(
-      id: _nextId(),
-      sender: MessageSender.bot,
-      text: '$salutation $prompt',
-      time: now,
-    );
-  }
 
   String? _conversationId;
 
