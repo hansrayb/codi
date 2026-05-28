@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlsplit
 
+from core.agent_messaging import AgentMessagingStore
 from core.auth.models import AuthContext
 from core.auth.service import AuthService, AuthServiceError
 from core.device_registry import (
@@ -64,6 +65,12 @@ class DeviceApiServer:
         self._chat_stream_factory_cell: list[Optional[Callable[..., Any]]] = [None]
         self._loop_cell: list[Optional[asyncio.AbstractEventLoop]] = [None]
         self._session_store_cell: list[Any] = [None]
+        self._agent_msg_cell: list[AgentMessagingStore | None] = [None]
+
+    def set_agent_messaging_store(self, store: AgentMessagingStore) -> None:
+        """Wire agent-to-agent messaging store (SQLite)."""
+
+        self._agent_msg_cell[0] = store
 
     def set_notify_fn(self, fn: Callable[[str], None]) -> None:
         """Set a thread-safe callback to send Telegram notifications."""
@@ -152,6 +159,7 @@ class DeviceApiServer:
         session_store_cell = self._session_store_cell
         auth_service = self._auth_service
         allow_bootstrap = self._allow_bootstrap_token
+        agent_msg_cell = self._agent_msg_cell
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "CodiDeviceAPI/1.0"
@@ -216,6 +224,18 @@ class DeviceApiServer:
                     return
                 if self.path == "/api/device/tasks/enqueue":
                     self._handle_task_enqueue()
+                    return
+                if self.path == "/api/agent/send":
+                    self._handle_agent_send()
+                    return
+                if self.path == "/api/agent/inbox":
+                    self._handle_agent_inbox()
+                    return
+                if self.path == "/api/agent/wait":
+                    self._handle_agent_wait()
+                    return
+                if self.path == "/api/agent/history":
+                    self._handle_agent_history()
                     return
 
                 if self.path not in {"/api/device/register", "/api/device/heartbeat"}:
@@ -580,6 +600,123 @@ class DeviceApiServer:
                 except Exception:
                     logger.exception("action=chat_api_failed")
                     self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "internal_error"})
+
+            def _handle_agent_send(self) -> None:
+                store = agent_msg_cell[0]
+                if store is None:
+                    self._send_json(HTTPStatus.SERVICE_UNAVAILABLE,
+                                    {"ok": False, "error": "agent_messaging_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    msg = store.send(
+                        sender=str(payload.get("sender") or "").strip(),
+                        recipient=str(payload.get("recipient") or "").strip(),
+                        content=str(payload.get("content") or ""),
+                        thread_id=(payload.get("thread_id") or None) and str(payload["thread_id"]),
+                    )
+                except ValueError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": str(exc)})
+                    return
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=agent_send_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                    {"ok": False, "error": "internal_error"})
+                    return
+                self._send_json(HTTPStatus.OK, {"ok": True, "message": msg})
+
+            def _handle_agent_inbox(self) -> None:
+                store = agent_msg_cell[0]
+                if store is None:
+                    self._send_json(HTTPStatus.SERVICE_UNAVAILABLE,
+                                    {"ok": False, "error": "agent_messaging_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    recipient = str(payload.get("recipient") or "").strip()
+                    if not recipient:
+                        raise ValueError("recipient wajib diisi.")
+                    msgs = store.inbox(
+                        recipient,
+                        mark_read=bool(payload.get("mark_read", True)),
+                        limit=int(payload.get("limit", 50)),
+                    )
+                except ValueError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": str(exc)})
+                    return
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=agent_inbox_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                    {"ok": False, "error": "internal_error"})
+                    return
+                self._send_json(HTTPStatus.OK, {"ok": True, "messages": msgs})
+
+            def _handle_agent_wait(self) -> None:
+                store = agent_msg_cell[0]
+                if store is None:
+                    self._send_json(HTTPStatus.SERVICE_UNAVAILABLE,
+                                    {"ok": False, "error": "agent_messaging_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    recipient = str(payload.get("recipient") or "").strip()
+                    if not recipient:
+                        raise ValueError("recipient wajib diisi.")
+                    msg = store.wait_reply(
+                        recipient=recipient,
+                        thread_id=(payload.get("thread_id") or None) and str(payload["thread_id"]),
+                        since_id=int(payload.get("since_id", 0)),
+                        timeout_seconds=min(int(payload.get("timeout", 60)), 300),
+                    )
+                except ValueError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": str(exc)})
+                    return
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=agent_wait_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                    {"ok": False, "error": "internal_error"})
+                    return
+                self._send_json(HTTPStatus.OK, {"ok": True, "message": msg})
+
+            def _handle_agent_history(self) -> None:
+                store = agent_msg_cell[0]
+                if store is None:
+                    self._send_json(HTTPStatus.SERVICE_UNAVAILABLE,
+                                    {"ok": False, "error": "agent_messaging_disabled"})
+                    return
+                try:
+                    payload = self._read_json_body()
+                    msgs = store.history(
+                        thread_id=(payload.get("thread_id") or None) and str(payload["thread_id"]),
+                        peer_a=(payload.get("peer_a") or None) and str(payload["peer_a"]),
+                        peer_b=(payload.get("peer_b") or None) and str(payload["peer_b"]),
+                        limit=int(payload.get("limit", 100)),
+                    )
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST,
+                                    {"ok": False, "error": "invalid_json"})
+                    return
+                except Exception:
+                    logger.exception("action=agent_history_failed")
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                    {"ok": False, "error": "internal_error"})
+                    return
+                self._send_json(HTTPStatus.OK, {"ok": True, "messages": msgs})
 
             def log_message(self, fmt: str, *args) -> None:
                 return

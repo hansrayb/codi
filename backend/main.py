@@ -14,6 +14,7 @@ from telegram.ext import Application, ApplicationBuilder
 
 from config import ConfigError, Settings, load_settings
 from core.alert_targets import AlertTargetRegistry
+from core.agent_messaging import AgentMessagingStore
 from core.auth import AuthDb, AuthService, JwtHelper
 from core.case_manager import CaseManager
 from core.codi_sessions import CodiSessionStore
@@ -120,6 +121,13 @@ def build_application(settings: Settings) -> Application:
         auth_service=auth_service,
         allow_bootstrap_token=settings.allow_bootstrap_token,
     )
+
+    # Agent-to-agent messaging (peer messaging antar Claude Code agent
+    # via Codi broker). Same SQLite db dir sebagai auth db.
+    agent_msg_path = settings.auth_db_path.parent / "codi-agent-messages.db"
+    agent_msg_store = AgentMessagingStore.connect(agent_msg_path)
+    device_api_server.set_agent_messaging_store(agent_msg_store)
+    logger.info("action=agent_messaging_ready | db=%s", agent_msg_path)
     desktop_action_manager = DesktopActionManager()
     desktop_screenshot_service = DesktopScreenshotService()
     local_shell_service = LocalShellService(

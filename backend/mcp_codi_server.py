@@ -275,6 +275,67 @@ TOOLS: list[Tool] = [
             "required": ["run_id"],
         },
     ),
+    # ── Agent-to-agent messaging (peer messaging via Codi broker) ──
+    Tool(
+        name="agent_send",
+        description=(
+            "Kirim pesan ke agent Claude Code lain (peer) lewat Codi broker. "
+            "Pakai `thread_id` (string bebas) untuk konteks lanjutan. Return msg id."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "sender": {"type": "string", "description": "Nama agent pengirim (mis. 'laptop-hans')."},
+                "recipient": {"type": "string", "description": "Nama agent penerima (mis. 'server-codi')."},
+                "content": {"type": "string", "description": "Isi pesan."},
+                "thread_id": {"type": "string", "description": "Opsional — pengelompok thread."},
+            },
+            "required": ["sender", "recipient", "content"],
+        },
+    ),
+    Tool(
+        name="agent_inbox",
+        description="Ambil pesan unread untuk agent ini (auto mark read). Return list message.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "recipient": {"type": "string", "description": "Nama agent ini."},
+                "limit": {"type": "integer", "description": "Maks pesan (default 50).", "default": 50},
+                "mark_read": {"type": "boolean", "description": "Auto mark as read (default true).", "default": True},
+            },
+            "required": ["recipient"],
+        },
+    ),
+    Tool(
+        name="agent_wait_reply",
+        description=(
+            "Block sampai ada pesan baru untuk agent (opsional di thread tertentu), "
+            "atau timeout. Default timeout 60s, max 300s."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "recipient": {"type": "string"},
+                "thread_id": {"type": "string"},
+                "since_id": {"type": "integer", "default": 0},
+                "timeout": {"type": "integer", "default": 60},
+            },
+            "required": ["recipient"],
+        },
+    ),
+    Tool(
+        name="agent_history",
+        description="Riwayat percakapan: pakai thread_id atau pasangan peer_a + peer_b.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "thread_id": {"type": "string"},
+                "peer_a": {"type": "string"},
+                "peer_b": {"type": "string"},
+                "limit": {"type": "integer", "default": 100},
+            },
+        },
+    ),
 ]
 
 
@@ -394,6 +455,45 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
     if name == "hr_finalize_payroll_run":
         path = f"/api/payroll/runs/{args['run_id']}/finalize"
         return _ok(await asyncio.to_thread(_hr, "POST", path, {}))
+
+    # ── Agent-to-agent messaging ──────────────────────────────────────────────
+    if name == "agent_send":
+        body = {
+            "sender": args["sender"],
+            "recipient": args["recipient"],
+            "content": args["content"],
+        }
+        if args.get("thread_id"):
+            body["thread_id"] = args["thread_id"]
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/send", body))
+
+    if name == "agent_inbox":
+        body = {
+            "recipient": args["recipient"],
+            "limit": args.get("limit", 50),
+            "mark_read": args.get("mark_read", True),
+        }
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/inbox", body))
+
+    if name == "agent_wait_reply":
+        body: dict[str, Any] = {
+            "recipient": args["recipient"],
+            "since_id": args.get("since_id", 0),
+            "timeout": args.get("timeout", 60),
+        }
+        if args.get("thread_id"):
+            body["thread_id"] = args["thread_id"]
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/wait", body))
+
+    if name == "agent_history":
+        body = {"limit": args.get("limit", 100)}
+        if args.get("thread_id"):
+            body["thread_id"] = args["thread_id"]
+        if args.get("peer_a"):
+            body["peer_a"] = args["peer_a"]
+        if args.get("peer_b"):
+            body["peer_b"] = args["peer_b"]
+        return _ok(await asyncio.to_thread(_codi, "POST", "/api/agent/history", body))
 
     return _err(f"Unknown tool: {name}")
 
