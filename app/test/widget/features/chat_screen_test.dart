@@ -55,7 +55,7 @@ void main() {
     expect(find.text('Codi'), findsOneWidget);
     // Welcome message muncul (1 bubble dari controller).
     expect(find.byType(MessageBubble), findsOneWidget);
-    expect(find.textContaining('Selamat datang'), findsOneWidget);
+    expect(find.textContaining('Selamat'), findsOneWidget);
   });
 
   testWidgets('kirim pesan → user bubble + bot reply', (tester) async {

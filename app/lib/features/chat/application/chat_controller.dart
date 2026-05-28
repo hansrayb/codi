@@ -31,14 +31,33 @@ class ChatController extends Notifier<ChatState> {
   String _nextId() => 'm${_seq++}';
 
   ChatMessage _welcome(String firstName) {
-    final salutation = firstName.isNotEmpty ? 'Bapak $firstName' : 'Bapak';
+    final now = DateTime.now();
+    final hour = now.hour;
+    final timeOfDay = hour < 11
+        ? 'pagi'
+        : hour < 15
+            ? 'siang'
+            : hour < 19
+                ? 'sore'
+                : 'malam';
+    final salutation = firstName.isNotEmpty
+        ? 'Selamat $timeOfDay, Bapak $firstName.'
+        : 'Selamat $timeOfDay.';
+    // Rotasi per sesi — pilih prompt berdasarkan minute (deterministic per
+    // launch, ganti otomatis setiap menit refresh state).
+    const prompts = [
+      'Ada yang bisa saya bantu hari ini?',
+      'Mau lihat ringkasan apa hari ini?',
+      'Apa yang ingin Bapak ketahui?',
+      'Saya siap bantu — silakan tanya.',
+      'Mulai dari mana hari ini?',
+    ];
+    final prompt = prompts[now.minute % prompts.length];
     return ChatMessage(
       id: _nextId(),
       sender: MessageSender.bot,
-      text: 'Selamat datang $salutation. Saya Codi, asisten analitik '
-          'Bapak. Silakan ajukan pertanyaan tentang operasional, '
-          'keuangan, atau HR — saya akan bantu rangkum dari data terkini.',
-      time: DateTime.now(),
+      text: '$salutation $prompt',
+      time: now,
     );
   }
 
