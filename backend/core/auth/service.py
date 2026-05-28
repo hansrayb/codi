@@ -240,6 +240,39 @@ class AuthService:
             )
         self._db.delete_account(account_id)
 
+    def update_account_profile(
+        self,
+        account_id: str,
+        *,
+        name: str | None = None,
+        title: str | None = None,
+        email: str | None = None,
+    ) -> Account:
+        target = self._db.get_account_by_id(account_id)
+        if target is None:
+            raise AuthServiceError("not_found", "Akun tidak ditemukan.", http_status=404)
+        if name is not None and not name.strip():
+            raise AuthServiceError("invalid_payload", "Nama tidak boleh kosong.")
+        clean_email: str | None = None
+        if email is not None:
+            clean_email = email.strip().lower()
+            if not clean_email or "@" not in clean_email:
+                raise AuthServiceError("invalid_payload", "Email tidak valid.")
+            existing = self._db.get_account_by_email(clean_email)
+            if existing is not None and existing[0].id != account_id:
+                raise AuthServiceError(
+                    "email_exists", "Email sudah dipakai akun lain.", http_status=409
+                )
+        self._db.update_account_profile(
+            account_id,
+            name=name.strip() if name is not None else None,
+            title=title.strip() if title is not None else None,
+            email=clean_email,
+        )
+        updated = self._db.get_account_by_id(account_id)
+        assert updated is not None
+        return updated
+
     def reset_password(
         self, account_id: str, new_password: str
     ) -> None:

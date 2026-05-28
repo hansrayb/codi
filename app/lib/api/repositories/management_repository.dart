@@ -65,6 +65,28 @@ class ManagementRepository {
     }
   }
 
+  Future<ManagedAccount> updateProfile(
+    String accountId, {
+    String? name,
+    String? title,
+    String? email,
+  }) async {
+    final body = <String, dynamic>{
+      if (name != null) 'name': name.trim(),
+      if (title != null) 'title': title.trim(),
+      if (email != null) 'email': email.trim().toLowerCase(),
+    };
+    try {
+      final res = await _dio.patch<Map<String, dynamic>>(
+        '/accounts/$accountId',
+        data: body,
+      );
+      return ManagedAccount.fromJson(res.data ?? const {});
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   Future<ManagedAccount> updateRole(String accountId, String role) async {
     try {
       final res = await _dio.patch<Map<String, dynamic>>(

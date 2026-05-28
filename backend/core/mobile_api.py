@@ -132,6 +132,16 @@ def _dispatch(
         account_id = path[len("/accounts/") : -len("/password")]
         return _accounts_reset_password(account_id, body, auth_service)
     if (
+        method == "PATCH"
+        and path.startswith("/accounts/")
+        and not path.endswith("/role")
+        and not path.endswith("/status")
+        and not path.endswith("/password")
+    ):
+        require_scope(auth_ctx, "accounts:update")
+        account_id = path[len("/accounts/") :]
+        return _accounts_update_profile(account_id, body, auth_service)
+    if (
         method == "DELETE"
         and path.startswith("/accounts/")
         and "/devices/" not in path
@@ -372,6 +382,22 @@ def _accounts_update_status(
     status = str((body or {}).get("status") or "")
     account = service.update_account_status(
         account_id, status, actor_id=auth_ctx.account_id
+    )
+    return HTTPStatus.OK, _account_to_dict(account)
+
+
+def _accounts_update_profile(
+    account_id: str,
+    body: dict[str, Any] | None,
+    service: AuthService | None,
+) -> JsonResult:
+    service = _ensure_service(service)
+    payload = body or {}
+    account = service.update_account_profile(
+        account_id,
+        name=str(payload['name']) if 'name' in payload else None,
+        title=str(payload['title']) if 'title' in payload else None,
+        email=str(payload['email']) if 'email' in payload else None,
     )
     return HTTPStatus.OK, _account_to_dict(account)
 

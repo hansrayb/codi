@@ -212,6 +212,35 @@ class AuthDb:
             )
             self._conn.commit()
 
+    def update_account_profile(
+        self,
+        account_id: str,
+        *,
+        name: str | None = None,
+        title: str | None = None,
+        email: str | None = None,
+    ) -> None:
+        sets: list[str] = []
+        params: list[str] = []
+        if name is not None:
+            sets.append("name = ?")
+            params.append(name)
+        if title is not None:
+            sets.append("title = ?")
+            params.append(title)
+        if email is not None:
+            sets.append("email = ?")
+            params.append(email)
+        if not sets:
+            return
+        params.append(account_id)
+        with self._lock:
+            self._conn.execute(
+                f"UPDATE accounts SET {', '.join(sets)} WHERE id = ?",
+                params,
+            )
+            self._conn.commit()
+
     def update_account_password(self, account_id: str, password_hash: str) -> None:
         with self._lock:
             self._conn.execute(

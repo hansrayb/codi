@@ -59,6 +59,26 @@ class ManagementController extends Notifier<ManagementState> {
     }
   }
 
+  Future<String?> updateProfile(
+    String accountId, {
+    String? name,
+    String? title,
+    String? email,
+  }) async {
+    try {
+      final updated = await _repo.updateProfile(
+        accountId,
+        name: name,
+        title: title,
+        email: email,
+      );
+      _patchAccount(updated);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
+
   Future<String?> updateRole(String accountId, String role) async {
     try {
       final updated = await _repo.updateRole(accountId, role);

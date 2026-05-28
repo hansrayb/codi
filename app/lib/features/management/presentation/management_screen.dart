@@ -146,6 +146,12 @@ class _ListView extends StatelessWidget {
         canDelete: canDelete,
         isSelf: acc.id == selfId,
         onUpdateRole: (role) => ctrl.updateRole(acc.id, role),
+        onUpdateProfile: ({name, title, email}) => ctrl.updateProfile(
+          acc.id,
+          name: name,
+          title: title,
+          email: email,
+        ),
         onToggleStatus: () => ctrl.toggleStatus(acc),
         onResetPassword: (pw) => ctrl.resetPassword(acc.id, pw),
         onDelete: () => ctrl.delete(acc.id),

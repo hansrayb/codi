@@ -15,6 +15,7 @@ class AccountDetailSheet extends StatefulWidget {
     required this.canDelete,
     required this.isSelf,
     required this.onUpdateRole,
+    required this.onUpdateProfile,
     required this.onToggleStatus,
     required this.onResetPassword,
     required this.onDelete,
@@ -28,6 +29,8 @@ class AccountDetailSheet extends StatefulWidget {
   final bool isSelf;
 
   final Future<String?> Function(String role) onUpdateRole;
+  final Future<String?> Function({String? name, String? title, String? email})
+      onUpdateProfile;
   final Future<String?> Function() onToggleStatus;
   final Future<String?> Function(String newPassword) onResetPassword;
   final Future<String?> Function() onDelete;
@@ -98,6 +101,52 @@ class _AccountDetailSheetState extends State<AccountDetailSheet> {
       return;
     }
     setState(() => _error = err);
+  }
+
+  Future<void> _editProfileDialog() async {
+    final c = context.colors;
+    final acc = widget.account;
+    final nameCtrl = TextEditingController(text: acc.name);
+    final titleCtrl = TextEditingController(text: acc.title);
+    final emailCtrl = TextEditingController(text: acc.email);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.bgElev,
+        title: Text('Edit profil', style: AppTypography.headlineS),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              EmasInput(controller: nameCtrl, hintText: 'Nama lengkap'),
+              const SizedBox(height: AppSpacing.s8),
+              EmasInput(controller: titleCtrl, hintText: 'Jabatan'),
+              const SizedBox(height: AppSpacing.s8),
+              EmasInput(controller: emailCtrl, hintText: 'Email'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _run(
+      () => widget.onUpdateProfile(
+        name: nameCtrl.text != acc.name ? nameCtrl.text : null,
+        title: titleCtrl.text != acc.title ? titleCtrl.text : null,
+        email: emailCtrl.text != acc.email ? emailCtrl.text : null,
+      ),
+      okMsg: 'Profil diubah.',
+    );
   }
 
   Future<void> _resetPasswordDialog() async {
@@ -173,6 +222,17 @@ class _AccountDetailSheetState extends State<AccountDetailSheet> {
                   ),
                   RoleBadge(acc.role),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.s20),
+
+              const _SectionLabel('Profil'),
+              const SizedBox(height: AppSpacing.s8),
+              EmasButton(
+                label: 'Edit profil (nama, jabatan, email)',
+                icon: Icons.edit_outlined,
+                expand: true,
+                variant: EmasButtonVariant.secondary,
+                onPressed: (_busy || !widget.canUpdate) ? null : _editProfileDialog,
               ),
               const SizedBox(height: AppSpacing.s20),
 
