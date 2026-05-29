@@ -680,12 +680,44 @@ def _fixture_dashboard_insight(period: str) -> JsonResult:
 
 
 # ── Chat ────────────────────────────────────────────────────────────
-import time as _time  # noqa: E402 — keep import inline for module organization
+import html as _html  # noqa: E402 — keep imports inline near use
+import re as _re  # noqa: E402
+import time as _time  # noqa: E402
 
 _STUB_REPLY = (
     "Mohon maaf Bapak, kemampuan analisis real-time masih dalam "
     "pengembangan. Integrasi data Codi akan segera tersedia."
 )
+
+# Strip tag Telegram HTML (kontrak Telegram bot): <b>, <i>, <u>, <s>,
+# <code>, <pre>, <a>, <tg-spoiler>. Tag lain juga di-strip generik.
+_HTML_TAG = _re.compile(r"<\s*/?\s*([a-zA-Z][a-zA-Z0-9-]*)\s*[^>]*>")
+_HTML_LINK = _re.compile(
+    r"<\s*a\s+[^>]*>(.*?)<\s*/\s*a\s*>", _re.IGNORECASE | _re.DOTALL
+)
+_MULTI_NEWLINE = _re.compile(r"\n{3,}")
+
+
+def _clean_chat_text(raw: str) -> str:
+    """Hilangkan HTML tag Telegram, decode entity, normalize whitespace.
+
+    Output plain text rapi untuk mobile (mobile bubble render Text plain,
+    tak parse HTML). Markup `<b>...</b>` jadi text biasa (drop tag).
+    """
+    if not raw:
+        return raw
+    # Anchor tag: ambil label saja, drop href.
+    s = _HTML_LINK.sub(r"\1", raw)
+    # Semua tag pasangan/single → strip.
+    s = _HTML_TAG.sub("", s)
+    # Decode entity HTML (&amp; &lt; &gt; &quot; &#39;).
+    s = _html.unescape(s)
+    # Normalize: max 2 newline berturut.
+    s = _MULTI_NEWLINE.sub("\n\n", s)
+    # Strip trailing/leading whitespace tiap baris (Telegram sering ada
+    # trailing space sebelum newline).
+    s = "\n".join(line.rstrip() for line in s.splitlines())
+    return s.strip()
 
 _DEFAULT_SUGGESTIONS = [
     "Perbandingan dengan April",
@@ -711,7 +743,8 @@ def _chat_messages(
     if chat_fn is not None:
         start = _time.monotonic()
         try:
-            reply_text = chat_fn(message, 0, "advisor") or _STUB_REPLY
+            raw = chat_fn(message, 0, "advisor") or _STUB_REPLY
+            reply_text = _clean_chat_text(raw)
             model = "claude-sonnet-4-6"
         except Exception as exc:  # noqa: BLE001
             logger.exception("chat_fn error: %s", exc)

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -125,6 +128,93 @@ class ChatRepository {
       v is Map<String, dynamic> ? v : const {};
   List<Object?> _list(Object? v) => v is List ? v : const [];
   num _num(Object? v) => v is num ? v : num.tryParse('$v') ?? 0;
+
+  /// Streaming reply via SSE (`POST /chat/messages/stream`).
+  /// Token-by-token append via [onToken]; [onDone] di akhir; [onError]
+  /// untuk error server-side. Return future yang complete saat stream ditutup.
+  ///
+  /// Backend emit event SSE: `meta`, `token`, `done`, `error`. Heartbeat
+  /// `: ping\n\n` keep-alive setiap 15s.
+  Future<void> sendStream({
+    required String message,
+    required void Function(String delta) onToken,
+    required void Function() onDone,
+    required void Function(String code, String msg) onError,
+  }) async {
+    try {
+      final res = await _dio.post<ResponseBody>(
+        '/chat/messages/stream',
+        data: {'message': message},
+        options: Options(
+          responseType: ResponseType.stream,
+          receiveTimeout: const Duration(minutes: 5),
+          sendTimeout: const Duration(seconds: 30),
+          headers: {'Accept': 'text/event-stream'},
+        ),
+      );
+      final stream = res.data!.stream
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+      String currentEvent = '';
+      var ended = false;
+      await for (final line in stream) {
+        if (line.isEmpty) {
+          currentEvent = '';
+          continue;
+        }
+        if (line.startsWith(':')) continue; // keep-alive ping
+        if (line.startsWith('event:')) {
+          currentEvent = line.substring(6).trim();
+          continue;
+        }
+        if (line.startsWith('data:')) {
+          final data = line.substring(5).trim();
+          if (data.isEmpty) continue;
+          try {
+            final j = jsonDecode(data) as Map<String, dynamic>;
+            switch (currentEvent) {
+              case 'token':
+                final delta = j['delta']?.toString() ?? '';
+                if (delta.isNotEmpty) onToken(delta);
+                break;
+              case 'done':
+                ended = true;
+                onDone();
+                return;
+              case 'error':
+                ended = true;
+                onError(
+                  j['code']?.toString() ?? 'unknown',
+                  j['message']?.toString() ?? 'Error.',
+                );
+                return;
+            }
+          } catch (_) {
+            // skip malformed event
+          }
+        }
+      }
+      if (!ended) onDone();
+    } on DioException catch (e) {
+      onError(_errorCode(e), ApiException.fromDio(e).message);
+    }
+  }
+
+  String _errorCode(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.sendTimeout:
+        return 'timeout';
+      case DioExceptionType.connectionError:
+        return 'network';
+      case DioExceptionType.badResponse:
+        return 'http_${e.response?.statusCode ?? 0}';
+      default:
+        return 'unknown';
+    }
+  }
 }
 
 /// Provider repository chat.

@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../api/api_exception.dart';
 import '../../../api/repositories/chat_repository.dart';
 import '../../../models/chat_message.dart';
 import '../domain/chat_state.dart';
@@ -27,9 +28,9 @@ class ChatController extends Notifier<ChatState> {
 
   String _nextId() => 'm${_seq++}';
 
-  String? _conversationId;
-
-  /// Kirim pesan user → balasan Codi via `POST /chat/messages`.
+  /// Kirim pesan user → balasan Codi via SSE streaming
+  /// (`POST /chat/messages/stream`). Reply bot di-append token-by-token
+  /// agar UI terlihat hidup.
   Future<void> send(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || state.isSending) return;
@@ -40,29 +41,57 @@ class ChatController extends Notifier<ChatState> {
       text: trimmed,
       time: DateTime.now(),
     );
+    // Bot bubble placeholder yang diisi incrementally.
+    final botId = _nextId();
+    final botMsg = ChatMessage(
+      id: botId,
+      sender: MessageSender.bot,
+      text: '',
+      time: DateTime.now(),
+    );
     state = state.copyWith(
-      messages: [...state.messages, userMsg],
+      messages: [...state.messages, userMsg, botMsg],
       isSending: true,
       clearError: true,
     );
 
-    try {
-      final reply = await ref.read(chatRepositoryProvider).send(
-            message: trimmed,
-            conversationId: _conversationId,
-            screen: 'chat',
-          );
-      _conversationId = reply.conversationId;
-      state = state.copyWith(
-        messages: [...state.messages, reply.message],
-        suggestions: reply.suggestions.isNotEmpty
-            ? reply.suggestions
-            : state.suggestions,
-        isSending: false,
+    final buffer = StringBuffer();
+    void appendDelta(String delta) {
+      buffer.write(delta);
+      // Update message bot terakhir dengan buffer terbaru.
+      final msgs = [...state.messages];
+      final idx = msgs.indexWhere((m) => m.id == botId);
+      if (idx < 0) return;
+      msgs[idx] = ChatMessage(
+        id: botMsg.id,
+        sender: MessageSender.bot,
+        text: buffer.toString(),
+        time: botMsg.time,
       );
-    } on ApiException catch (e) {
-      state = state.copyWith(isSending: false, error: e.message);
+      state = state.copyWith(messages: msgs);
     }
+
+    final completer = Completer<void>();
+    await ref.read(chatRepositoryProvider).sendStream(
+          message: trimmed,
+          onToken: appendDelta,
+          onDone: () {
+            if (buffer.isEmpty) {
+              appendDelta(
+                'Maaf, jawaban kosong dari server. Silakan coba lagi.',
+              );
+            }
+            state = state.copyWith(isSending: false);
+            if (!completer.isCompleted) completer.complete();
+          },
+          onError: (code, msg) {
+            // Replace message bot kosong dengan pesan error.
+            if (buffer.isEmpty) appendDelta('⚠️ $msg');
+            state = state.copyWith(isSending: false, error: msg);
+            if (!completer.isCompleted) completer.complete();
+          },
+        );
+    return completer.future;
   }
 }
 

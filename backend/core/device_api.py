@@ -192,6 +192,12 @@ class DeviceApiServer:
                     self._handle_mobile("POST", split, require_auth=False)
                     return
 
+                # Mobile chat streaming (SSE). Auth via JWT user → scope cek
+                # di handler. Path masuk under /api/v1/* agar lolos Cloudflare.
+                if split.path == f"{_MOBILE_PREFIX}/chat/messages/stream":
+                    self._handle_mobile_chat_stream()
+                    return
+
                 # Alias `/api/v1/agent/*` → `/api/agent/*` agar lolos
                 # Cloudflare proxy yang cuma forward path `/api/v1/*`.
                 # Auth tetap pakai shared-token, bukan JWT user.
@@ -346,6 +352,139 @@ class DeviceApiServer:
                         logger.exception("action=session_delete_failed | sid=%s", sid)
                 self.send_response(HTTPStatus.NO_CONTENT.value)
                 self.end_headers()
+
+            def _handle_mobile_chat_stream(self) -> None:
+                """SSE chat untuk mobile (JWT auth + scope chat:use).
+
+                Reuse `chat_stream_factory_cell` (sama dgn /api/chat). Session
+                ID = account_id JWT (per-user thread).
+                """
+                # Auth JWT.
+                auth_ctx = self._resolve_mobile_auth()
+                if auth_ctx is None:
+                    self._send_json(
+                        HTTPStatus.UNAUTHORIZED,
+                        {"error": {"code": "unauthorized", "message": "Token tidak valid."}},
+                    )
+                    return
+                if "chat:use" not in auth_ctx.scopes:
+                    self._send_json(
+                        HTTPStatus.FORBIDDEN,
+                        {"error": {"code": "forbidden", "message": "Scope chat:use diperlukan."}},
+                    )
+                    return
+                factory = chat_stream_factory_cell[0]
+                loop = loop_cell[0]
+                store = session_store_cell[0]
+                if factory is None or loop is None:
+                    self._send_json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        {"error": {"code": "chat_stream_unavailable", "message": "SSE belum siap."}},
+                    )
+                    return
+                try:
+                    payload = self._read_json_body()
+                except json.JSONDecodeError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": {"code": "invalid_json"}})
+                    return
+                except DeviceRegistryError:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": {"code": "invalid_json"}})
+                    return
+                message = str(payload.get("message") or "").strip()
+                if not message:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": {"code": "message_required"}})
+                    return
+                # Session ID: account_id (1 thread per user — sesuai pattern
+                # dashboard 1 session per browser tab).
+                session_id = auth_ctx.account_id or "anon"
+                prior_claude_sid = None
+                if store is not None:
+                    try:
+                        prior_claude_sid = store.get_claude_session_id(session_id)
+                    except Exception:
+                        logger.exception("action=session_lookup_failed | sid=%s", session_id)
+
+                self.send_response(HTTPStatus.OK.value)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+
+                frame_q: "queue.Queue[Any]" = queue.Queue()
+
+                async def _mk_event() -> asyncio.Event:
+                    return asyncio.Event()
+                cancel_event: asyncio.Event = asyncio.run_coroutine_threadsafe(
+                    _mk_event(), loop
+                ).result(timeout=5)
+
+                async def _on_token(delta: str) -> None:
+                    frame_q.put(("token", delta))
+
+                async def _drive() -> None:
+                    try:
+                        reply = await factory(
+                            session_id=session_id,
+                            message=message,
+                            user_id=0,
+                            on_token=_on_token,
+                            claude_session_id=prior_claude_sid,
+                            cancel_event=cancel_event,
+                        )
+                        new_sid = None
+                        if isinstance(reply, tuple):
+                            _text, new_sid = reply
+                        if store is not None and new_sid:
+                            try:
+                                store.set_claude_session_id(session_id, new_sid)
+                            except Exception:
+                                logger.exception("action=session_persist_failed | sid=%s", session_id)
+                        frame_q.put(("done", None))
+                    except asyncio.TimeoutError:
+                        frame_q.put(("error", ("timeout", "Codi belum selesai menjawab.")))
+                    except FileNotFoundError:
+                        frame_q.put(("error", ("internal", "Claude CLI tidak ditemukan.")))
+                    except Exception as exc:  # noqa: BLE001
+                        logger.exception("action=mobile_chat_stream_failed | sid=%s", session_id)
+                        frame_q.put(("error", ("internal", str(exc)[:200])))
+                    finally:
+                        frame_q.put(_SSE_DONE)
+
+                future = asyncio.run_coroutine_threadsafe(_drive(), loop)
+
+                meta = {"session_id": session_id, "message_id": str(uuid.uuid4())}
+                if not self._sse_write(f"event: meta\ndata: {json.dumps(meta)}\n\n"):
+                    loop.call_soon_threadsafe(cancel_event.set)
+                    future.cancel()
+                    return
+
+                while True:
+                    try:
+                        item = frame_q.get(timeout=_SSE_HEARTBEAT_SECONDS)
+                    except queue.Empty:
+                        if not self._sse_write(": ping\n\n"):
+                            loop.call_soon_threadsafe(cancel_event.set)
+                            break
+                        continue
+                    if item is _SSE_DONE:
+                        break
+                    kind, data = item
+                    if kind == "token":
+                        frame = f"event: token\ndata: {json.dumps({'delta': data})}\n\n"
+                    elif kind == "done":
+                        frame = "event: done\ndata: {\"finish_reason\":\"stop\"}\n\n"
+                    elif kind == "error":
+                        code, msg = data
+                        frame = (
+                            "event: error\n"
+                            f"data: {json.dumps({'code': code, 'message': msg})}\n\n"
+                        )
+                    else:
+                        continue
+                    if not self._sse_write(frame):
+                        loop.call_soon_threadsafe(cancel_event.set)
+                        break
 
             def _handle_chat_stream(self) -> None:
                 factory = chat_stream_factory_cell[0]

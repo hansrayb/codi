@@ -34,6 +34,21 @@ class _FakeChatRepo implements ChatRepository {
       ),
     );
   }
+
+  @override
+  Future<void> sendStream({
+    required String message,
+    required void Function(String delta) onToken,
+    required void Function() onDone,
+    required void Function(String code, String msg) onError,
+  }) async {
+    // Emit reply per-char untuk simulate streaming.
+    for (final c in _replyText.split('')) {
+      onToken(c);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    onDone();
+  }
 }
 
 Future<void> _pump(WidgetTester tester) {
