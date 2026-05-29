@@ -6,6 +6,7 @@ import '../../../models/chat_message.dart';
 import '../../../providers/token_store.dart';
 import '../../../theme/app_theme.dart';
 import '../application/chat_controller.dart';
+import 'widgets/chat_history_sheet.dart';
 import 'widgets/chat_menu.dart';
 import 'widgets/chat_hero.dart';
 import 'widgets/chat_input.dart';
@@ -159,6 +160,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           ChatMenuButton(
             onNewChat: _confirmNewChat,
+            onHistory: () => showChatHistorySheet(
+              context,
+              (id) =>
+                  ref.read(chatControllerProvider.notifier).loadConversation(id),
+            ),
             onCopy: _copyTranscript,
             onAbout: () => showCodiAboutSheet(context),
           ),

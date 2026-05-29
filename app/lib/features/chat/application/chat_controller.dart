@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../api/api_exception.dart';
 import '../../../api/repositories/chat_repository.dart';
 import '../../../models/chat_message.dart';
 import '../domain/chat_state.dart';
@@ -34,6 +35,21 @@ class ChatController extends Notifier<ChatState> {
     if (state.isSending) return;
     _seq = 0;
     state = build();
+  }
+
+  /// Buka percakapan tersimpan dari Riwayat — muat pesan dari server.
+  Future<void> loadConversation(String conversationId) async {
+    if (state.isSending) return;
+    state = const ChatState(isSending: true);
+    try {
+      final msgs =
+          await ref.read(chatRepositoryProvider).getMessages(conversationId);
+      _seq = msgs.length;
+      state = ChatState(messages: msgs, conversationId: conversationId);
+    } on ApiException catch (e) {
+      _seq = 0;
+      state = ChatState(error: e.message, conversationId: conversationId);
+    }
   }
 
   /// Kirim pesan user → balasan Codi via SSE streaming
@@ -82,6 +98,8 @@ class ChatController extends Notifier<ChatState> {
     final completer = Completer<void>();
     await ref.read(chatRepositoryProvider).sendStream(
           message: trimmed,
+          conversationId: state.conversationId,
+          onMeta: (cid) => state = state.copyWith(conversationId: cid),
           onToken: appendDelta,
           onDone: () {
             if (buffer.isEmpty) {

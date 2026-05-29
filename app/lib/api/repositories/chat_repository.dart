@@ -21,6 +21,23 @@ class ChatReply {
   final String conversationId;
 }
 
+/// Ringkasan satu percakapan tersimpan (`GET /chat/conversations`).
+class ChatConversation {
+  const ChatConversation({
+    required this.id,
+    required this.title,
+    required this.preview,
+    required this.messageCount,
+    this.lastMessageAt,
+  });
+
+  final String id;
+  final String title;
+  final String preview;
+  final int messageCount;
+  final DateTime? lastMessageAt;
+}
+
 /// Akses endpoint chat (`docs/04-API-CONTRACT.md` → Chat).
 class ChatRepository {
   ChatRepository(this._dio);
@@ -140,11 +157,16 @@ class ChatRepository {
     required void Function(String delta) onToken,
     required void Function() onDone,
     required void Function(String code, String msg) onError,
+    String? conversationId,
+    void Function(String conversationId)? onMeta,
   }) async {
     try {
       final res = await _dio.post<ResponseBody>(
         '/chat/messages/stream',
-        data: {'message': message},
+        data: {
+          'message': message,
+          if (conversationId != null) 'conversation_id': conversationId,
+        },
         options: Options(
           responseType: ResponseType.stream,
           receiveTimeout: const Duration(minutes: 5),
@@ -174,6 +196,10 @@ class ChatRepository {
           try {
             final j = jsonDecode(data) as Map<String, dynamic>;
             switch (currentEvent) {
+              case 'meta':
+                final cid = j['conversation_id']?.toString();
+                if (cid != null && cid.isNotEmpty) onMeta?.call(cid);
+                break;
               case 'token':
                 final delta = j['delta']?.toString() ?? '';
                 if (delta.isNotEmpty) onToken(delta);
@@ -198,6 +224,51 @@ class ChatRepository {
       if (!ended) onDone();
     } on DioException catch (e) {
       onError(_errorCode(e), ApiException.fromDio(e).message);
+    }
+  }
+
+  /// Daftar percakapan tersimpan (urut terbaru, server-side).
+  Future<List<ChatConversation>> getConversations() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>('/chat/conversations');
+      final j = res.data ?? const {};
+      return [
+        for (final c in _list(j['conversations']))
+          ChatConversation(
+            id: _obj(c)['id']?.toString() ?? '',
+            title: _obj(c)['title']?.toString() ?? '',
+            preview: _obj(c)['preview']?.toString() ?? '',
+            messageCount: _num(_obj(c)['message_count']).toInt(),
+            lastMessageAt:
+                DateTime.tryParse('${_obj(c)['last_message_at']}')?.toLocal(),
+          ),
+      ];
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Pesan-pesan dalam satu percakapan.
+  Future<List<ChatMessage>> getMessages(String conversationId) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/chat/conversations/$conversationId/messages',
+      );
+      final j = res.data ?? const {};
+      return [
+        for (final m in _list(j['messages']))
+          ChatMessage(
+            id: _obj(m)['id']?.toString() ?? '',
+            sender: _obj(m)['role']?.toString() == 'user'
+                ? MessageSender.user
+                : MessageSender.bot,
+            text: _obj(_obj(m)['content'])['text']?.toString() ?? '',
+            time: DateTime.tryParse('${_obj(m)['timestamp']}')?.toLocal() ??
+                DateTime.now(),
+          ),
+      ];
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
     }
   }
 

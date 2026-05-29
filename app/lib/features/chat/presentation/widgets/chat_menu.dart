@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../../theme/app_theme.dart';
 
-enum _ChatMenu { baru, salin, tentang }
+enum _ChatMenu { baru, riwayat, salin, tentang }
 
-/// Tombol menu `⋯` header chat (Percakapan baru / Salin / Tentang Codi).
+/// Tombol menu `⋯` header chat (Percakapan baru / Riwayat / Salin / Tentang).
 class ChatMenuButton extends StatelessWidget {
   const ChatMenuButton({
     required this.onNewChat,
+    required this.onHistory,
     required this.onCopy,
     required this.onAbout,
     super.key,
   });
 
   final VoidCallback onNewChat;
+  final VoidCallback onHistory;
   final VoidCallback onCopy;
   final VoidCallback onAbout;
 
@@ -32,6 +34,8 @@ class ChatMenuButton extends StatelessWidget {
         switch (v) {
           case _ChatMenu.baru:
             onNewChat();
+          case _ChatMenu.riwayat:
+            onHistory();
           case _ChatMenu.salin:
             onCopy();
           case _ChatMenu.tentang:
@@ -41,6 +45,7 @@ class ChatMenuButton extends StatelessWidget {
       itemBuilder: (context) => [
         _item(context, _ChatMenu.baru, Icons.add_comment_outlined,
             'Percakapan baru'),
+        _item(context, _ChatMenu.riwayat, Icons.history, 'Riwayat percakapan'),
         _item(context, _ChatMenu.salin, Icons.copy_outlined,
             'Salin percakapan'),
         _item(context, _ChatMenu.tentang, Icons.info_outline, 'Tentang Codi'),
@@ -61,7 +66,9 @@ class ChatMenuButton extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: c.inkDim),
           const SizedBox(width: AppSpacing.s12),
-          Text(label, style: AppTypography.bodyM.copyWith(color: c.ink)),
+          Flexible(
+            child: Text(label, style: AppTypography.bodyM.copyWith(color: c.ink)),
+          ),
         ],
       ),
     );

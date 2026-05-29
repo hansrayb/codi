@@ -10,6 +10,7 @@ class ChatState {
     this.suggestions = const [],
     this.isSending = false,
     this.error,
+    this.conversationId,
   });
 
   final List<ChatMessage> messages;
@@ -20,18 +21,27 @@ class ChatState {
 
   final String? error;
 
+  /// ID percakapan server (dari event SSE `meta`). Null = percakapan baru
+  /// belum tersimpan. Dikirim balik tiap pesan agar turn nyambung.
+  final String? conversationId;
+
   ChatState copyWith({
     List<ChatMessage>? messages,
     List<String>? suggestions,
     bool? isSending,
     String? error,
     bool clearError = false,
+    String? conversationId,
+    bool clearConversationId = false,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
       suggestions: suggestions ?? this.suggestions,
       isSending: isSending ?? this.isSending,
       error: clearError ? null : (error ?? this.error),
+      conversationId: clearConversationId
+          ? null
+          : (conversationId ?? this.conversationId),
     );
   }
 }
