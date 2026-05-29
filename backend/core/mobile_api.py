@@ -713,29 +713,17 @@ _MD_HEADING = _re.compile(r"^\s{0,3}#{1,6}\s+", _re.MULTILINE)
 
 
 def _clean_chat_text(raw: str) -> str:
-    """Hilangkan HTML tag Telegram + markdown inline, decode entity,
-    normalize whitespace.
+    """Hilangkan HTML tag Telegram, decode entity, normalize whitespace.
 
-    Output plain text rapi untuk mobile (bubble render Text plain, tak parse
-    HTML/markdown). `<b>X</b>` dan `**X**` jadi `X`.
+    Markdown DIPERTAHANKAN — mobile render via flutter_markdown (bold,
+    heading, table jadi visual). HTML cuma artefak format Telegram, perlu
+    di-strip karena mobile tak render HTML.
     """
     if not raw:
         return raw
-    # 1. HTML cleanup.
     s = _HTML_LINK.sub(r"\1", raw)
     s = _HTML_TAG.sub("", s)
     s = _html.unescape(s)
-    # 2. Markdown cleanup (drop markup, pertahankan content).
-    s = _MD_CODE_FENCE.sub(r"\1", s)
-    s = _MD_LINK.sub(r"\1", s)
-    s = _MD_BOLD.sub(r"\1", s)
-    s = _MD_BOLD_UNDER.sub(r"\1", s)
-    s = _MD_ITALIC.sub(r"\1", s)
-    s = _MD_ITALIC_UNDER.sub(r"\1", s)
-    s = _MD_CODE_INLINE.sub(r"\1", s)
-    s = _MD_STRIKE.sub(r"\1", s)
-    s = _MD_HEADING.sub("", s)
-    # 3. Whitespace normalize.
     s = _MULTI_NEWLINE.sub("\n\n", s)
     s = "\n".join(line.rstrip() for line in s.splitlines())
     return s.strip()

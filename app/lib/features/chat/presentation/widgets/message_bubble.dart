@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../models/chat_message.dart';
@@ -70,15 +71,72 @@ class MessageBubble extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                message.text,
-                style: AppTypography.bodyM.copyWith(
-                  color: context.colors.ink,
-                  fontWeight:
-                      isUser ? FontWeight.w500 : FontWeight.w400,
-                  height: 1.5,
+              if (isUser)
+                Text(
+                  message.text,
+                  style: AppTypography.bodyM.copyWith(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                  ),
+                )
+              else
+                MarkdownBody(
+                  data: message.text,
+                  selectable: true,
+                  shrinkWrap: true,
+                  styleSheet: MarkdownStyleSheet(
+                    p: AppTypography.bodyM.copyWith(
+                      color: context.colors.ink,
+                      height: 1.5,
+                    ),
+                    strong: AppTypography.bodyM.copyWith(
+                      color: context.colors.ink,
+                      fontWeight: FontWeight.w700,
+                      height: 1.5,
+                    ),
+                    em: AppTypography.bodyM.copyWith(
+                      color: context.colors.ink,
+                      fontStyle: FontStyle.italic,
+                      height: 1.5,
+                    ),
+                    h1: AppTypography.headlineS.copyWith(color: context.colors.ink),
+                    h2: AppTypography.headlineS.copyWith(
+                      color: context.colors.ink,
+                      fontSize: 16,
+                    ),
+                    h3: AppTypography.bodyL.copyWith(
+                      color: context.colors.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    listBullet: AppTypography.bodyM.copyWith(
+                      color: context.colors.gold,
+                    ),
+                    code: TextStyle(
+                      fontFamily: 'monospace',
+                      backgroundColor: context.colors.bgInput,
+                      color: context.colors.gold,
+                    ),
+                    codeblockDecoration: BoxDecoration(
+                      color: context.colors.bgInput,
+                      borderRadius: BorderRadius.circular(AppRadius.r8),
+                    ),
+                    blockquote: AppTypography.bodyM.copyWith(
+                      color: context.colors.inkMuted,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    tableHead: AppTypography.bodyS.copyWith(
+                      color: context.colors.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    tableBody: AppTypography.bodyS.copyWith(
+                      color: context.colors.ink,
+                    ),
+                    tableBorder: TableBorder.all(
+                      color: context.colors.line,
+                    ),
+                  ),
                 ),
-              ),
               if (message.card != null) ...[
                 const SizedBox(height: AppSpacing.s8),
                 RichCardView(card: message.card!, onAction: onAction),

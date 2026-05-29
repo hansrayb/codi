@@ -81,21 +81,10 @@ class ChatController extends Notifier<ChatState> {
                 'Maaf, jawaban kosong dari server. Silakan coba lagi.',
               );
             }
-            // Final cleanup: strip markdown yang lolos (** _ # ```).
-            // Selama streaming kita biarkan literal supaya user lihat reply
-            // hidup; di akhir kita rapikan untuk presentasi profesional.
-            final cleaned = _cleanMarkdown(buffer.toString());
-            final msgs = [...state.messages];
-            final idx = msgs.indexWhere((m) => m.id == botId);
-            if (idx >= 0) {
-              msgs[idx] = ChatMessage(
-                id: botMsg.id,
-                sender: MessageSender.bot,
-                text: cleaned,
-                time: botMsg.time,
-              );
-            }
-            state = state.copyWith(messages: msgs, isSending: false);
+            // Markdown dirender visual oleh bubble (flutter_markdown).
+            // Tak perlu strip — biarkan **bold**/#heading/| tabel | jadi
+            // visual proper.
+            state = state.copyWith(isSending: false);
             if (!completer.isCompleted) completer.complete();
           },
           onError: (code, msg) {
@@ -107,59 +96,6 @@ class ChatController extends Notifier<ChatState> {
     return completer.future;
   }
 
-  /// Strip markdown inline (`**bold**`, `*italic*`, `__b__`, `_i_`,
-  /// `` `code` ``, `~~strike~~`, fence `````` ` `````` , heading `#`,
-  /// link `[label](url)`) → plain text. Backend Codi sering balas dgn
-  /// markdown; mobile bubble render `Text` plain jadi tag bocor literal.
-  static String _cleanMarkdown(String raw) {
-    if (raw.isEmpty) return raw;
-    var s = raw;
-    // Code fence ```lang\n...```.
-    s = s.replaceAllMapped(
-      RegExp(r'```[a-zA-Z0-9_+-]*\n?([\s\S]*?)```', multiLine: true),
-      (m) => m.group(1) ?? '',
-    );
-    // Link [label](href) → label.
-    s = s.replaceAllMapped(
-      RegExp(r'\[([^\]]+)\]\([^)]+\)'),
-      (m) => m.group(1) ?? '',
-    );
-    // **bold** / __bold__.
-    s = s.replaceAllMapped(
-      RegExp(r'\*\*([^*\n]+?)\*\*'),
-      (m) => m.group(1) ?? '',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'__([^_\n]+?)__'),
-      (m) => m.group(1) ?? '',
-    );
-    // *italic* / _italic_ (no word-boundary mismatch).
-    s = s.replaceAllMapped(
-      RegExp(r'(?<![*\w])\*([^*\n]+?)\*(?!\w)'),
-      (m) => m.group(1) ?? '',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'(?<![_\w])_([^_\n]+?)_(?!\w)'),
-      (m) => m.group(1) ?? '',
-    );
-    // `inline code`.
-    s = s.replaceAllMapped(
-      RegExp(r'`([^`\n]+?)`'),
-      (m) => m.group(1) ?? '',
-    );
-    // ~~strike~~.
-    s = s.replaceAllMapped(
-      RegExp(r'~~([^~\n]+?)~~'),
-      (m) => m.group(1) ?? '',
-    );
-    // Heading marker `## ` → ''.
-    s = s.replaceAll(RegExp(r'^\s{0,3}#{1,6}\s+', multiLine: true), '');
-    // Collapse 3+ newlines → 2.
-    s = s.replaceAll(RegExp(r'\n{3,}'), '\n\n');
-    // Strip trailing whitespace per line.
-    s = s.split('\n').map((l) => l.trimRight()).join('\n');
-    return s.trim();
-  }
 }
 
 /// Provider state Chat.
