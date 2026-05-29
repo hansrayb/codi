@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../../../theme/app_theme.dart';
 
@@ -25,11 +26,69 @@ class ChatInput extends StatefulWidget {
 }
 
 class _ChatInputState extends State<ChatInput> {
+  final SpeechToText _speech = SpeechToText();
+  bool _speechReady = false;
+  bool _listening = false;
+
+  @override
+  void dispose() {
+    _speech.cancel();
+    super.dispose();
+  }
+
   void _submit() {
     final text = widget.controller.text.trim();
     if (text.isEmpty || !widget.enabled) return;
     widget.onSend(text);
     widget.controller.clear();
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Toggle voice input (speech-to-text id_ID). Hasil transkrip masuk ke
+  /// controller; user bisa edit / kirim manual.
+  Future<void> _toggleMic() async {
+    if (!widget.enabled) return;
+    if (_listening) {
+      await _speech.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+    if (!_speechReady) {
+      _speechReady = await _speech.initialize(
+        onStatus: (s) {
+          if ((s == 'done' || s == 'notListening') && mounted) {
+            setState(() => _listening = false);
+          }
+        },
+        onError: (_) {
+          if (mounted) setState(() => _listening = false);
+        },
+      );
+    }
+    if (!_speechReady) {
+      _snack('Mikrofon atau izin suara tidak tersedia.');
+      return;
+    }
+    setState(() => _listening = true);
+    await _speech.listen(
+      onResult: (r) {
+        widget.controller.text = r.recognizedWords;
+        widget.controller.selection = TextSelection.collapsed(
+          offset: widget.controller.text.length,
+        );
+      },
+      listenOptions: SpeechListenOptions(
+        partialResults: true,
+        cancelOnError: true,
+        localeId: 'id_ID',
+      ),
+    );
   }
 
   @override
@@ -80,14 +139,27 @@ class _ChatInputState extends State<ChatInput> {
                 ),
               ),
             ),
-            // Mic — ghost, non-aktif Phase 1 (voice = Phase 2).
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: Icon(
-                Icons.mic_none,
-                size: 18,
-                color: context.colors.inkDim,
+            // Mic — voice input (speech-to-text). Merah saat mendengarkan.
+            GestureDetector(
+              onTap: _toggleMic,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: _listening
+                    ? BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: context.colors.red.withValues(alpha: 0.15),
+                      )
+                    : null,
+                child: Icon(
+                  _listening ? Icons.mic : Icons.mic_none,
+                  size: 18,
+                  color: _listening
+                      ? context.colors.red
+                      : context.colors.inkDim,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.s4),
