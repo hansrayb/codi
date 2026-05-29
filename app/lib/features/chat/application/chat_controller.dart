@@ -28,6 +28,14 @@ class ChatController extends Notifier<ChatState> {
 
   String _nextId() => 'm${_seq++}';
 
+  /// Mulai percakapan baru — kosongkan pesan, kembalikan suggestion awal.
+  /// No-op saat sedang mengirim.
+  void reset() {
+    if (state.isSending) return;
+    _seq = 0;
+    state = build();
+  }
+
   /// Kirim pesan user → balasan Codi via SSE streaming
   /// (`POST /chat/messages/stream`). Reply bot di-append token-by-token
   /// agar UI terlihat hidup.

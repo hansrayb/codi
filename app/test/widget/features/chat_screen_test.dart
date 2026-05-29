@@ -94,6 +94,58 @@ void main() {
     expect(find.textContaining(_replyText), findsOneWidget);
   });
 
+  testWidgets('tap ⋯ → menu muncul', (tester) async {
+    await _pump(tester);
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // menu anim
+
+    expect(find.text('Percakapan baru'), findsOneWidget);
+    expect(find.text('Salin percakapan'), findsOneWidget);
+    expect(find.text('Tentang Codi'), findsOneWidget);
+  });
+
+  testWidgets('menu → Tentang Codi → sheet', (tester) async {
+    await _pump(tester);
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Tentang Codi'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // sheet anim
+
+    expect(find.text('Penasihat (advisor)'), findsOneWidget);
+  });
+
+  testWidgets('kirim lalu Percakapan baru → kembali ke ChatHero',
+      (tester) async {
+    await _pump(tester);
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'Halo');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(find.byType(ChatHero), findsNothing); // ada pesan
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Percakapan baru'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // confirm dialog
+    await tester.tap(find.text('Mulai baru'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.byType(ChatHero), findsOneWidget); // kosong lagi
+  });
+
   testWidgets('tap suggestion chip → isi input', (tester) async {
     await _pump(tester);
     await tester.pump();

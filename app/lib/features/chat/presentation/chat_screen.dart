@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/chat_message.dart';
 import '../../../providers/token_store.dart';
 import '../../../theme/app_theme.dart';
 import '../application/chat_controller.dart';
+import 'widgets/chat_menu.dart';
 import 'widgets/chat_hero.dart';
 import 'widgets/chat_input.dart';
 import 'widgets/codi_avatar.dart';
@@ -154,18 +157,67 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
             ),
           ),
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(
-              Icons.more_horiz,
-              size: 20,
-              color: context.colors.inkDim,
-            ),
+          ChatMenuButton(
+            onNewChat: _confirmNewChat,
+            onCopy: _copyTranscript,
+            onAbout: () => showCodiAboutSheet(context),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmNewChat() async {
+    final ctrl = ref.read(chatControllerProvider.notifier);
+    final hasMessages = ref.read(chatControllerProvider).messages.isNotEmpty;
+    if (!hasMessages) {
+      ctrl.reset();
+      return;
+    }
+    final c = context.colors;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.bgElev,
+        title: Text('Percakapan baru?', style: AppTypography.headlineS),
+        content: Text(
+          'Percakapan saat ini akan dikosongkan dari layar.',
+          style: AppTypography.bodyM.copyWith(color: c.inkMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mulai baru'),
+          ),
+        ],
+      ),
+    );
+    if (yes == true) ctrl.reset();
+  }
+
+  void _copyTranscript() {
+    final messages = ref.read(chatControllerProvider).messages;
+    if (messages.isEmpty) {
+      _snack('Belum ada percakapan untuk disalin.');
+      return;
+    }
+    final transcript = messages
+        .map((m) =>
+            '${m.sender == MessageSender.user ? 'Saya' : 'Codi'}: ${m.text}')
+        .join('\n\n');
+    Clipboard.setData(ClipboardData(text: transcript));
+    _snack('Percakapan disalin.');
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
   }
 }
 
