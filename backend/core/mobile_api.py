@@ -14,7 +14,10 @@ verifikasi JWT (atau shared-token bootstrap fase A1).
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
+from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import Any, Callable
 
@@ -22,6 +25,8 @@ from core import mobile_metrics
 from core.auth.models import AuthContext
 from core.auth.rbac import AuthError, require_scope
 from core.auth.service import AuthService, AuthServiceError
+from core.hr_client import HRClient, HRClientError
+from core.lumbung_metrics_client import LumbungMetricsError
 
 # Sync chat callable signature: (message, user_id, scope) -> reply text.
 ChatFn = Callable[[str, int, str], str]
@@ -682,15 +687,274 @@ def _fixture_dashboard_insight(period: str) -> JsonResult:
     }
 
 
-def _reports(period: str) -> JsonResult:
-    """Laporan tergenerate Codi. Fixture sampai generator laporan nyata siap.
+_JKT = timezone(timedelta(hours=7))
+_MONTHS_ID = [
+    "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+]
+# Cap how many payroll runs we pre-fetch items for (avoid runaway parallel
+# load if HR ever returns hundreds of historical runs).
+_MAX_PAYROLL_RUNS = 24
 
-    Kontrak: `{ period, groups: [{ label, items: [...] }] }`. Item =
-    `{ title, category, status, created_at (ISO date), meta }`. Filter
-    `period` (`all|month|quarter|year`) mempersempit grup yang dikembalikan
-    server-side (parity dgn mock lama: `month` → cuma grup Terbaru).
-    """
-    return HTTPStatus.OK, _fixture_reports(period)
+
+def _build_hr_client() -> HRClient | None:
+    base = (os.getenv("HR_API_URL") or "").strip()
+    email = (os.getenv("HR_SERVICE_EMAIL") or "").strip()
+    password = (os.getenv("HR_SERVICE_PASSWORD") or "").strip()
+    enabled = (os.getenv("HR_ENABLED", "false") or "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    if not enabled or not base or not email or not password:
+        return None
+    return HRClient(base, email, password)
+
+
+def _month_label_id(year: int, month: int) -> str:
+    if 1 <= month <= 12:
+        return f"{_MONTHS_ID[month]} {year}"
+    return f"{year}-{month:02d}"
+
+
+def _rp(amount: float | int) -> str:
+    return "Rp " + f"{int(amount):,}".replace(",", ".")
+
+
+def _period_cutoff(period: str, now: datetime) -> date | None:
+    """Earliest date to include for ``period``; None for ``all``."""
+    if period == "month":
+        return now.replace(day=1).date()
+    if period == "quarter":
+        y, m = now.year, now.month - 2
+        while m <= 0:
+            m += 12
+            y -= 1
+        return date(y, m, 1)
+    if period == "year":
+        return now.replace(month=1, day=1).date()
+    return None
+
+
+def _classify_group(created_at: str, now: datetime) -> str:
+    try:
+        d = date.fromisoformat(created_at[:10])
+    except (ValueError, IndexError):
+        return "Lebih Lama"
+    if d.year == now.year and d.month == now.month:
+        return "Terbaru"
+    prev_m, prev_y = (now.month - 1, now.year) if now.month > 1 else (12, now.year - 1)
+    if d.year == prev_y and d.month == prev_m:
+        return "Bulan Lalu"
+    return "Lebih Lama"
+
+
+async def _gather_payroll(
+    hr: HRClient, items_out: list[dict[str, Any]], now: datetime, period: str
+) -> int:
+    """Append payroll items to ``items_out``, return total net_pay for current month."""
+    payroll_current_month = 0
+    try:
+        runs = await hr.get_payroll_runs()
+    except HRClientError as exc:
+        logger.warning("hr_get_payroll_runs failed: %s", exc)
+        return 0
+    if not isinstance(runs, list):
+        return 0
+    cutoff = _period_cutoff(period, now)
+
+    async def _fetch(run: dict) -> tuple[dict, list]:
+        try:
+            return run, await hr.get_payroll_items(int(run["id"]))
+        except (HRClientError, KeyError, ValueError) as exc:
+            logger.warning("hr_get_payroll_items run_id=%s failed: %s", run.get("id"), exc)
+            return run, []
+
+    fetched = await asyncio.gather(*[_fetch(r) for r in runs[:_MAX_PAYROLL_RUNS]])
+    for run, run_items in fetched:
+        try:
+            total = sum(float(it.get("net_pay") or 0) for it in run_items)
+            n_emp = len(run_items)
+            year = int(run.get("year") or 0)
+            month = int(run.get("month") or 0)
+            period_start = str(run.get("period_start") or "")[:10]
+            period_end = str(run.get("period_end") or "")[:10]
+            created_at = period_start or str(run.get("created_at") or "")[:10]
+            status = "finalized" if str(run.get("status")) == "finalized" else "draft"
+            # Aggregate payroll_insight BEFORE cutoff — the run for the current
+            # period (e.g. Run 6 / May) may have period_start in the prior month
+            # and get filtered from the list, but it's still the relevant total.
+            if year == now.year and month == now.month:
+                payroll_current_month += int(total)
+            if cutoff and created_at:
+                try:
+                    if date.fromisoformat(created_at) < cutoff:
+                        continue
+                except ValueError:
+                    pass
+            items_out.append({
+                "title": f"Payroll {_month_label_id(year, month)}",
+                "category": "payroll",
+                "status": status,
+                "created_at": created_at,
+                "meta": (
+                    f"{period_start} → {period_end} · {n_emp} karyawan · {_rp(total)}"
+                ),
+            })
+        except (TypeError, ValueError) as exc:
+            logger.warning("payroll run shape unexpected: %s", exc)
+    return payroll_current_month
+
+
+async def _gather_attendance(
+    hr: HRClient, items_out: list[dict[str, Any]], now: datetime, period: str
+) -> None:
+    """Append per-month attendance recap items."""
+    cutoff = _period_cutoff(period, now) or date(now.year - 1, 1, 1)
+    from_date = cutoff.isoformat()
+    to_date = now.date().isoformat()
+    try:
+        rows = await hr.get_attendance_summary(from_date, to_date)
+    except HRClientError as exc:
+        logger.warning("hr_attendance failed: %s", exc)
+        return
+    if not isinstance(rows, list):
+        return
+    buckets: dict[tuple[int, int], dict[str, Any]] = {}
+    for row in rows:
+        d_str = str(row.get("attendance_date") or "")[:10]
+        if not d_str:
+            continue
+        try:
+            d = date.fromisoformat(d_str)
+        except ValueError:
+            continue
+        key = (d.year, d.month)
+        b = buckets.setdefault(key, {"users": set(), "records": 0, "min": d, "max": d})
+        if row.get("user_id") is not None:
+            b["users"].add(row["user_id"])
+        b["records"] += 1
+        if d < b["min"]:
+            b["min"] = d
+        if d > b["max"]:
+            b["max"] = d
+    for (year, month), b in sorted(buckets.items(), reverse=True):
+        items_out.append({
+            "title": f"Rekap Absensi {_month_label_id(year, month)}",
+            "category": "absensi",
+            "status": "finalized",
+            "created_at": b["max"].isoformat(),
+            "meta": (
+                f"{len(b['users'])} karyawan · {b['records']} record · "
+                f"{b['min'].isoformat()} → {b['max'].isoformat()}"
+            ),
+        })
+
+
+def _gather_omzet(items_out: list[dict[str, Any]], now: datetime) -> int:
+    """Append current-month omzet item, return revenue.total (0 if unavailable)."""
+    try:
+        summary = mobile_metrics.dashboard_summary("month")
+    except (LumbungMetricsError, Exception) as exc:  # noqa: BLE001
+        logger.warning("lumbung omzet unavailable: %s", exc)
+        return 0
+    revenue = (summary.get("revenue") or {}) if isinstance(summary, dict) else {}
+    total = int(revenue.get("total") or 0)
+    rng = summary.get("period_range") or {} if isinstance(summary, dict) else {}
+    end_date = str(rng.get("end") or now.date().isoformat())[:10]
+    label = summary.get("period_label") if isinstance(summary, dict) else None
+    if not label:
+        label = _month_label_id(now.year, now.month)
+    orders = 0
+    if isinstance(summary, dict):
+        orders = int((summary.get("quick_stats") or {}).get("orders_total") or 0)
+    items_out.append({
+        "title": f"Ringkasan Omzet — {label}",
+        "category": "omzet",
+        "status": "finalized",
+        "created_at": end_date,
+        "meta": f"{_rp(total)} · {orders} order",
+    })
+    return total
+
+
+def _build_payroll_insight(
+    omzet: int, payroll: int, now: datetime
+) -> dict[str, Any] | None:
+    if omzet <= 0 or payroll <= 0:
+        return None
+    ratio_pct = round(payroll / omzet * 100, 1)
+    if ratio_pct < 35:
+        status, advice = (
+            "sehat",
+            "porsi sehat dan masih jauh dari batas waspada (35%).",
+        )
+    elif ratio_pct < 50:
+        status, advice = (
+            "waspada",
+            "porsi mendekati batas — pantau ketat margin operasional.",
+        )
+    else:
+        status, advice = (
+            "kritis",
+            "porsi terlalu besar — review struktur biaya tenaga kerja.",
+        )
+    label = _month_label_id(now.year, now.month)
+    return {
+        "period_label": label,
+        "omzet": omzet,
+        "payroll": payroll,
+        "ratio_pct": ratio_pct,
+        "status": status,
+        "conclusion": (
+            f"Payroll {label} mengambil {ratio_pct}% dari omzet — {advice}"
+        ),
+    }
+
+
+async def _fetch_real_reports(period: str, now: datetime) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    payroll_current = 0
+    hr = _build_hr_client()
+    if hr is not None:
+        payroll_current = await _gather_payroll(hr, items, now, period)
+        await _gather_attendance(hr, items, now, period)
+    omzet_total = _gather_omzet(items, now)
+
+    insight = _build_payroll_insight(omzet_total, payroll_current, now)
+
+    buckets: dict[str, list[dict[str, Any]]] = {
+        "Terbaru": [], "Bulan Lalu": [], "Lebih Lama": [],
+    }
+    for it in items:
+        buckets[_classify_group(it["created_at"], now)].append(it)
+    for k in buckets:
+        buckets[k].sort(key=lambda x: x.get("created_at") or "", reverse=True)
+
+    groups: list[dict[str, Any]] = []
+    if buckets["Terbaru"]:
+        groups.append({"label": "Terbaru", "items": buckets["Terbaru"]})
+    if buckets["Bulan Lalu"] and period != "month":
+        groups.append({"label": "Bulan Lalu", "items": buckets["Bulan Lalu"]})
+    if buckets["Lebih Lama"] and period in ("year", "all"):
+        groups.append({"label": "Lebih Lama", "items": buckets["Lebih Lama"]})
+
+    result: dict[str, Any] = {"period": period, "groups": groups}
+    if insight is not None:
+        result["payroll_insight"] = insight
+    return result
+
+
+def _reports(period: str) -> JsonResult:
+    """Real data via HR + Lumbung; fallback ke fixture bila keduanya tak terjangkau."""
+    try:
+        now = datetime.now(_JKT)
+        result = asyncio.run(_fetch_real_reports(period, now))
+        if not result.get("groups") and "payroll_insight" not in result:
+            logger.warning("reports real path yielded empty result; serving fixture")
+            return HTTPStatus.OK, _fixture_reports(period)
+        return HTTPStatus.OK, result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("reports real path failed: %s — serving fixture", exc)
+        return HTTPStatus.OK, _fixture_reports(period)
 
 
 def _fixture_reports(period: str) -> dict[str, Any]:

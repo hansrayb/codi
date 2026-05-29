@@ -11,6 +11,15 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+# Cloudflare Bot Fight Mode drops urllib's default UA; mirror the browser-like
+# header set used by mcp_codi_server._http (which already lolos in production).
+_BROWSER_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Codi-HR/1.0"
+)
+_AUTH_TIMEOUT = 60
+_REQUEST_TIMEOUT = 60
+
 
 class HRClientError(Exception):
     """Raised when an HR API call fails."""
@@ -33,15 +42,20 @@ class HRClient:
         with self._lock:
             if self._token and time.time() < self._token_expiry:
                 return self._token
-            payload = json.dumps({"email": self._email, "password": self._password}).encode()
+            # HR backend field name is `username` (value is the service email).
+            payload = json.dumps({"username": self._email, "password": self._password}).encode()
             req = urllib.request.Request(
                 f"{self._base_url}/api/auth/login",
                 data=payload,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": _BROWSER_UA,
+                },
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=_AUTH_TIMEOUT) as resp:
                     data = json.loads(resp.read())
             except urllib.error.HTTPError as exc:
                 raise HRClientError(f"HR auth failed: {exc.code} {exc.reason}") from exc
@@ -57,12 +71,16 @@ class HRClient:
         token = self._get_token()
         url = f"{self._base_url}{path}"
         data = json.dumps(body).encode() if body is not None else None
-        headers: dict[str, str] = {"Authorization": f"Bearer {token}"}
+        headers: dict[str, str] = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "User-Agent": _BROWSER_UA,
+        }
         if data:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as exc:
             body_text = exc.read().decode(errors="replace")
@@ -85,10 +103,12 @@ class HRClient:
         return result if isinstance(result, list) else result.get("items", result)
 
     async def get_attendance_summary(self, from_date: str, to_date: str, employee_id: str = "") -> Any:
+        # HR backend serves daily attendance rows at /api/attendance (no /summary
+        # endpoint). Caller aggregates client-side when a summary is needed.
         params = {"from_date": from_date, "to_date": to_date}
         if employee_id:
             params["employee_id"] = employee_id
-        path = "/api/attendance/summary?" + urllib.parse.urlencode(params)
+        path = "/api/attendance?" + urllib.parse.urlencode(params)
         return await self._async("GET", path)
 
     async def get_payroll_runs(self, year: int | None = None, month: int | None = None) -> list:
@@ -98,7 +118,8 @@ class HRClient:
         return result if isinstance(result, list) else result.get("items", result)
 
     async def get_payroll_items(self, run_id: int) -> list:
-        result = await self._async("GET", f"/api/payroll/runs/{run_id}/items")
+        # HR backend returns the items list directly on the run detail path.
+        result = await self._async("GET", f"/api/payroll/runs/{run_id}")
         return result if isinstance(result, list) else result.get("items", result)
 
     async def get_leave_requests(self, status: str = "", employee_id: str = "") -> list:
