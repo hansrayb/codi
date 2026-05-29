@@ -122,8 +122,22 @@ class MessageBubble extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.r8),
                     ),
                     blockquote: AppTypography.bodyM.copyWith(
-                      color: context.colors.inkMuted,
-                      fontStyle: FontStyle.italic,
+                      color: context.colors.ink,
+                      height: 1.5,
+                    ),
+                    blockquoteDecoration: BoxDecoration(
+                      color: context.colors.bgInput,
+                      border: Border(
+                        left: BorderSide(
+                          color: context.colors.gold,
+                          width: 3,
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.r8),
+                    ),
+                    blockquotePadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s12,
+                      vertical: AppSpacing.s8,
                     ),
                     tableHead: AppTypography.bodyS.copyWith(
                       color: context.colors.ink,
