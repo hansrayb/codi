@@ -1,4 +1,4 @@
-// Widget test Laporan (S5) — mock data via controller (delay 700ms).
+// Widget test Laporan (S5) — fake ReportsRepository via override.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,15 +6,60 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:emas_berlian_insight/theme/app_theme.dart';
+import 'package:emas_berlian_insight/api/repositories/reports_repository.dart';
+import 'package:emas_berlian_insight/models/report_item.dart';
 import 'package:emas_berlian_insight/features/reports/presentation/reports_screen.dart';
 import 'package:emas_berlian_insight/features/reports/presentation/widgets/report_card.dart';
 import 'package:emas_berlian_insight/features/reports/presentation/widgets/report_filter_bar.dart';
 import 'package:emas_berlian_insight/features/shell/presentation/widgets/bottom_nav.dart';
 import 'package:emas_berlian_insight/widgets/emas_loading.dart';
 
+ReportItem _item(String title, ReportCategory cat, ReportStatus st) =>
+    ReportItem(
+      title: title,
+      category: cat,
+      status: st,
+      createdAt: DateTime(2026, 5, 17),
+      meta: '17 Mei 2026 · 4 hal',
+    );
+
+/// Fake repo: `bulanIni` → cuma grup Terbaru (3 card), lainnya 5 card.
+class _FakeReportsRepo implements ReportsRepository {
+  @override
+  Future<List<ReportGroup>> getReports(ReportFilter filter) async {
+    // Delay kecil agar frame loading (skeleton) teramati di test.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final terbaru = ReportGroup(
+      label: 'Terbaru',
+      items: [
+        _item('Ringkasan Omzet — Mei 2026', ReportCategory.omzet,
+            ReportStatus.finalized),
+        _item('Payroll Run — Mei 2026', ReportCategory.payroll,
+            ReportStatus.draft),
+        _item('Rekap Absensi — Mei 2026', ReportCategory.absensi,
+            ReportStatus.finalized),
+      ],
+    );
+    if (filter == ReportFilter.bulanIni) return [terbaru];
+    final bulanLalu = ReportGroup(
+      label: 'Bulan Lalu',
+      items: [
+        _item('Ringkasan Omzet — April 2026', ReportCategory.omzet,
+            ReportStatus.finalized),
+        _item('Payroll Run — April 2026', ReportCategory.payroll,
+            ReportStatus.finalized),
+      ],
+    );
+    return [terbaru, bulanLalu];
+  }
+}
+
 Future<void> _pump(WidgetTester tester) {
   return tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        reportsRepositoryProvider.overrideWithValue(_FakeReportsRepo()),
+      ],
       child: MaterialApp(
         theme: AppTheme.darkTheme,
         home: const ReportsScreen(),
@@ -24,9 +69,9 @@ Future<void> _pump(WidgetTester tester) {
 }
 
 Future<void> _settle(WidgetTester tester) async {
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 800));
-  await tester.pump(const Duration(milliseconds: 16));
+  await tester.pump(); // build, loading
+  await tester.pump(const Duration(milliseconds: 100)); // fake repo delay
+  await tester.pump(const Duration(milliseconds: 16)); // 1 frame
 }
 
 void main() {
@@ -40,7 +85,7 @@ void main() {
 
     expect(find.byType(EmasSkeleton), findsWidgets);
 
-    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 16));
   });
 
@@ -66,7 +111,7 @@ void main() {
 
     await tester.tap(find.text('Bulan Ini'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 800)); // reload
+    await tester.pump(const Duration(milliseconds: 100)); // reload
     await tester.pump(const Duration(milliseconds: 16));
 
     // Filter bulanIni → cuma grup Terbaru (3 card), Bulan Lalu hilang.

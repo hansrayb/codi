@@ -102,6 +102,9 @@ def _dispatch(
     if method == "GET" and path == "/dashboard/insight":
         require_scope(auth_ctx, "insight:read")
         return _dashboard_insight(query.get("period", "month"))
+    if method == "GET" and path == "/reports":
+        require_scope(auth_ctx, "reports:read")
+        return _reports(query.get("period", "all"))
     if method == "POST" and path == "/chat/messages":
         require_scope(auth_ctx, "chat:use")
         return _chat_messages(body, chat_fn)
@@ -677,6 +680,67 @@ def _fixture_dashboard_insight(period: str) -> JsonResult:
             "metadata": {"data_points": 12, "sources_count": 4, "confidence": "high"},
         },
     }
+
+
+def _reports(period: str) -> JsonResult:
+    """Laporan tergenerate Codi. Fixture sampai generator laporan nyata siap.
+
+    Kontrak: `{ period, groups: [{ label, items: [...] }] }`. Item =
+    `{ title, category, status, created_at (ISO date), meta }`. Filter
+    `period` (`all|month|quarter|year`) mempersempit grup yang dikembalikan
+    server-side (parity dgn mock lama: `month` → cuma grup Terbaru).
+    """
+    return HTTPStatus.OK, _fixture_reports(period)
+
+
+def _fixture_reports(period: str) -> dict[str, Any]:
+    terbaru = {
+        "label": "Terbaru",
+        "items": [
+            {
+                "title": "Ringkasan Omzet — Mei 2026",
+                "category": "omzet",
+                "status": "finalized",
+                "created_at": "2026-05-17",
+                "meta": "17 Mei 2026 · 4 hal",
+            },
+            {
+                "title": "Payroll Run — Mei 2026",
+                "category": "payroll",
+                "status": "draft",
+                "created_at": "2026-05-15",
+                "meta": "15 Mei 2026 · 22 karyawan · Rp 159 jt",
+            },
+            {
+                "title": "Rekap Absensi — Mei 2026",
+                "category": "absensi",
+                "status": "finalized",
+                "created_at": "2026-05-14",
+                "meta": "14 Mei 2026 · 22 karyawan",
+            },
+        ],
+    }
+    bulan_lalu = {
+        "label": "Bulan Lalu",
+        "items": [
+            {
+                "title": "Ringkasan Omzet — April 2026",
+                "category": "omzet",
+                "status": "finalized",
+                "created_at": "2026-04-30",
+                "meta": "30 Apr 2026 · 3 hal",
+            },
+            {
+                "title": "Payroll Run — April 2026",
+                "category": "payroll",
+                "status": "finalized",
+                "created_at": "2026-04-16",
+                "meta": "16 Apr 2026 · 22 karyawan · Rp 154 jt",
+            },
+        ],
+    }
+    groups = [terbaru] if period == "month" else [terbaru, bulan_lalu]
+    return {"period": period, "groups": groups}
 
 
 # ── Chat ────────────────────────────────────────────────────────────

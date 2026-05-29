@@ -57,6 +57,36 @@ def test_dashboard_insight_shape():
     assert len(p["ai_analysis"]["sections"]) == 3
 
 
+_REPORTS_CTX = AuthContext(
+    account_id="acc_test",
+    email="test@codi",
+    role_slug="director",
+    scopes=("reports:read",),
+    is_bootstrap=False,
+)
+
+
+def test_reports_shape():
+    status, p = mobile_handle(
+        "GET", "/reports", {"period": "all"}, None,
+        auth_ctx=_REPORTS_CTX, auth_service=None,
+    )
+    assert status == HTTPStatus.OK
+    assert p["period"] == "all"
+    assert len(p["groups"]) == 2
+    assert p["groups"][0]["label"] == "Terbaru"
+    assert len(p["groups"][0]["items"]) == 3
+    assert p["groups"][0]["items"][0]["category"] == "omzet"
+
+
+def test_reports_period_month_narrows():
+    _, p = mobile_handle(
+        "GET", "/reports", {"period": "month"}, None,
+        auth_ctx=_REPORTS_CTX, auth_service=None,
+    )
+    assert len(p["groups"]) == 1
+
+
 def test_chat_messages_returns_reply():
     p = _ok("POST", "/chat/messages", body={"message": "halo"})
     assert p["role"] == "assistant"
