@@ -10,23 +10,26 @@ final _conversationsProvider =
   return ref.read(chatRepositoryProvider).getConversations();
 });
 
-/// Sheet Riwayat percakapan. Pilih satu → [onSelect] dengan conversation id.
+/// Sheet Riwayat percakapan. Pilih satu → [onSelect] dengan conversation id;
+/// hapus satu → [onDeleted] (mis. reset kalau percakapan aktif terhapus).
 Future<void> showChatHistorySheet(
   BuildContext context,
-  void Function(String conversationId) onSelect,
-) {
+  void Function(String conversationId) onSelect, {
+  void Function(String conversationId)? onDeleted,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _HistoryBody(onSelect: onSelect),
+    builder: (_) => _HistoryBody(onSelect: onSelect, onDeleted: onDeleted),
   );
 }
 
 class _HistoryBody extends ConsumerWidget {
-  const _HistoryBody({required this.onSelect});
+  const _HistoryBody({required this.onSelect, this.onDeleted});
 
   final void Function(String conversationId) onSelect;
+  final void Function(String conversationId)? onDeleted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -104,12 +107,19 @@ class _HistoryBody extends ConsumerWidget {
                           children: [
                             for (var i = 0; i < convs.length; i++) ...[
                               if (i > 0) const SizedBox(height: AppSpacing.s8),
-                              _ConvTile(
-                                conv: convs[i],
-                                onTap: () {
-                                  Navigator.of(context).pop();
-                                  onSelect(convs[i].id);
-                                },
+                              Dismissible(
+                                key: ValueKey(convs[i].id),
+                                direction: DismissDirection.endToStart,
+                                background: const _DeleteBg(),
+                                confirmDismiss: (_) =>
+                                    _confirmDelete(context, ref, convs[i]),
+                                child: _ConvTile(
+                                  conv: convs[i],
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                    onSelect(convs[i].id);
+                                  },
+                                ),
                               ),
                             ],
                           ],
@@ -120,6 +130,68 @@ class _HistoryBody extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<bool> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    ChatConversation conv,
+  ) async {
+    final c = context.colors;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.bgElev,
+        title: Text('Hapus percakapan?', style: AppTypography.headlineS),
+        content: Text(
+          '"${conv.title.isNotEmpty ? conv.title : 'Percakapan'}" akan '
+          'dihapus permanen beserta konteksnya.',
+          style: AppTypography.bodyM.copyWith(color: c.inkMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Hapus', style: TextStyle(color: c.red)),
+          ),
+        ],
+      ),
+    );
+    if (yes != true) return false;
+    try {
+      await ref.read(chatRepositoryProvider).deleteConversation(conv.id);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Gagal menghapus.')));
+      }
+      return false;
+    }
+    ref.invalidate(_conversationsProvider);
+    onDeleted?.call(conv.id);
+    return true;
+  }
+}
+
+class _DeleteBg extends StatelessWidget {
+  const _DeleteBg();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
+      decoration: BoxDecoration(
+        color: c.red.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppRadius.r12),
+      ),
+      child: Icon(Icons.delete_outline, color: c.red, size: 20),
     );
   }
 }

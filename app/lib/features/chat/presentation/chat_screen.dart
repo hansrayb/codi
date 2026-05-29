@@ -164,6 +164,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               context,
               (id) =>
                   ref.read(chatControllerProvider.notifier).loadConversation(id),
+              onDeleted: (id) {
+                if (ref.read(chatControllerProvider).conversationId == id) {
+                  ref.read(chatControllerProvider.notifier).reset();
+                }
+              },
             ),
             onCopy: _copyTranscript,
             onAbout: () => showCodiAboutSheet(context),

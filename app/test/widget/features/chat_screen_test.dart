@@ -68,6 +68,13 @@ class _FakeChatRepo implements ChatRepository {
     ];
   }
 
+  final deleted = <String>[];
+
+  @override
+  Future<void> deleteConversation(String conversationId) async {
+    deleted.add(conversationId);
+  }
+
   @override
   Future<List<ChatMessage>> getMessages(String conversationId) async {
     await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -88,11 +95,11 @@ class _FakeChatRepo implements ChatRepository {
   }
 }
 
-Future<void> _pump(WidgetTester tester) {
+Future<void> _pump(WidgetTester tester, {_FakeChatRepo? repo}) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
-        chatRepositoryProvider.overrideWithValue(_FakeChatRepo()),
+        chatRepositoryProvider.overrideWithValue(repo ?? _FakeChatRepo()),
         tokenStoreProvider.overrideWithValue(FakeTokenStore()),
       ],
       child: MaterialApp(
@@ -216,6 +223,35 @@ void main() {
       find.textContaining('Balasan tersimpan dari riwayat'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Riwayat → swipe item → konfirmasi → hapus', (tester) async {
+    final repo = _FakeChatRepo();
+    await _pump(tester, repo: repo);
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Riwayat percakapan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 50)); // fetch convs
+
+    // Swipe item ke kiri (endToStart) → confirmDismiss dialog.
+    await tester.drag(
+      find.text('Kondisi operasional Mei'),
+      const Offset(-400, 0),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Hapus percakapan?'), findsOneWidget);
+    await tester.tap(find.text('Hapus'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(repo.deleted, contains('conv_fake_1'));
   });
 
   testWidgets('tap suggestion chip → isi input', (tester) async {

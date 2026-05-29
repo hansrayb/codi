@@ -272,6 +272,17 @@ class ChatRepository {
     }
   }
 
+  /// Hapus satu percakapan tersimpan (`DELETE /chat/conversations/<id>`).
+  Future<void> deleteConversation(String conversationId) async {
+    try {
+      await _dio.delete<Map<String, dynamic>>(
+        '/chat/conversations/$conversationId',
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   String _errorCode(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
