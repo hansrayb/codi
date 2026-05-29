@@ -259,6 +259,182 @@ def test_reports_payroll_insight_absent_without_omzet(_patch_reports_realpath):
     assert "payroll_insight" not in p
 
 
+def test_reports_items_have_detail_ref(_patch_reports_realpath):
+    runs, items_by_run = _make_runs_with_current_month_payroll(200_000_000)
+    hr = _FakeHRClient(runs=runs, items_by_run=items_by_run, attendance=[])
+    _patch_reports_realpath(hr=hr, omzet_total=1_000_000_000)
+    _, p = mobile_handle(
+        "GET", "/reports", {"period": "all"}, None,
+        auth_ctx=_REPORTS_CTX, auth_service=None,
+    )
+    refs = [it.get("detail_ref") for g in p["groups"] for it in g["items"]]
+    assert all(r and ":" in r for r in refs), refs
+    # Payroll ref shape "payroll:<int>", omzet "omzet:YYYY-MM".
+    assert any(r.startswith("payroll:") for r in refs)
+    assert any(r.startswith("omzet:") for r in refs)
+
+
+# ── /reports/detail ─────────────────────────────────────────────────────
+
+
+_PAYROLL_RUN_FIXTURE = {
+    "id": 6,
+    "year": 2026,
+    "month": 5,
+    "period_start": "2026-04-26",
+    "period_end": "2026-05-25",
+    "status": "finalized",
+    "created_at": "2026-04-26T00:00:00+00:00",
+}
+
+_PAYROLL_ITEMS_FIXTURE = [
+    {"id": 1, "run_id": 6, "employee_id": "108", "employee_name": "Aan Hendralio",
+     "department_name": "HRGA", "position_name": "Supervisor", "net_pay": 7114351},
+    {"id": 2, "run_id": 6, "employee_id": "109", "employee_name": "Budi Santoso",
+     "department_name": "Operasional", "position_name": "Staff", "net_pay": 5230000},
+    {"id": 3, "run_id": 6, "employee_id": "110", "employee_name": "Citra Dewi",
+     "department_name": "Finance", "position_name": "Manager", "net_pay": 8500000},
+]
+
+
+def _detail(ref: str, *, expect_status=HTTPStatus.OK):
+    status, p = mobile_handle(
+        "GET", "/reports/detail", {"ref": ref}, None,
+        auth_ctx=_REPORTS_CTX, auth_service=None,
+    )
+    assert status == expect_status, (ref, status, p)
+    return p
+
+
+def test_reports_detail_payroll_shape(monkeypatch):
+    hr = _FakeHRClient(
+        runs=[_PAYROLL_RUN_FIXTURE],
+        items_by_run={6: _PAYROLL_ITEMS_FIXTURE},
+    )
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: hr)
+    p = _detail("payroll:6")
+    assert p["ref"] == "payroll:6"
+    assert p["category"] == "payroll"
+    assert p["status"] == "finalized"
+    assert "Mei 2026" in p["title"]
+    summary_labels = {row["label"] for row in p["summary"]}
+    assert {"Periode", "Karyawan", "Total Net", "Status"} <= summary_labels
+    # rows sorted by net_pay desc → Citra (8.5jt) first.
+    assert p["rows"][0]["label"] == "Citra Dewi"
+    assert "Rp 8.500.000" in p["rows"][0]["value"]
+    assert p["rows"][0]["sub"] == "Finance"
+
+
+def test_reports_detail_payroll_run_not_found_404(monkeypatch):
+    hr = _FakeHRClient(runs=[_PAYROLL_RUN_FIXTURE], items_by_run={6: _PAYROLL_ITEMS_FIXTURE})
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: hr)
+    _detail("payroll:999", expect_status=HTTPStatus.NOT_FOUND)
+
+
+def test_reports_detail_payroll_hr_unavailable(monkeypatch):
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: None)
+    p = _detail("payroll:6")
+    # Graceful: summary + rows[1] note row.
+    assert p["category"] == "payroll"
+    assert p["rows"]
+    assert "HR backend" in p["summary"][0]["value"]
+
+
+def test_reports_detail_absensi_shape(monkeypatch):
+    attendance = [
+        {"user_id": 108, "user_name": "Aan", "attendance_date": "2026-05-02", "status": "PRESENT"},
+        {"user_id": 108, "user_name": "Aan", "attendance_date": "2026-05-03", "status": "LATE"},
+        {"user_id": 108, "user_name": "Aan", "attendance_date": "2026-05-04", "status": "PRESENT"},
+        {"user_id": 109, "user_name": "Budi", "attendance_date": "2026-05-02", "status": "PRESENT"},
+        {"user_id": 109, "user_name": "Budi", "attendance_date": "2026-05-03", "status": "ABSENT"},
+    ]
+    hr = _FakeHRClient(runs=[], items_by_run={}, attendance=attendance)
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: hr)
+    p = _detail("absensi:2026-05")
+    assert p["ref"] == "absensi:2026-05"
+    assert p["category"] == "absensi"
+    assert "Mei 2026" in p["title"]
+    assert len(p["rows"]) == 2
+    # rows sorted by name asc → Aan before Budi.
+    assert p["rows"][0]["label"] == "Aan"
+    assert "Hadir: 2" in p["rows"][0]["sub"]
+    assert "Telat: 1" in p["rows"][0]["sub"]
+    assert "Alpa: 1" in p["rows"][1]["sub"]
+
+
+def test_reports_detail_absensi_hr_unavailable(monkeypatch):
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: None)
+    p = _detail("absensi:2026-05")
+    assert p["category"] == "absensi"
+    assert "Mei 2026" in p["title"]
+    assert p["summary"][0]["label"] == "Status"
+    assert "HR backend" in p["summary"][0]["value"]
+
+
+def test_reports_detail_omzet_shape(monkeypatch):
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: None)
+
+    def _summary(_p):
+        return {
+            "period": "month",
+            "period_label": "Mei 2026",
+            "revenue": {"total": 1_000_000_000},
+            "quick_stats": {"orders_total": 50},
+        }
+
+    def _insight(_p):
+        return {
+            "kpis": [
+                {"key": "revenue_total", "label": "Omzet Total",
+                 "value": 1_000_000_000, "unit": "IDR", "delta_label": "+10% MoM"},
+                {"key": "orders_settled", "label": "Order Settled",
+                 "value": 50, "unit": "tx", "delta_label": "30 retail · 20 rotasi"},
+            ],
+            "composition": {
+                "total": 1_000_000_000,
+                "segments": [
+                    {"label": "Penjualan Emas", "value": 700_000_000, "pct": 70.0},
+                    {"label": "Rotasi Masuk", "value": 300_000_000, "pct": 30.0},
+                ],
+            },
+        }
+
+    monkeypatch.setattr(mobile_api.mobile_metrics, "dashboard_summary", _summary)
+    monkeypatch.setattr(mobile_api.mobile_metrics, "dashboard_insight", _insight)
+    p = _detail("omzet:2026-05")
+    assert p["ref"] == "omzet:2026-05"
+    assert p["category"] == "omzet"
+    assert "Mei 2026" in p["title"]
+    summary_labels = [s["label"] for s in p["summary"]]
+    assert summary_labels == ["Periode", "Total Omzet", "Order"]
+    assert any("Rp 1.000.000.000" in s["value"] for s in p["summary"])
+    # rows: 2 composition + 2 KPI
+    assert any(r["label"] == "Penjualan Emas" and "Rp 700.000.000" in r["value"] for r in p["rows"])
+    assert any(r["label"] == "Order Settled" and r["value"] == "50 tx" for r in p["rows"])
+
+
+def test_reports_detail_omzet_lumbung_unavailable(monkeypatch):
+    monkeypatch.setattr(mobile_api, "_build_hr_client", lambda: None)
+    from core.lumbung_metrics_client import LumbungMetricsError
+
+    def _raise(_p):
+        raise LumbungMetricsError("down")
+
+    monkeypatch.setattr(mobile_api.mobile_metrics, "dashboard_summary", _raise)
+    p = _detail("omzet:2026-05")
+    assert p["category"] == "omzet"
+    assert "Lumbung" in p["summary"][0]["value"]
+
+
+def test_reports_detail_invalid_ref_returns_404():
+    _detail("", expect_status=HTTPStatus.NOT_FOUND)
+    _detail("no_colon", expect_status=HTTPStatus.NOT_FOUND)
+    _detail("unknown:foo", expect_status=HTTPStatus.NOT_FOUND)
+    _detail("payroll:not-int", expect_status=HTTPStatus.NOT_FOUND)
+    _detail("absensi:2026-13", expect_status=HTTPStatus.NOT_FOUND)
+    _detail("omzet:bad-key", expect_status=HTTPStatus.NOT_FOUND)
+
+
 def test_chat_messages_returns_reply():
     p = _ok("POST", "/chat/messages", body={"message": "halo"})
     assert p["role"] == "assistant"

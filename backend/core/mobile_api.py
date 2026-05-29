@@ -110,6 +110,9 @@ def _dispatch(
     if method == "GET" and path == "/reports":
         require_scope(auth_ctx, "reports:read")
         return _reports(query.get("period", "all"))
+    if method == "GET" and path == "/reports/detail":
+        require_scope(auth_ctx, "reports:read")
+        return _reports_detail(query.get("ref", ""))
     if method == "POST" and path == "/chat/messages":
         require_scope(auth_ctx, "chat:use")
         return _chat_messages(body, chat_fn)
@@ -798,6 +801,7 @@ async def _gather_payroll(
                 "meta": (
                     f"{period_start} → {period_end} · {n_emp} karyawan · {_rp(total)}"
                 ),
+                "detail_ref": f"payroll:{int(run['id'])}",
             })
         except (TypeError, ValueError) as exc:
             logger.warning("payroll run shape unexpected: %s", exc)
@@ -846,6 +850,7 @@ async def _gather_attendance(
                 f"{len(b['users'])} karyawan · {b['records']} record · "
                 f"{b['min'].isoformat()} → {b['max'].isoformat()}"
             ),
+            "detail_ref": f"absensi:{year:04d}-{month:02d}",
         })
 
 
@@ -866,12 +871,18 @@ def _gather_omzet(items_out: list[dict[str, Any]], now: datetime) -> int:
     orders = 0
     if isinstance(summary, dict):
         orders = int((summary.get("quick_stats") or {}).get("orders_total") or 0)
+    # Use end_date's month for the detail ref; fall back to current month.
+    try:
+        ref_date = date.fromisoformat(end_date)
+    except ValueError:
+        ref_date = now.date()
     items_out.append({
         "title": f"Ringkasan Omzet — {label}",
         "category": "omzet",
         "status": "finalized",
         "created_at": end_date,
         "meta": f"{_rp(total)} · {orders} order",
+        "detail_ref": f"omzet:{ref_date.year:04d}-{ref_date.month:02d}",
     })
     return total
 
@@ -955,6 +966,263 @@ def _reports(period: str) -> JsonResult:
     except Exception as exc:  # noqa: BLE001
         logger.warning("reports real path failed: %s — serving fixture", exc)
         return HTTPStatus.OK, _fixture_reports(period)
+
+
+# ── /reports/detail ────────────────────────────────────────────────────────
+
+
+def _detail_unavailable(
+    ref: str, category: str, title: str, note: str
+) -> dict[str, Any]:
+    """Build a partial detail response when the underlying source is down."""
+    return {
+        "ref": ref,
+        "category": category,
+        "title": title,
+        "status": "finalized",
+        "summary": [{"label": "Status", "value": note}],
+        "rows": [{"label": note, "sub": "", "value": ""}],
+    }
+
+
+def _month_range(year: int, month: int) -> tuple[date, date]:
+    start = date(year, month, 1)
+    next_year, next_month = (year, month + 1) if month < 12 else (year + 1, 1)
+    end = date(next_year, next_month, 1) - timedelta(days=1)
+    return start, end
+
+
+async def _detail_payroll(ref: str, run_id: int) -> dict[str, Any] | None:
+    hr = _build_hr_client()
+    if hr is None:
+        return _detail_unavailable(
+            ref, "payroll", f"Payroll #{run_id}", "HR backend belum dikonfigurasi.",
+        )
+    try:
+        runs = await hr.get_payroll_runs()
+    except HRClientError as exc:
+        logger.warning("payroll detail get_payroll_runs failed: %s", exc)
+        return _detail_unavailable(
+            ref, "payroll", f"Payroll #{run_id}", "Data payroll tidak tersedia.",
+        )
+    run = next((r for r in runs if int(r.get("id") or 0) == run_id), None)
+    if run is None:
+        return None  # → 404
+    try:
+        items = await hr.get_payroll_items(run_id)
+    except HRClientError as exc:
+        logger.warning("payroll detail get_payroll_items failed: %s", exc)
+        items = []
+    year = int(run.get("year") or 0)
+    month = int(run.get("month") or 0)
+    period_start = str(run.get("period_start") or "")[:10]
+    period_end = str(run.get("period_end") or "")[:10]
+    status = "finalized" if str(run.get("status")) == "finalized" else "draft"
+    title = f"Payroll {_month_label_id(year, month)}"
+    total = sum(float(it.get("net_pay") or 0) for it in items)
+    summary = [
+        {"label": "Periode", "value": f"{period_start} → {period_end}"},
+        {"label": "Karyawan", "value": f"{len(items)} orang"},
+        {"label": "Total Net", "value": _rp(total)},
+        {"label": "Status", "value": "Finalized" if status == "finalized" else "Draft"},
+    ]
+    rows = []
+    for it in items:
+        net = float(it.get("net_pay") or 0)
+        rows.append({
+            "label": str(it.get("employee_name") or "—"),
+            "sub": str(it.get("department_name") or it.get("position_name") or "—"),
+            "value": _rp(net),
+            # Stable numeric key for sorting; app may ignore.
+            "_sort": net,
+        })
+    rows.sort(key=lambda r: -r.get("_sort", 0))
+    for r in rows:
+        r.pop("_sort", None)
+    if not rows:
+        rows = [{"label": "Belum ada item payroll.", "sub": "", "value": ""}]
+    return {
+        "ref": ref, "category": "payroll", "title": title, "status": status,
+        "summary": summary, "rows": rows,
+    }
+
+
+async def _detail_absensi(ref: str, year: int, month: int) -> dict[str, Any] | None:
+    if not (1 <= month <= 12):
+        return None
+    title = f"Rekap Absensi {_month_label_id(year, month)}"
+    hr = _build_hr_client()
+    if hr is None:
+        return _detail_unavailable(
+            ref, "absensi", title, "HR backend belum dikonfigurasi.",
+        )
+    start, end = _month_range(year, month)
+    try:
+        rows_raw = await hr.get_attendance_summary(start.isoformat(), end.isoformat())
+    except HRClientError as exc:
+        logger.warning("absensi detail fetch failed: %s", exc)
+        return _detail_unavailable(
+            ref, "absensi", title, "Data absensi tidak tersedia.",
+        )
+    if not isinstance(rows_raw, list):
+        rows_raw = []
+    by_user: dict[Any, dict[str, Any]] = {}
+    total_records = 0
+    for row in rows_raw:
+        uid = row.get("user_id")
+        if uid is None:
+            continue
+        entry = by_user.setdefault(uid, {
+            "name": str(row.get("user_name") or "—"),
+            "counts": {},
+            "records": 0,
+        })
+        entry["records"] += 1
+        total_records += 1
+        st = str(row.get("status") or "").upper() or "UNKNOWN"
+        entry["counts"][st] = entry["counts"].get(st, 0) + 1
+    summary = [
+        {"label": "Periode", "value": f"{start.isoformat()} → {end.isoformat()}"},
+        {"label": "Karyawan", "value": f"{len(by_user)} orang"},
+        {"label": "Total Record", "value": str(total_records)},
+    ]
+    label_map = (
+        ("Hadir", "PRESENT"),
+        ("Telat", "LATE"),
+        ("Alpa", "ABSENT"),
+        ("Izin", "PERMIT"),
+        ("Sakit", "SICK"),
+    )
+    rows: list[dict[str, Any]] = []
+    for entry in by_user.values():
+        parts = []
+        counts = entry["counts"]
+        for lab, key in label_map:
+            if counts.get(key, 0) > 0:
+                parts.append(f"{lab}: {counts[key]}")
+        for k, v in counts.items():
+            if k not in {key for _, key in label_map} and v > 0:
+                parts.append(f"{k.title()}: {v}")
+        rows.append({
+            "label": entry["name"],
+            "sub": " · ".join(parts) if parts else "—",
+            "value": f"{entry['records']} hari",
+        })
+    rows.sort(key=lambda r: r["label"].lower())
+    if not rows:
+        rows = [{"label": "Belum ada record absensi.", "sub": "", "value": ""}]
+    return {
+        "ref": ref, "category": "absensi", "title": title, "status": "finalized",
+        "summary": summary, "rows": rows,
+    }
+
+
+def _detail_omzet(ref: str, year: int, month: int) -> dict[str, Any] | None:
+    if not (1 <= month <= 12):
+        return None
+    title = f"Ringkasan Omzet {_month_label_id(year, month)}"
+    try:
+        summary_data = mobile_metrics.dashboard_summary("month")
+    except (LumbungMetricsError, Exception) as exc:  # noqa: BLE001
+        logger.warning("omzet detail summary fetch failed: %s", exc)
+        return _detail_unavailable(
+            ref, "omzet", title, "Lumbung metrics tidak tersedia.",
+        )
+    if not isinstance(summary_data, dict):
+        summary_data = {}
+    try:
+        insight_data = mobile_metrics.dashboard_insight("month")
+        if not isinstance(insight_data, dict):
+            insight_data = {}
+    except (LumbungMetricsError, Exception) as exc:  # noqa: BLE001
+        logger.warning("omzet detail insight fetch failed: %s", exc)
+        insight_data = {}
+
+    revenue = (summary_data.get("revenue") or {})
+    rev_total = int(revenue.get("total") or 0)
+    orders = int((summary_data.get("quick_stats") or {}).get("orders_total") or 0)
+    period_label = (
+        summary_data.get("period_label") or _month_label_id(year, month)
+    )
+    summary = [
+        {"label": "Periode", "value": str(period_label)},
+        {"label": "Total Omzet", "value": _rp(rev_total)},
+        {"label": "Order", "value": f"{orders} transaksi"},
+    ]
+    rows: list[dict[str, Any]] = []
+    # Composition segments (Penjualan Emas vs Rotasi Masuk).
+    composition = insight_data.get("composition") or {}
+    for seg in composition.get("segments") or []:
+        pct = seg.get("pct")
+        sub = f"{pct}% dari total" if pct is not None else ""
+        rows.append({
+            "label": str(seg.get("label") or "—"),
+            "sub": sub,
+            "value": _rp(int(seg.get("value") or 0)),
+        })
+    # KPIs (Omzet, Order, Avg Ticket, Potensi Hilang).
+    for kpi in insight_data.get("kpis") or []:
+        unit = str(kpi.get("unit") or "")
+        raw_value = kpi.get("value")
+        if unit == "IDR":
+            value = _rp(int(raw_value or 0))
+        elif unit:
+            value = f"{raw_value} {unit}".strip()
+        else:
+            value = str(raw_value if raw_value is not None else "—")
+        rows.append({
+            "label": str(kpi.get("label") or ""),
+            "sub": str(kpi.get("delta_label") or ""),
+            "value": value,
+        })
+    if not rows:
+        rows = [{"label": "Belum ada breakdown omzet.", "sub": "", "value": ""}]
+    return {
+        "ref": ref, "category": "omzet", "title": title, "status": "finalized",
+        "summary": summary, "rows": rows,
+    }
+
+
+async def _fetch_reports_detail(ref: str) -> dict[str, Any] | None:
+    """Return detail dict, or None if ref is invalid/unknown (caller → 404)."""
+    if not ref or ":" not in ref:
+        return None
+    category, _, key = ref.partition(":")
+    category = category.strip().lower()
+    key = key.strip()
+
+    if category == "payroll":
+        try:
+            run_id = int(key)
+        except ValueError:
+            return None
+        return await _detail_payroll(ref, run_id)
+
+    if category in ("absensi", "omzet"):
+        try:
+            y_str, m_str = key.split("-", 1)
+            year = int(y_str)
+            month = int(m_str)
+        except ValueError:
+            return None
+        if category == "absensi":
+            return await _detail_absensi(ref, year, month)
+        return _detail_omzet(ref, year, month)
+
+    return None
+
+
+def _reports_detail(ref: str) -> JsonResult:
+    try:
+        result = asyncio.run(_fetch_reports_detail(ref))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("reports/detail failed: %s", exc)
+        return HTTPStatus.INTERNAL_SERVER_ERROR, _error("internal", "Server error.")
+    if result is None:
+        return HTTPStatus.NOT_FOUND, _error(
+            "not_found", "Detail laporan tidak ditemukan.",
+        )
+    return HTTPStatus.OK, result
 
 
 def _fixture_reports(period: str) -> dict[str, Any]:
