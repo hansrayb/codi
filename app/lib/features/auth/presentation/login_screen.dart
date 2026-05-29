@@ -8,6 +8,7 @@ import '../application/auth_controller.dart';
 import '../domain/auth_state.dart';
 import 'widgets/biometric_button.dart';
 import 'widgets/login_logo.dart';
+import 'widgets/tech_backdrop.dart';
 
 /// Login screen — dual mode email/biometric (`docs/06-SCREENS.md` S1).
 ///
@@ -57,59 +58,78 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final state = ref.watch(authControllerProvider);
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -0.5),
-            radius: 1.1,
-            colors: [const Color(0x2E4A7BC8), context.colors.bgApp],
-            stops: const [0.0, 0.55],
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.5),
+                  radius: 1.1,
+                  colors: [const Color(0x2E4A7BC8), context.colors.bgApp],
+                  stops: const [0.0, 0.55],
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,
-                  ),
-                  child: IntrinsicHeight(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.s32,
-                        AppSpacing.s32,
-                        AppSpacing.s32,
-                        AppSpacing.s24,
-                      ),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: AppSpacing.s32),
-                          const LoginLogo(),
-                          const SizedBox(height: AppSpacing.s24),
-                          _brand(),
-                          const SizedBox(height: AppSpacing.s8),
-                          Text(
-                            'Executive Business Intelligence',
-                            textAlign: TextAlign.center,
-                            style: AppTypography.bodyS.copyWith(
-                              color: context.colors.inkMuted,
-                              letterSpacing: 0.6,
+          Positioned.fill(child: TechBackdrop(color: context.colors.gold)),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.s32,
+                          AppSpacing.s32,
+                          AppSpacing.s32,
+                          AppSpacing.s24,
+                        ),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0.0, end: 1.0),
+                          duration: const Duration(milliseconds: 700),
+                          curve: Curves.easeOut,
+                          builder: (context, v, child) => Opacity(
+                            opacity: v.clamp(0.0, 1.0),
+                            child: Transform.translate(
+                              offset: Offset(0, (1 - v) * 14),
+                              child: child,
                             ),
                           ),
-                          const Spacer(),
-                          _authArea(state),
-                          const SizedBox(height: AppSpacing.s24),
-                          _footer(),
-                        ],
+                          child: Column(
+                            children: [
+                              const SizedBox(height: AppSpacing.s32),
+                              const LoginLogo(),
+                              const SizedBox(height: AppSpacing.s24),
+                              _brand(),
+                              const SizedBox(height: AppSpacing.s8),
+                              Text(
+                                'Executive Business Intelligence',
+                                textAlign: TextAlign.center,
+                                style: AppTypography.bodyS.copyWith(
+                                  color: context.colors.inkMuted,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const Spacer(),
+                              _authArea(state),
+                              const SizedBox(height: AppSpacing.s24),
+                              _footer(),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -226,9 +246,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Text(
             'Gunakan Face ID atau sidik jari',
             textAlign: TextAlign.center,
-            style: AppTypography.bodyS.copyWith(
-              color: context.colors.inkMuted,
-            ),
+            style: AppTypography.bodyS.copyWith(color: context.colors.inkMuted),
           ),
         const SizedBox(height: AppSpacing.s16),
         TextButton.icon(
