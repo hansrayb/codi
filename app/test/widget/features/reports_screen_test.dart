@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:emas_berlian_insight/theme/app_theme.dart';
 import 'package:emas_berlian_insight/api/repositories/reports_repository.dart';
+import 'package:emas_berlian_insight/models/report_detail.dart';
 import 'package:emas_berlian_insight/models/report_item.dart';
 import 'package:emas_berlian_insight/features/reports/presentation/reports_screen.dart';
 import 'package:emas_berlian_insight/features/reports/presentation/widgets/report_card.dart';
@@ -21,10 +22,32 @@ ReportItem _item(String title, ReportCategory cat, ReportStatus st) =>
       status: st,
       createdAt: DateTime(2026, 5, 17),
       meta: '17 Mei 2026 · 4 hal',
+      detailRef: 'payroll:6',
     );
 
 /// Fake repo: `bulanIni` → cuma grup Terbaru (3 card), lainnya 5 card.
 class _FakeReportsRepo implements ReportsRepository {
+  @override
+  Future<ReportDetail> getReportDetail(String ref) async {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    return ReportDetail(
+      ref: ref,
+      title: 'Payroll Mei 2026',
+      category: ReportCategory.payroll,
+      status: ReportStatus.finalized,
+      summary: const [
+        ReportStat(label: 'Total Net', value: 'Rp 159.410.448'),
+      ],
+      rows: const [
+        ReportDetailRow(
+          label: 'Leo Sastra',
+          sub: 'Pimpinan',
+          value: 'Rp 27.909.901',
+        ),
+      ],
+    );
+  }
+
   @override
   Future<List<ReportGroup>> getReports(ReportFilter filter) async {
     // Delay kecil agar frame loading (skeleton) teramati di test.
@@ -117,6 +140,21 @@ void main() {
     // Filter bulanIni → cuma grup Terbaru (3 card), Bulan Lalu hilang.
     expect(find.byType(ReportCard), findsNWidgets(3));
     expect(find.text('BULAN LALU'), findsNothing);
+  });
+
+  testWidgets('tap card → detail sheet muncul (summary + row)',
+      (tester) async {
+    await _pump(tester);
+    await _settle(tester);
+
+    await tester.tap(find.text('Ringkasan Omzet — Mei 2026'));
+    await tester.pump(); // open sheet → loading
+    await tester.pump(const Duration(milliseconds: 50)); // fake detail delay
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.text('Rp 159.410.448'), findsOneWidget);
+    expect(find.text('Leo Sastra'), findsOneWidget);
+    expect(find.text('Pimpinan'), findsOneWidget);
   });
 
   testWidgets('bottom nav active = Laporan', (tester) async {

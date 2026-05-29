@@ -9,6 +9,7 @@ import '../../shell/presentation/widgets/bottom_nav.dart';
 import '../application/reports_controller.dart';
 import '../domain/reports_state.dart';
 import 'widgets/report_card.dart';
+import 'widgets/report_detail_sheet.dart';
 import 'widgets/report_filter_bar.dart';
 
 /// Laporan (S5) — `docs/06-SCREENS.md`, layout match mockup
@@ -183,7 +184,15 @@ class _ReportsBody extends StatelessWidget {
                   children: [
                     for (var i = 0; i < g.items.length; i++) ...[
                       if (i > 0) const SizedBox(height: AppSpacing.s10),
-                      ReportCard(item: g.items[i]),
+                      ReportCard(
+                        item: g.items[i],
+                        onTap: g.items[i].detailRef == null
+                            ? null
+                            : () => ReportDetailSheet.open(
+                                  context,
+                                  g.items[i],
+                                ),
+                      ),
                     ],
                   ],
                 ),

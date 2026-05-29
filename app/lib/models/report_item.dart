@@ -23,6 +23,7 @@ class ReportItem {
     required this.status,
     required this.createdAt,
     required this.meta,
+    this.detailRef,
   });
 
   /// Mis. "Ringkasan Omzet — Mei 2026".
@@ -36,6 +37,10 @@ class ReportItem {
 
   /// Mis. "4 hal", "22 karyawan · Rp 159 jt".
   final String meta;
+
+  /// Kunci drill-down (mis. "payroll:7", "absensi:2026-05"). Null kalau item
+  /// dari fixture fallback → card tidak bisa diklik.
+  final String? detailRef;
 }
 
 /// Grup laporan dengan label section (mockup `.list-section-label`).
