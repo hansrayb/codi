@@ -408,6 +408,9 @@ class DeviceApiServer:
                 if not message:
                     self._send_json(HTTPStatus.BAD_REQUEST, {"error": {"code": "message_required"}})
                     return
+                requested_conv_id = (
+                    str(payload.get("conversation_id") or "").strip() or None
+                )
                 # Session ID: account_id (1 thread per user — sesuai pattern
                 # dashboard 1 session per browser tab).
                 session_id = auth_ctx.account_id or "anon"
@@ -418,6 +421,31 @@ class DeviceApiServer:
                     except Exception:
                         logger.exception("action=session_lookup_failed | sid=%s", session_id)
 
+                # Chat history persistence (best-effort): ensure conversation,
+                # append user turn now; assistant turn appended after stream
+                # done with the accumulated full reply text.
+                chat_history = chat_history_cell[0]
+                account_id = str(getattr(auth_ctx, "account_id", "") or "")
+                conversation_id: str | None = None
+                if chat_history is not None and account_id:
+                    try:
+                        conversation_id = chat_history.ensure_conversation(
+                            account_id=account_id,
+                            conversation_id=requested_conv_id,
+                            seed_title_text=message,
+                        )
+                        chat_history.append_message(
+                            conversation_id=conversation_id,
+                            role="user",
+                            text=message,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "action=chat_history_stream_user_persist_failed | sid=%s",
+                            session_id,
+                        )
+                        conversation_id = None
+
                 self.send_response(HTTPStatus.OK.value)
                 self.send_header("Content-Type", "text/event-stream; charset=utf-8")
                 self.send_header("Cache-Control", "no-cache, no-transform")
@@ -426,6 +454,8 @@ class DeviceApiServer:
                 self.end_headers()
 
                 frame_q: "queue.Queue[Any]" = queue.Queue()
+                # Accumulate assistant tokens for end-of-stream persistence.
+                reply_parts: list[str] = []
 
                 async def _mk_event() -> asyncio.Event:
                     return asyncio.Event()
@@ -467,7 +497,14 @@ class DeviceApiServer:
 
                 future = asyncio.run_coroutine_threadsafe(_drive(), loop)
 
-                meta = {"session_id": session_id, "message_id": str(uuid.uuid4())}
+                # meta event sekarang sertakan `conversation_id` (atau null
+                # kalau persist tak aktif/gagal) sehingga app bisa simpan
+                # untuk lanjut percakapan.
+                meta = {
+                    "session_id": session_id,
+                    "message_id": str(uuid.uuid4()),
+                    "conversation_id": conversation_id,
+                }
                 if not self._sse_write(f"event: meta\ndata: {json.dumps(meta)}\n\n"):
                     loop.call_soon_threadsafe(cancel_event.set)
                     future.cancel()
@@ -485,6 +522,7 @@ class DeviceApiServer:
                         break
                     kind, data = item
                     if kind == "token":
+                        reply_parts.append(str(data))
                         frame = f"event: token\ndata: {json.dumps({'delta': data})}\n\n"
                     elif kind == "done":
                         frame = "event: done\ndata: {\"finish_reason\":\"stop\"}\n\n"
@@ -499,6 +537,25 @@ class DeviceApiServer:
                     if not self._sse_write(frame):
                         loop.call_soon_threadsafe(cancel_event.set)
                         break
+
+                # Persist assistant turn best-effort (partial OK on cancel).
+                if (
+                    chat_history is not None
+                    and account_id
+                    and conversation_id is not None
+                    and reply_parts
+                ):
+                    try:
+                        chat_history.append_message(
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            text="".join(reply_parts),
+                        )
+                    except Exception:
+                        logger.exception(
+                            "action=chat_history_stream_assistant_persist_failed | sid=%s",
+                            session_id,
+                        )
 
             def _handle_chat_stream(self) -> None:
                 factory = chat_stream_factory_cell[0]
