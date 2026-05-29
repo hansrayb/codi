@@ -201,6 +201,34 @@ class ChatHistoryStore:
             })
         return out
 
+    def delete_conversation(
+        self, *, conversation_id: str, account_id: str
+    ) -> bool:
+        """Hapus 1 percakapan + semua pesannya. Return True kalau sungguh
+        terhapus (owner cocok). False = bukan owner / tak ada.
+
+        Transactional: messages dihapus dulu, lalu row conversation.
+        Lock-guarded.
+        """
+        if not conversation_id or not account_id:
+            return False
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM chat_conversations "
+                "WHERE id = ? AND account_id = ?",
+                (conversation_id, account_id),
+            )
+            if cur.rowcount == 0:
+                # Not owner / not exist → no-op.
+                self._conn.rollback()
+                return False
+            self._conn.execute(
+                "DELETE FROM chat_messages WHERE conversation_id = ?",
+                (conversation_id,),
+            )
+            self._conn.commit()
+        return True
+
     # ── Claude session id (per-conversation, for `claude --resume`) ──────
     def get_claude_session_id(
         self, *, conversation_id: str, account_id: str

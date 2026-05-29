@@ -720,6 +720,101 @@ def test_chat_post_graceful_on_store_error():
     assert status2 == HTTPStatus.NOT_FOUND
 
 
+def test_chat_delete_owner_then_gone(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    _, p = mobile_handle(
+        "POST", "/chat/messages", {}, {"message": "akan dihapus"},
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_fn=_fake_chat_fn("ok"), chat_history=store,
+    )
+    conv_id = p["conversation_id"]
+
+    status, payload = mobile_handle(
+        "DELETE", f"/chat/conversations/{conv_id}", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert status == HTTPStatus.OK
+    assert payload == {"ok": True, "deleted": conv_id}
+
+    # List harus kosong.
+    _, lst = mobile_handle(
+        "GET", "/chat/conversations", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert lst["conversations"] == []
+
+    # GET messages → 404.
+    status2, _ = mobile_handle(
+        "GET", f"/chat/conversations/{conv_id}/messages", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert status2 == HTTPStatus.NOT_FOUND
+
+    # DELETE ulang → 404 (idempotent-friendly).
+    status3, _ = mobile_handle(
+        "DELETE", f"/chat/conversations/{conv_id}", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert status3 == HTTPStatus.NOT_FOUND
+
+
+def test_chat_delete_not_owner_returns_404(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    ctx_a = AuthContext(
+        account_id="acc_a", email="a@x", role_slug="dir",
+        scopes=("chat:use",), is_bootstrap=False,
+    )
+    ctx_b = AuthContext(
+        account_id="acc_b", email="b@x", role_slug="dir",
+        scopes=("chat:use",), is_bootstrap=False,
+    )
+    _, p = mobile_handle(
+        "POST", "/chat/messages", {}, {"message": "punya A"},
+        auth_ctx=ctx_a, auth_service=None,
+        chat_fn=_fake_chat_fn("ok"), chat_history=store,
+    )
+    conv_a = p["conversation_id"]
+
+    # B mencoba hapus conv A → 404, data masih ada.
+    status, payload = mobile_handle(
+        "DELETE", f"/chat/conversations/{conv_a}", {}, None,
+        auth_ctx=ctx_b, auth_service=None, chat_history=store,
+    )
+    assert status == HTTPStatus.NOT_FOUND
+    assert payload["error"]["code"] == "not_found"
+
+    # A masih bisa baca conv-nya.
+    _, msgs = mobile_handle(
+        "GET", f"/chat/conversations/{conv_a}/messages", {}, None,
+        auth_ctx=ctx_a, auth_service=None, chat_history=store,
+    )
+    assert len(msgs["messages"]) == 2
+
+
+def test_chat_delete_nonexistent_returns_404(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    status, payload = mobile_handle(
+        "DELETE", "/chat/conversations/conv_bogus_xxx", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert status == HTTPStatus.NOT_FOUND
+    assert payload["error"]["code"] == "not_found"
+
+
+def test_chat_delete_storage_error_returns_500():
+    class _BrokenStore:
+        def delete_conversation(self, **_):
+            raise RuntimeError("disk full")
+
+    status, payload = mobile_handle(
+        "DELETE", "/chat/conversations/conv_x", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_history=_BrokenStore(),
+    )
+    assert status == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert payload["error"]["code"] == "internal"
+
+
 def test_chat_history_claude_session_id_roundtrip(tmp_path):
     store = _fresh_chat_store(tmp_path)
     # Need a conversation first.

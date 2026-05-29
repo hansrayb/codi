@@ -143,6 +143,16 @@ def _dispatch(
         return _chat_conversation_messages(
             conv_id, auth_ctx=auth_ctx, chat_history=chat_history,
         )
+    if (
+        method == "DELETE"
+        and path.startswith("/chat/conversations/")
+        and "/" not in path[len("/chat/conversations/"):]
+    ):
+        require_scope(auth_ctx, "chat:use")
+        conv_id = path[len("/chat/conversations/"):]
+        return _chat_delete_conversation(
+            conv_id, auth_ctx=auth_ctx, chat_history=chat_history,
+        )
 
     # ── Account management ─────────────────────────────────
     if method == "GET" and path == "/accounts":
@@ -1522,3 +1532,35 @@ def _chat_conversation_messages(
         "conversation_id": conversation_id,
         "messages": messages,
     }
+
+
+def _chat_delete_conversation(
+    conversation_id: str,
+    *,
+    auth_ctx: AuthContext | None = None,
+    chat_history: Any = None,
+) -> JsonResult:
+    """Hapus 1 percakapan milik account_id. 404 kalau bukan owner / tak ada."""
+    account_id = str(getattr(auth_ctx, "account_id", "") or "")
+    if (
+        chat_history is None
+        or not account_id
+        or not conversation_id
+    ):
+        return HTTPStatus.NOT_FOUND, _error(
+            "not_found", "Percakapan tidak ditemukan.",
+        )
+    try:
+        deleted = chat_history.delete_conversation(
+            conversation_id=conversation_id, account_id=account_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("chat_history delete failed: %s", exc)
+        return HTTPStatus.INTERNAL_SERVER_ERROR, _error(
+            "internal", "Gagal menghapus percakapan.",
+        )
+    if not deleted:
+        return HTTPStatus.NOT_FOUND, _error(
+            "not_found", "Percakapan tidak ditemukan.",
+        )
+    return HTTPStatus.OK, {"ok": True, "deleted": conversation_id}
