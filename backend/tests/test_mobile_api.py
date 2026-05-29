@@ -720,6 +720,57 @@ def test_chat_post_graceful_on_store_error():
     assert status2 == HTTPStatus.NOT_FOUND
 
 
+def test_chat_history_claude_session_id_roundtrip(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    # Need a conversation first.
+    conv_id = store.ensure_conversation(
+        account_id="acc_x", conversation_id=None, seed_title_text="halo",
+    )
+    # Initially None.
+    assert store.get_claude_session_id(
+        conversation_id=conv_id, account_id="acc_x",
+    ) is None
+    # Set then read.
+    store.set_claude_session_id(
+        conversation_id=conv_id, account_id="acc_x",
+        claude_session_id="claude-sess-aaa",
+    )
+    assert store.get_claude_session_id(
+        conversation_id=conv_id, account_id="acc_x",
+    ) == "claude-sess-aaa"
+    # Clear back to None.
+    store.set_claude_session_id(
+        conversation_id=conv_id, account_id="acc_x", claude_session_id=None,
+    )
+    assert store.get_claude_session_id(
+        conversation_id=conv_id, account_id="acc_x",
+    ) is None
+
+
+def test_chat_history_claude_session_id_scoped_per_account(tmp_path):
+    """User A's claude sid must not be readable by user B for A's conv."""
+    store = _fresh_chat_store(tmp_path)
+    conv_a = store.ensure_conversation(
+        account_id="acc_a", conversation_id=None, seed_title_text="A",
+    )
+    store.set_claude_session_id(
+        conversation_id=conv_a, account_id="acc_a",
+        claude_session_id="claude-A",
+    )
+    # B querying A's conv → None.
+    assert store.get_claude_session_id(
+        conversation_id=conv_a, account_id="acc_b",
+    ) is None
+    # B trying to overwrite is no-op.
+    store.set_claude_session_id(
+        conversation_id=conv_a, account_id="acc_b",
+        claude_session_id="claude-B-malicious",
+    )
+    assert store.get_claude_session_id(
+        conversation_id=conv_a, account_id="acc_a",
+    ) == "claude-A"
+
+
 def test_chat_conversations_scoped_per_account(tmp_path):
     """User A's conversations must not appear for user B."""
     store = _fresh_chat_store(tmp_path)

@@ -84,6 +84,15 @@ class ChatHistoryStore:
         conn = sqlite3.connect(str(path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.executescript(_SCHEMA)
+        # Idempotent migration: claude_session_id column added later for
+        # per-conversation claude --resume support.
+        cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(chat_conversations)"
+        )}
+        if "claude_session_id" not in cols:
+            conn.execute(
+                "ALTER TABLE chat_conversations ADD COLUMN claude_session_id TEXT"
+            )
         conn.commit()
         return cls(conn)
 
@@ -191,6 +200,49 @@ class ChatHistoryStore:
                 "preview": preview,
             })
         return out
+
+    # ── Claude session id (per-conversation, for `claude --resume`) ──────
+    def get_claude_session_id(
+        self, *, conversation_id: str, account_id: str
+    ) -> str | None:
+        """Return persisted claude --resume id for ``conversation_id``.
+
+        Returns None if the conversation isn't owned by ``account_id`` or
+        the column is empty.
+        """
+        if not conversation_id or not account_id:
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT claude_session_id FROM chat_conversations "
+                "WHERE id = ? AND account_id = ?",
+                (conversation_id, account_id),
+            ).fetchone()
+        if row is None:
+            return None
+        sid = row["claude_session_id"]
+        return sid if sid else None
+
+    def set_claude_session_id(
+        self,
+        *,
+        conversation_id: str,
+        account_id: str,
+        claude_session_id: str | None,
+    ) -> None:
+        """Persist ``claude_session_id`` (or clear) for a conversation.
+
+        No-op if the conversation isn't owned by ``account_id``.
+        """
+        if not conversation_id or not account_id:
+            return
+        with self._lock:
+            self._conn.execute(
+                "UPDATE chat_conversations SET claude_session_id = ? "
+                "WHERE id = ? AND account_id = ?",
+                (claude_session_id, conversation_id, account_id),
+            )
+            self._conn.commit()
 
     def get_messages(
         self, *, conversation_id: str, account_id: str

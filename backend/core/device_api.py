@@ -411,15 +411,9 @@ class DeviceApiServer:
                 requested_conv_id = (
                     str(payload.get("conversation_id") or "").strip() or None
                 )
-                # Session ID: account_id (1 thread per user — sesuai pattern
-                # dashboard 1 session per browser tab).
+                # Session ID: account_id (per-user thread identifier, sebagai
+                # tagging log; bukan kunci claude --resume).
                 session_id = auth_ctx.account_id or "anon"
-                prior_claude_sid = None
-                if store is not None:
-                    try:
-                        prior_claude_sid = store.get_claude_session_id(session_id)
-                    except Exception:
-                        logger.exception("action=session_lookup_failed | sid=%s", session_id)
 
                 # Chat history persistence (best-effort): ensure conversation,
                 # append user turn now; assistant turn appended after stream
@@ -446,6 +440,26 @@ class DeviceApiServer:
                         )
                         conversation_id = None
 
+                # claude --resume key sekarang PER-CONVERSATION, dari
+                # ChatHistoryStore (bukan CodiSessionStore, yang dipakai
+                # endpoint dashboard /api/chat/stream — beda kontrak).
+                prior_claude_sid: str | None = None
+                if (
+                    chat_history is not None
+                    and account_id
+                    and conversation_id is not None
+                ):
+                    try:
+                        prior_claude_sid = chat_history.get_claude_session_id(
+                            conversation_id=conversation_id,
+                            account_id=account_id,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "action=chat_history_get_sid_failed | sid=%s | conv=%s",
+                            session_id, conversation_id,
+                        )
+
                 self.send_response(HTTPStatus.OK.value)
                 self.send_header("Content-Type", "text/event-stream; charset=utf-8")
                 self.send_header("Cache-Control", "no-cache, no-transform")
@@ -456,6 +470,9 @@ class DeviceApiServer:
                 frame_q: "queue.Queue[Any]" = queue.Queue()
                 # Accumulate assistant tokens for end-of-stream persistence.
                 reply_parts: list[str] = []
+                # Track if any token reached the client; resume retry is only
+                # safe if zero tokens were emitted (else partial reply leak).
+                tokens_emitted = [0]
 
                 async def _mk_event() -> asyncio.Event:
                     return asyncio.Event()
@@ -464,26 +481,96 @@ class DeviceApiServer:
                 ).result(timeout=5)
 
                 async def _on_token(delta: str) -> None:
+                    tokens_emitted[0] += 1
                     frame_q.put(("token", delta))
 
                 async def _drive() -> None:
+                    resume_attempted = prior_claude_sid is not None
+                    resume_retried = False
                     try:
-                        reply = await factory(
-                            session_id=session_id,
-                            message=message,
-                            user_id=0,
-                            on_token=_on_token,
-                            claude_session_id=prior_claude_sid,
-                            cancel_event=cancel_event,
-                        )
+                        try:
+                            reply = await factory(
+                                session_id=session_id,
+                                message=message,
+                                user_id=0,
+                                on_token=_on_token,
+                                claude_session_id=prior_claude_sid,
+                                cancel_event=cancel_event,
+                            )
+                        except Exception as exc:
+                            # MVP-1: if --resume was attempted AND we haven't
+                            # streamed any token yet, treat as resume-fail and
+                            # retry fresh once. Stale sid is cleared so future
+                            # turns don't keep failing on the same id.
+                            if (
+                                resume_attempted
+                                and tokens_emitted[0] == 0
+                                and not isinstance(exc, (asyncio.TimeoutError, FileNotFoundError))
+                            ):
+                                resume_retried = True
+                                logger.warning(
+                                    "action=chat_resume_failed | sid=%s | conv=%s | "
+                                    "claude_sid=%s | err=%s — retrying fresh",
+                                    session_id,
+                                    conversation_id or "-",
+                                    prior_claude_sid,
+                                    str(exc)[:200],
+                                )
+                                if (
+                                    chat_history is not None
+                                    and account_id
+                                    and conversation_id is not None
+                                ):
+                                    try:
+                                        chat_history.set_claude_session_id(
+                                            conversation_id=conversation_id,
+                                            account_id=account_id,
+                                            claude_session_id=None,
+                                        )
+                                    except Exception:
+                                        logger.exception(
+                                            "action=chat_history_clear_sid_failed | sid=%s | conv=%s",
+                                            session_id, conversation_id,
+                                        )
+                                reply = await factory(
+                                    session_id=session_id,
+                                    message=message,
+                                    user_id=0,
+                                    on_token=_on_token,
+                                    claude_session_id=None,
+                                    cancel_event=cancel_event,
+                                )
+                            else:
+                                raise
                         new_sid = None
                         if isinstance(reply, tuple):
                             _text, new_sid = reply
-                        if store is not None and new_sid:
+                        if (
+                            chat_history is not None
+                            and account_id
+                            and conversation_id is not None
+                            and new_sid
+                        ):
                             try:
-                                store.set_claude_session_id(session_id, new_sid)
+                                chat_history.set_claude_session_id(
+                                    conversation_id=conversation_id,
+                                    account_id=account_id,
+                                    claude_session_id=new_sid,
+                                )
                             except Exception:
-                                logger.exception("action=session_persist_failed | sid=%s", session_id)
+                                logger.exception(
+                                    "action=chat_history_set_sid_failed | sid=%s | conv=%s",
+                                    session_id, conversation_id,
+                                )
+                        logger.info(
+                            "action=chat_resume | sid=%s | conv=%s | "
+                            "attempted=%s | resumed=%s | retried=%s",
+                            session_id,
+                            conversation_id or "-",
+                            str(resume_attempted).lower(),
+                            str(resume_attempted and not resume_retried).lower(),
+                            str(resume_retried).lower(),
+                        )
                         frame_q.put(("done", None))
                     except asyncio.TimeoutError:
                         frame_q.put(("error", ("timeout", "Codi belum selesai menjawab.")))
