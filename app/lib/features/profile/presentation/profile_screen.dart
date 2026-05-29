@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/profile_data.dart';
 import '../../../providers/token_store.dart';
 import '../../../theme/app_theme.dart';
 import '../../management/presentation/management_screen.dart';
 import '../../shell/presentation/widgets/bottom_nav.dart';
 import '../application/profile_controller.dart';
 import 'widgets/profile_hero.dart';
+import 'widgets/profile_sheets.dart';
 import 'widgets/settings_card.dart';
 
 /// Profil (S6) — `docs/06-SCREENS.md`, layout match mockup
@@ -34,6 +36,27 @@ class ProfileScreen extends ConsumerWidget {
 
   /// Render BottomNav internal. AppShell set `false`.
   final bool showBottomNav;
+
+  /// Dispatch tap baris pengaturan (chevron/value) ke sheet/dialog.
+  static void _onTapItem(
+    BuildContext context,
+    TokenStore tokenStore,
+    ProfileData data,
+    String id,
+  ) {
+    switch (id) {
+      case 'identitas':
+        showIdentitasSheet(context, tokenStore);
+      case 'perusahaan':
+        showPerusahaanSheet(context, data.org);
+      case 'tema':
+        showThemePicker(context);
+      case 'sesi':
+        showSessionsSheet(context);
+      case 'tentang':
+        showAboutSheet(context);
+    }
+  }
 
   /// Ikon per item id (mockup masing-masing row).
   static IconData _iconFor(String id) {
@@ -86,7 +109,7 @@ class ProfileScreen extends ConsumerWidget {
                     group: g,
                     iconFor: _iconFor,
                     onToggle: ctrl.toggle,
-                    onTapItem: (_) {},
+                    onTapItem: (id) => _onTapItem(context, tokenStore, data, id),
                   ),
                 if (canManage) const _ManagementRow(),
                 _LogoutButton(onTap: onLogout),

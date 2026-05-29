@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/profile_data.dart';
+import '../../../providers/settings_store.dart';
 import '../../../providers/token_store.dart';
 
 /// Controller Profil (S6).
@@ -13,11 +15,16 @@ class ProfileController extends Notifier<ProfileData> {
   @override
   ProfileData build() {
     final store = ref.read(tokenStoreProvider);
-    return _seed(store);
+    // Tema reaktif: rebuild ProfileData saat mode tema berubah agar value
+    // baris "Tema" ikut update.
+    final themeMode = ref.watch(themeModeProvider);
+    final settings = ref.read(settingsStoreProvider);
+    return _seed(store, themeMode, settings);
   }
 
-  /// Toggle item preferensi (notifikasi, refresh otomatis).
+  /// Toggle item preferensi (notifikasi, refresh otomatis) — persist lokal.
   void toggle(String id) {
+    final settings = ref.read(settingsStoreProvider);
     state = ProfileData(
       name: state.name,
       initials: state.initials,
@@ -31,7 +38,7 @@ class ProfileController extends Notifier<ProfileData> {
             items: [
               for (final it in g.items)
                 if (it.id == id && it.trailing == SettingsTrailing.toggle)
-                  it.copyWith(toggleOn: !it.toggleOn)
+                  _persistToggle(settings, it)
                 else
                   it,
             ],
@@ -40,7 +47,28 @@ class ProfileController extends Notifier<ProfileData> {
     );
   }
 
-  ProfileData _seed(TokenStore store) {
+  SettingsItem _persistToggle(SettingsStore settings, SettingsItem it) {
+    final next = !it.toggleOn;
+    switch (it.id) {
+      case 'notifikasi':
+        settings.setNotifikasi(next);
+      case 'refresh':
+        settings.setRefreshOtomatis(next);
+    }
+    return it.copyWith(toggleOn: next);
+  }
+
+  static String themeLabel(ThemeMode mode) => switch (mode) {
+        ThemeMode.light => 'Terang',
+        ThemeMode.dark => 'Gelap',
+        ThemeMode.system => 'Sistem',
+      };
+
+  ProfileData _seed(
+    TokenStore store,
+    ThemeMode themeMode,
+    SettingsStore settings,
+  ) {
     final name = store.name.isNotEmpty ? store.name : 'Direksi';
     final email = store.email.isNotEmpty ? store.email : '-';
     final initials = _initialsFromName(name);
@@ -73,29 +101,29 @@ class ProfileController extends Notifier<ProfileData> {
             ),
           ],
         ),
-        const SettingsGroup(
+        SettingsGroup(
           label: 'Preferensi',
           items: [
             SettingsItem(
               id: 'tema',
               title: 'Tema',
-              subtitle: 'Ikuti sistem',
+              subtitle: 'Tampilan aplikasi',
               trailing: SettingsTrailing.value,
-              value: 'Sistem',
+              value: themeLabel(themeMode),
             ),
             SettingsItem(
               id: 'notifikasi',
               title: 'Notifikasi',
               subtitle: 'Ringkasan harian & alert',
               trailing: SettingsTrailing.toggle,
-              toggleOn: true,
+              toggleOn: settings.notifikasi,
             ),
             SettingsItem(
               id: 'refresh',
               title: 'Refresh otomatis',
               subtitle: 'Perbarui data tiap buka app',
               trailing: SettingsTrailing.toggle,
-              toggleOn: true,
+              toggleOn: settings.refreshOtomatis,
             ),
           ],
         ),
@@ -105,7 +133,7 @@ class ProfileController extends Notifier<ProfileData> {
             SettingsItem(
               id: 'sesi',
               title: 'Sesi Codi',
-              subtitle: '2 sesi aktif · idle 12 mnt',
+              subtitle: 'Sesi orchestrator aktif',
               trailing: SettingsTrailing.chevron,
             ),
             SettingsItem(

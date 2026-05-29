@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'api/repositories/auth_repository.dart';
 import 'app.dart';
 import 'providers/device_id_store.dart';
+import 'providers/settings_store.dart';
 import 'providers/token_store.dart';
 
 /// Entry point Emas Berlian Insight.
@@ -17,7 +18,12 @@ void main() async {
   final container = ProviderContainer();
   final tokenStore = container.read(tokenStoreProvider);
   final deviceIdStore = container.read(deviceIdStoreProvider);
-  await Future.wait([tokenStore.load(), deviceIdStore.load()]);
+  final settingsStore = container.read(settingsStoreProvider);
+  await Future.wait([
+    tokenStore.load(),
+    deviceIdStore.load(),
+    settingsStore.load(),
+  ]);
   await applyBootstrapToken(tokenStore);
 
   runApp(
