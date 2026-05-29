@@ -5,7 +5,7 @@ import '../../../../theme/app_theme.dart';
 /// Input chat (`docs/06-SCREENS.md` S3 → Chat Input & mockup
 /// `.chat-input`).
 ///
-/// Pill bgInput, mic ghost (non-aktif Phase 1), send gold circle 36px.
+/// Pill bgInput + send gold circle 36px.
 class ChatInput extends StatefulWidget {
   const ChatInput({
     required this.controller,
@@ -80,17 +80,6 @@ class _ChatInputState extends State<ChatInput> {
                 ),
               ),
             ),
-            // Mic — ghost, non-aktif Phase 1 (voice = Phase 2).
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: Icon(
-                Icons.mic_none,
-                size: 18,
-                color: context.colors.inkDim,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.s4),
             GestureDetector(
               onTap: _submit,
               child: Container(
