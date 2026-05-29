@@ -4,6 +4,7 @@ import '../../../../theme/app_theme.dart';
 import '../../../../widgets/emas_button.dart';
 import '../../../../widgets/emas_input.dart';
 import '../../domain/account.dart';
+import 'edit_profile_sheet.dart';
 import 'role_badge.dart';
 
 /// Bottom sheet untuk edit satu akun (ubah role, suspend, reset pw, delete).
@@ -104,70 +105,23 @@ class _AccountDetailSheetState extends State<AccountDetailSheet> {
   }
 
   Future<void> _editProfileDialog() async {
-    final c = context.colors;
-    final acc = widget.account;
-    final nameCtrl = TextEditingController(text: acc.name);
-    final titleCtrl = TextEditingController(text: acc.title);
-    final emailCtrl = TextEditingController(text: acc.email);
-    var pickedRole = acc.role;
-    final ok = await showDialog<bool>(
+    final saved = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: c.bgElev,
-          title: Text('Edit profil', style: AppTypography.headlineS),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                EmasInput(controller: nameCtrl, hintText: 'Nama lengkap'),
-                const SizedBox(height: AppSpacing.s8),
-                EmasInput(controller: titleCtrl, hintText: 'Jabatan'),
-                const SizedBox(height: AppSpacing.s8),
-                EmasInput(controller: emailCtrl, hintText: 'Email'),
-                const SizedBox(height: AppSpacing.s8),
-                _RoleSelect(
-                  roles: widget.roles,
-                  selected: pickedRole,
-                  enabled: _canMutateThis,
-                  onChanged: (v) => setLocal(() => pickedRole = v),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Simpan'),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditProfileSheet(
+        account: widget.account,
+        roles: widget.roles,
+        canMutateRole: _canMutateThis,
+        onUpdateProfile: widget.onUpdateProfile,
+        onUpdateRole: widget.onUpdateRole,
       ),
     );
-    if (ok != true) return;
-    // Profile fields (name/title/email).
-    await _run(
-      () => widget.onUpdateProfile(
-        name: nameCtrl.text != acc.name ? nameCtrl.text : null,
-        title: titleCtrl.text != acc.title ? titleCtrl.text : null,
-        email: emailCtrl.text != acc.email ? emailCtrl.text : null,
-      ),
-      okMsg: 'Profil diubah.',
-    );
-    // Role berubah → panggil onUpdateRole (RBAC server cek).
-    if (pickedRole != acc.role) {
-      await _run(
-        () => widget.onUpdateRole(pickedRole),
-        okMsg: 'Role diubah.',
-      );
-      if (mounted) {
-        setState(() => _role = pickedRole);
-      }
+    if (saved == true && mounted) {
+      setState(() {
+        _role = widget.account.role;
+        _success = 'Profil diperbarui.';
+      });
     }
   }
 
