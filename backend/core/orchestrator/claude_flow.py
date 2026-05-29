@@ -249,6 +249,7 @@ class ClaudeFlowMixin:
         on_token: Callable[[str], Awaitable[None]],
         claude_session_id: str | None,
         cancel_event=None,
+        user_first_name: str = "",
     ) -> tuple[str, str | None]:
         """Stream a dashboard Codi turn token-by-token, with live DB read access.
 
@@ -271,6 +272,7 @@ class ClaudeFlowMixin:
             session_summary="",
             assistant_name=self._settings.assistant_name,
             memory_context=build_memory_context(self._memory, user_id),
+            user_first_name=user_first_name,
         )
         result = await run_claude_task_streaming(
             prompt=execution_prompt,

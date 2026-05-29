@@ -440,6 +440,25 @@ class DeviceApiServer:
                         )
                         conversation_id = None
 
+                # Nama depan user (untuk dipanggil oleh Codi). Bootstrap
+                # token tak punya account real → biarkan kosong.
+                user_first_name = ""
+                if (
+                    not getattr(auth_ctx, "is_bootstrap", False)
+                    and auth_service is not None
+                    and account_id
+                ):
+                    try:
+                        acc = auth_service._db.get_account_by_id(account_id)  # noqa: SLF001
+                        full = (getattr(acc, "name", "") or "").strip()
+                        if full:
+                            user_first_name = full.split()[0]
+                    except Exception:
+                        logger.exception(
+                            "action=chat_user_name_lookup_failed | sid=%s",
+                            session_id,
+                        )
+
                 # claude --resume key sekarang PER-CONVERSATION, dari
                 # ChatHistoryStore (bukan CodiSessionStore, yang dipakai
                 # endpoint dashboard /api/chat/stream — beda kontrak).
@@ -496,6 +515,7 @@ class DeviceApiServer:
                                 on_token=_on_token,
                                 claude_session_id=prior_claude_sid,
                                 cancel_event=cancel_event,
+                                user_first_name=user_first_name,
                             )
                         except Exception as exc:
                             # MVP-1: if --resume was attempted AND we haven't
@@ -539,6 +559,7 @@ class DeviceApiServer:
                                     on_token=_on_token,
                                     claude_session_id=None,
                                     cancel_event=cancel_event,
+                                    user_first_name=user_first_name,
                                 )
                             else:
                                 raise

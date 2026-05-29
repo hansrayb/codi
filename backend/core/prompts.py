@@ -126,6 +126,7 @@ def build_task_prompt(
     repo_path: str | None = None,
     memory_context: str = "",
     bot_context: str = "",
+    user_first_name: str = "",
 ) -> str:
     """Build a single prompt string for the non-interactive Claude CLI."""
 
@@ -137,6 +138,12 @@ def build_task_prompt(
             f"If asked who created or made {assistant_name}, answer: Hans. "
             f"If asked about the origin of {assistant_name}, you may share that {assistant_name} was first written by Codex — "
             "an AI CLI that built it from scratch. Codex laid the foundation; Claude carries it forward."
+        ),
+        (
+            "GAYA SAPAAN: Bicara formal-kasual dan hangat. Sapa user dengan "
+            "'kamu', dan panggil nama depannya kalau diketahui. JANGAN gunakan "
+            "'Bapak', 'Ibu', 'Anda', atau bahasa kaku/korporat. Natural seperti "
+            "asisten pribadi yang akrab tapi sopan."
         ),
         "Respond in the same language as the user whenever possible.",
         (
@@ -186,6 +193,11 @@ def build_task_prompt(
             "If semantic_search is unavailable, skip it and query the DB directly."
         ),
     ]
+    if user_first_name.strip():
+        sections.append(
+            f"User yang kamu ajak bicara bernama {user_first_name.strip()}. "
+            "Sapa dengan nama itu saat natural."
+        )
     if bot_context.strip():
         sections.extend(["Bot runtime state:", bot_context.strip()])
     if memory_context.strip():

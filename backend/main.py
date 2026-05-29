@@ -264,7 +264,8 @@ async def _post_init(application: Application) -> None:
         codi_session_store = CodiSessionStore(db_path=settings.codi_sessions_db_path)
 
         async def _chat_stream(
-            *, session_id, message, user_id, on_token, claude_session_id, cancel_event
+            *, session_id, message, user_id, on_token, claude_session_id, cancel_event,
+            user_first_name: str = "",
         ):
             return await _orch.run_chat_streaming(
                 message=message,
@@ -272,6 +273,7 @@ async def _post_init(application: Application) -> None:
                 on_token=on_token,
                 claude_session_id=claude_session_id,
                 cancel_event=cancel_event,
+                user_first_name=user_first_name,
             )
 
         device_api_server.set_chat_stream_factory(_chat_stream)
