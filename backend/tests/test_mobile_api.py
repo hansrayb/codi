@@ -557,21 +557,197 @@ def test_me_sessions_idle_seconds_monotonic_nonneg():
 
 
 def test_chat_messages_returns_reply():
+    # No chat_history wired → still returns a reply (best-effort persist skipped).
     p = _ok("POST", "/chat/messages", body={"message": "halo"})
     assert p["role"] == "assistant"
     assert p["content"]["type"] == "text"
     assert len(p["suggestions"]) == 3
 
 
-def test_chat_conversations_list():
+def test_chat_conversations_empty_without_store():
+    # chat_history not wired → return empty (no fixture).
     p = _ok("GET", "/chat/conversations")
-    assert p["conversations"][0]["id"] == "conv_001"
+    assert p == {"conversations": [], "next_cursor": None}
 
 
-def test_chat_conversation_messages():
-    p = _ok("GET", "/chat/conversations/conv_001/messages")
-    assert p["conversation_id"] == "conv_001"
-    assert p["messages"][1]["content"]["card"]["badge"]["label"] == "SEHAT"
+def test_chat_conversation_messages_404_without_store():
+    status, payload = mobile_handle(
+        "GET", "/chat/conversations/conv_001/messages", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+    )
+    assert status == HTTPStatus.NOT_FOUND
+    assert payload["error"]["code"] == "not_found"
+
+
+# ── Chat history persist round-trip ─────────────────────────────────
+
+
+def _fresh_chat_store(tmp_path):
+    from core.chat_history import ChatHistoryStore
+    return ChatHistoryStore.connect(tmp_path / "chat-history.db")
+
+
+def _fake_chat_fn(reply: str = "Halo! Codi siap."):
+    def _fn(_msg, _uid, _scope):
+        return reply
+    return _fn
+
+
+def test_chat_post_creates_conversation_and_persists_turns(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    status, p = mobile_handle(
+        "POST", "/chat/messages", {},
+        {"message": "Bagaimana omzet hari ini?"},
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_fn=_fake_chat_fn("Omzet hari ini Rp 15 jt."),
+        chat_history=store,
+    )
+    assert status == HTTPStatus.OK
+    conv_id = p["conversation_id"]
+    assert conv_id and conv_id.startswith("conv_")
+    assert "Omzet hari ini Rp 15 jt." in p["content"]["text"]
+
+    # Conversation lists this new id.
+    _, lst = mobile_handle(
+        "GET", "/chat/conversations", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert len(lst["conversations"]) == 1
+    conv = lst["conversations"][0]
+    assert conv["id"] == conv_id
+    assert conv["message_count"] == 2
+    assert conv["title"].startswith("Bagaimana omzet")
+    assert "Omzet hari ini" in conv["preview"]
+
+    # Messages: 2 (user + assistant), in order.
+    _, msgs = mobile_handle(
+        "GET", f"/chat/conversations/{conv_id}/messages", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert msgs["conversation_id"] == conv_id
+    assert len(msgs["messages"]) == 2
+    assert msgs["messages"][0]["role"] == "user"
+    assert msgs["messages"][0]["content"]["text"] == "Bagaimana omzet hari ini?"
+    assert msgs["messages"][1]["role"] == "assistant"
+    assert "Omzet hari ini" in msgs["messages"][1]["content"]["text"]
+
+
+def test_chat_post_continues_conversation_with_id(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    _, p1 = mobile_handle(
+        "POST", "/chat/messages", {}, {"message": "pertama"},
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_fn=_fake_chat_fn("balas 1"), chat_history=store,
+    )
+    conv_id = p1["conversation_id"]
+    _, p2 = mobile_handle(
+        "POST", "/chat/messages", {},
+        {"message": "lanjut", "conversation_id": conv_id},
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_fn=_fake_chat_fn("balas 2"), chat_history=store,
+    )
+    assert p2["conversation_id"] == conv_id
+
+    _, lst = mobile_handle(
+        "GET", "/chat/conversations", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    # Still 1 conversation, but with 4 messages now.
+    assert len(lst["conversations"]) == 1
+    assert lst["conversations"][0]["message_count"] == 4
+
+
+def test_chat_post_with_unknown_conv_id_creates_new(tmp_path):
+    # If client sends a conversation_id that isn't owned by this account,
+    # we create a fresh one and return its id (don't leak/cross accounts).
+    store = _fresh_chat_store(tmp_path)
+    _, p = mobile_handle(
+        "POST", "/chat/messages", {},
+        {"message": "hi", "conversation_id": "conv_nonexistent"},
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_fn=_fake_chat_fn("ok"), chat_history=store,
+    )
+    assert p["conversation_id"] != "conv_nonexistent"
+    assert p["conversation_id"].startswith("conv_")
+
+
+def test_chat_get_messages_404_for_unknown_id(tmp_path):
+    store = _fresh_chat_store(tmp_path)
+    status, payload = mobile_handle(
+        "GET", "/chat/conversations/conv_bogus/messages", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=store,
+    )
+    assert status == HTTPStatus.NOT_FOUND
+    assert payload["error"]["code"] == "not_found"
+
+
+def test_chat_post_graceful_on_store_error():
+    # Store raises on every method → POST still returns a reply.
+    class _BrokenStore:
+        def ensure_conversation(self, **_):
+            raise RuntimeError("disk full")
+
+        def append_message(self, **_):
+            raise RuntimeError("disk full")
+
+        def list_conversations(self, **_):
+            raise RuntimeError("disk full")
+
+        def get_messages(self, **_):
+            raise RuntimeError("disk full")
+
+    status, p = mobile_handle(
+        "POST", "/chat/messages", {}, {"message": "hi"},
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None,
+        chat_fn=_fake_chat_fn("ok"), chat_history=_BrokenStore(),
+    )
+    assert status == HTTPStatus.OK
+    assert p["content"]["text"]  # reply still flows
+    # conversation_id falls back; not crashing is the contract.
+
+    # GET conversations graceful → empty.
+    _, lst = mobile_handle(
+        "GET", "/chat/conversations", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=_BrokenStore(),
+    )
+    assert lst == {"conversations": [], "next_cursor": None}
+
+    # GET messages graceful → 404.
+    status2, payload2 = mobile_handle(
+        "GET", "/chat/conversations/conv_x/messages", {}, None,
+        auth_ctx=_BOOTSTRAP_CTX, auth_service=None, chat_history=_BrokenStore(),
+    )
+    assert status2 == HTTPStatus.NOT_FOUND
+
+
+def test_chat_conversations_scoped_per_account(tmp_path):
+    """User A's conversations must not appear for user B."""
+    store = _fresh_chat_store(tmp_path)
+    ctx_a = AuthContext(
+        account_id="acc_a", email="a@x", role_slug="dir",
+        scopes=("chat:use",), is_bootstrap=False,
+    )
+    ctx_b = AuthContext(
+        account_id="acc_b", email="b@x", role_slug="dir",
+        scopes=("chat:use",), is_bootstrap=False,
+    )
+    _, p_a = mobile_handle(
+        "POST", "/chat/messages", {}, {"message": "halo A"},
+        auth_ctx=ctx_a, auth_service=None,
+        chat_fn=_fake_chat_fn("reply"), chat_history=store,
+    )
+    a_conv = p_a["conversation_id"]
+    _, lst_b = mobile_handle(
+        "GET", "/chat/conversations", {}, None,
+        auth_ctx=ctx_b, auth_service=None, chat_history=store,
+    )
+    assert lst_b["conversations"] == []
+    # B can't read A's messages either.
+    status, _ = mobile_handle(
+        "GET", f"/chat/conversations/{a_conv}/messages", {}, None,
+        auth_ctx=ctx_b, auth_service=None, chat_history=store,
+    )
+    assert status == HTTPStatus.NOT_FOUND
 
 
 def test_unknown_path_404():

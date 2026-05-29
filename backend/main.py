@@ -15,6 +15,7 @@ from telegram.ext import Application, ApplicationBuilder
 from config import ConfigError, Settings, load_settings
 from core.alert_targets import AlertTargetRegistry
 from core.agent_messaging import AgentMessagingStore
+from core.chat_history import ChatHistoryStore
 from core.auth import AuthDb, AuthService, JwtHelper
 from core.case_manager import CaseManager
 from core.codi_sessions import CodiSessionStore
@@ -128,6 +129,11 @@ def build_application(settings: Settings) -> Application:
     agent_msg_store = AgentMessagingStore.connect(agent_msg_path)
     device_api_server.set_agent_messaging_store(agent_msg_store)
     logger.info("action=agent_messaging_ready | db=%s", agent_msg_path)
+
+    chat_history_path = settings.auth_db_path.parent / "codi-chat-history.db"
+    chat_history_store = ChatHistoryStore.connect(chat_history_path)
+    device_api_server.set_chat_history_store(chat_history_store)
+    logger.info("action=chat_history_ready | db=%s", chat_history_path)
     desktop_action_manager = DesktopActionManager()
     desktop_screenshot_service = DesktopScreenshotService()
     local_shell_service = LocalShellService(

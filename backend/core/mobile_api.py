@@ -48,6 +48,7 @@ def mobile_handle(
     auth_service: AuthService | None,
     chat_fn: ChatFn | None = None,
     session_manager: Any = None,
+    chat_history: Any = None,
 ) -> JsonResult:
     """Dispatch satu request mobile.
 
@@ -58,6 +59,9 @@ def mobile_handle(
                 Bila None, `/chat/messages` return stub fallback.
     `session_manager` = SessionManager (read-only) untuk `/me/sessions`.
                 Bila None, endpoint return empty snapshot.
+    `chat_history` = ChatHistoryStore untuk persist `/chat/*`. Bila None,
+                endpoint conversations return list kosong, POST tetap balas
+                tanpa simpan.
     """
     try:
         return _dispatch(
@@ -69,6 +73,7 @@ def mobile_handle(
             auth_service=auth_service,
             chat_fn=chat_fn,
             session_manager=session_manager,
+            chat_history=chat_history,
         )
     except AuthError as exc:
         return _http(exc.http_status), _error(exc.code, exc.message)
@@ -86,6 +91,7 @@ def _dispatch(
     auth_service: AuthService | None,
     chat_fn: ChatFn | None,
     session_manager: Any = None,
+    chat_history: Any = None,
 ) -> JsonResult:
     # ── Public auth endpoints ────────────────────────────────
     if method == "POST" and path == "/auth/login":
@@ -123,10 +129,10 @@ def _dispatch(
         return _reports_detail(query.get("ref", ""))
     if method == "POST" and path == "/chat/messages":
         require_scope(auth_ctx, "chat:use")
-        return _chat_messages(body, chat_fn)
+        return _chat_messages(body, chat_fn, auth_ctx=auth_ctx, chat_history=chat_history)
     if method == "GET" and path == "/chat/conversations":
         require_scope(auth_ctx, "chat:use")
-        return _chat_conversations()
+        return _chat_conversations(auth_ctx=auth_ctx, chat_history=chat_history)
     if (
         method == "GET"
         and path.startswith("/chat/conversations/")
@@ -134,7 +140,9 @@ def _dispatch(
     ):
         require_scope(auth_ctx, "chat:use")
         conv_id = path[len("/chat/conversations/") : -len("/messages")]
-        return _chat_conversation_messages(conv_id)
+        return _chat_conversation_messages(
+            conv_id, auth_ctx=auth_ctx, chat_history=chat_history,
+        )
 
     # ── Account management ─────────────────────────────────
     if method == "GET" and path == "/accounts":
@@ -1391,15 +1399,36 @@ _DEFAULT_SUGGESTIONS = [
 
 
 def _chat_messages(
-    body: dict[str, Any] | None, chat_fn: ChatFn | None
+    body: dict[str, Any] | None,
+    chat_fn: ChatFn | None,
+    *,
+    auth_ctx: AuthContext | None = None,
+    chat_history: Any = None,
 ) -> JsonResult:
     payload = body or {}
     message = str(payload.get("message") or "").strip()
-    conversation_id = str(payload.get("conversation_id") or "") or "conv_001"
+    requested_conv_id = str(payload.get("conversation_id") or "").strip() or None
     if not message:
         return HTTPStatus.BAD_REQUEST, _error(
             "invalid_payload", "message wajib diisi."
         )
+
+    account_id = str(getattr(auth_ctx, "account_id", "") or "")
+
+    conversation_id: str | None = None
+    if chat_history is not None and account_id:
+        try:
+            conversation_id = chat_history.ensure_conversation(
+                account_id=account_id,
+                conversation_id=requested_conv_id,
+                seed_title_text=message,
+            )
+            chat_history.append_message(
+                conversation_id=conversation_id, role="user", text=message,
+            )
+        except Exception as exc:  # noqa: BLE001 — persist best-effort
+            logger.warning("chat_history persist user failed: %s", exc)
+            conversation_id = None
 
     reply_text = _STUB_REPLY
     response_ms = 0
@@ -1418,9 +1447,25 @@ def _chat_messages(
             )
         response_ms = int((_time.monotonic() - start) * 1000)
 
-    return HTTPStatus.OK, {
-        "conversation_id": conversation_id,
-        "message_id": f"msg_{int(_time.time() * 1000)}",
+    assistant_msg_id = f"msg_{int(_time.time() * 1000)}"
+    if (
+        chat_history is not None
+        and account_id
+        and conversation_id is not None
+    ):
+        try:
+            persisted = chat_history.append_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                text=reply_text,
+            )
+            assistant_msg_id = persisted.get("id") or assistant_msg_id
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("chat_history persist assistant failed: %s", exc)
+
+    response: dict[str, Any] = {
+        "conversation_id": conversation_id or requested_conv_id or "conv_001",
+        "message_id": assistant_msg_id,
         "role": "assistant",
         "content": {"type": "text", "text": reply_text},
         "suggestions": _DEFAULT_SUGGESTIONS,
@@ -1430,65 +1475,50 @@ def _chat_messages(
             "tokens_used": 0,
         },
     }
+    return HTTPStatus.OK, response
 
 
-def _chat_conversations() -> JsonResult:
-    return HTTPStatus.OK, {
-        "conversations": [
-            {
-                "id": "conv_001",
-                "title": "Kondisi operasional bulan Mei",
-                "last_message_at": "2026-05-17T09:44:00+07:00",
-                "message_count": 4,
-                "preview": "Tiga hal yang sebaiknya Bapak ketahui...",
-            },
-        ],
-        "next_cursor": None,
-    }
+def _chat_conversations(
+    *,
+    auth_ctx: AuthContext | None = None,
+    chat_history: Any = None,
+) -> JsonResult:
+    account_id = str(getattr(auth_ctx, "account_id", "") or "")
+    if chat_history is None or not account_id:
+        return HTTPStatus.OK, {"conversations": [], "next_cursor": None}
+    try:
+        items = chat_history.list_conversations(account_id=account_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("chat_history list failed: %s", exc)
+        return HTTPStatus.OK, {"conversations": [], "next_cursor": None}
+    return HTTPStatus.OK, {"conversations": items, "next_cursor": None}
 
 
-def _chat_conversation_messages(conversation_id: str) -> JsonResult:
+def _chat_conversation_messages(
+    conversation_id: str,
+    *,
+    auth_ctx: AuthContext | None = None,
+    chat_history: Any = None,
+) -> JsonResult:
+    account_id = str(getattr(auth_ctx, "account_id", "") or "")
+    if chat_history is None or not account_id or not conversation_id:
+        return HTTPStatus.NOT_FOUND, _error(
+            "not_found", "Percakapan tidak ditemukan.",
+        )
+    try:
+        messages = chat_history.get_messages(
+            conversation_id=conversation_id, account_id=account_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("chat_history get_messages failed: %s", exc)
+        return HTTPStatus.NOT_FOUND, _error(
+            "not_found", "Percakapan tidak ditemukan.",
+        )
+    if messages is None:
+        return HTTPStatus.NOT_FOUND, _error(
+            "not_found", "Percakapan tidak ditemukan.",
+        )
     return HTTPStatus.OK, {
         "conversation_id": conversation_id,
-        "messages": [
-            {
-                "id": "msg_001",
-                "role": "user",
-                "content": {
-                    "type": "text",
-                    "text": "Bagaimana kondisi operasional hari ini, Codi?",
-                },
-                "timestamp": "2026-05-17T09:42:00+07:00",
-            },
-            {
-                "id": "msg_002",
-                "role": "assistant",
-                "content": {
-                    "type": "rich",
-                    "text": (
-                        "Selamat pagi Bapak Leo. Berikut ringkasan kondisi "
-                        "kantor hari ini:"
-                    ),
-                    "card": {
-                        "title": "Status Mei 2026",
-                        "badge": {"label": "SEHAT", "color": "green"},
-                        "rows": [
-                            {"label": "Omzet", "value": "Rp 828,8 jt", "trend": "up"},
-                            {"label": "Pertumbuhan MoM", "value": "+321%", "trend": "up"},
-                            {"label": "Conv. Rate", "value": "68,8%", "trend": "down"},
-                            {"label": "Beban Komisi", "value": "1,3% omzet"},
-                        ],
-                        "inline_chart": {
-                            "type": "sparkline",
-                            "data": [12, 15, 10, 22, 30, 36, 42, 50],
-                        },
-                        "actions": [
-                            {"label": "Lihat Ringkasan", "deep_link": "/insight?period=month"},
-                            {"label": "Export PDF", "action": "export_pdf"},
-                        ],
-                    },
-                },
-                "timestamp": "2026-05-17T09:42:01+07:00",
-            },
-        ],
+        "messages": messages,
     }
