@@ -68,9 +68,5 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
-		<key>NSMicrophoneUsageDescription</key>
-		<string>Codi memakai mikrofon untuk input suara di chat.</string>
-		<key>NSSpeechRecognitionUsageDescription</key>
-		<string>Codi mengubah ucapan kamu menjadi teks untuk chat.</string>
 	</dict>
 </plist>
