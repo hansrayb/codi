@@ -66,6 +66,12 @@ class DeviceApiServer:
         self._loop_cell: list[Optional[asyncio.AbstractEventLoop]] = [None]
         self._session_store_cell: list[Any] = [None]
         self._agent_msg_cell: list[AgentMessagingStore | None] = [None]
+        # SessionManager (read-only) for /api/v1/me/sessions diagnostic endpoint.
+        self._session_manager_cell: list[Any] = [None]
+
+    def set_session_manager(self, session_manager: Any) -> None:
+        """Wire the SessionManager so /me/sessions can list active terminals."""
+        self._session_manager_cell[0] = session_manager
 
     def set_agent_messaging_store(self, store: AgentMessagingStore) -> None:
         """Wire agent-to-agent messaging store (SQLite)."""
@@ -160,6 +166,7 @@ class DeviceApiServer:
         auth_service = self._auth_service
         allow_bootstrap = self._allow_bootstrap_token
         agent_msg_cell = self._agent_msg_cell
+        session_manager_cell = self._session_manager_cell
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "CodiDeviceAPI/1.0"
@@ -923,6 +930,7 @@ class DeviceApiServer:
                         auth_ctx=auth_ctx,
                         auth_service=auth_service,
                         chat_fn=chat_fn_cell[0],
+                        session_manager=session_manager_cell[0],
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("mobile_api error: %s", exc)

@@ -251,6 +251,8 @@ async def _post_init(application: Application) -> None:
             return future.result(timeout=120)
 
         device_api_server.set_chat_fn(_chat_sync)
+        # Read-only view of active orchestrator sessions for /api/v1/me/sessions.
+        device_api_server.set_session_manager(application.bot_data["session_manager"])
 
         # ── Dashboard SSE streaming wiring ──────────────────────────────────
         codi_session_store = CodiSessionStore(db_path=settings.codi_sessions_db_path)

@@ -5,8 +5,9 @@ endpoint baca (dashboard, insight, chat) yang tetap aksesibel pakai bootstrap
 token legacy.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
+from types import SimpleNamespace
 
 import pytest
 
@@ -433,6 +434,126 @@ def test_reports_detail_invalid_ref_returns_404():
     _detail("payroll:not-int", expect_status=HTTPStatus.NOT_FOUND)
     _detail("absensi:2026-13", expect_status=HTTPStatus.NOT_FOUND)
     _detail("omzet:bad-key", expect_status=HTTPStatus.NOT_FOUND)
+
+
+# ── /me/sessions ────────────────────────────────────────────────────
+
+
+class _FakeSessionManager:
+    def __init__(self, sessions=None, *, raise_exc=None):
+        self._sessions = sessions or []
+        self._raise = raise_exc
+
+    def list_sessions_snapshot(self):
+        if self._raise:
+            raise self._raise
+        return list(self._sessions)
+
+
+def _mk_session(
+    *,
+    session_id="s-01",
+    role="advisor",
+    cwd="/home/odc/lumbungemas-prod",
+    created_at=None,
+    last_activity_at=None,
+    status="idle",
+    case_id=None,
+    owner_user_id=5354020279,
+    message_count=3,
+):
+    now = datetime.now(timezone.utc)
+    return SimpleNamespace(
+        session_id=session_id,
+        role=role,
+        cwd=cwd,
+        created_at=created_at or (now - timedelta(minutes=30)),
+        last_activity_at=last_activity_at or (now - timedelta(minutes=12)),
+        status=status,
+        case_id=case_id,
+        owner_user_id=owner_user_id,
+        message_count=message_count,
+    )
+
+
+def _sessions(*, mgr, ctx=_BOOTSTRAP_CTX):
+    status, p = mobile_handle(
+        "GET", "/me/sessions", {}, None,
+        auth_ctx=ctx, auth_service=None, session_manager=mgr,
+    )
+    assert status == HTTPStatus.OK, (status, p)
+    return p
+
+
+def test_me_sessions_empty_without_manager():
+    p = _sessions(mgr=None)
+    assert p == {"active": 0, "sessions": []}
+
+
+def test_me_sessions_empty_with_empty_manager():
+    p = _sessions(mgr=_FakeSessionManager(sessions=[]))
+    assert p == {"active": 0, "sessions": []}
+
+
+def test_me_sessions_shape_with_two_sessions():
+    s1 = _mk_session(
+        session_id="s-01", role="advisor",
+        cwd="/home/odc/lumbungemas-prod", status="idle",
+        message_count=4,
+    )
+    s2 = _mk_session(
+        session_id="s-02", role="builder",
+        cwd="/home/odc/ai-agent-telegram", status="busy",
+        case_id="c-01",
+        last_activity_at=datetime.now(timezone.utc),  # newer → sorts first
+        message_count=2,
+    )
+    p = _sessions(mgr=_FakeSessionManager(sessions=[s1, s2]))
+    assert p["active"] == 2
+    assert len(p["sessions"]) == 2
+    # Sort by last_activity_at desc → s2 (newer) first.
+    first, second = p["sessions"]
+    assert first["id"] == "s-02"
+    assert first["role"] == "builder"
+    assert first["repo"] == "/home/odc/ai-agent-telegram"
+    assert first["repo_name"] == "ai-agent-telegram"
+    assert first["status"] == "busy"
+    assert first["case_id"] == "c-01"
+    assert first["user_id"] == 5354020279
+    assert isinstance(first["started_at"], str) and "T" in first["started_at"]
+    assert isinstance(first["last_activity_at"], str)
+    assert isinstance(first["idle_seconds"], int) and first["idle_seconds"] >= 0
+    assert first["message_count"] == 2
+    # second item carries the older session.
+    assert second["id"] == "s-01"
+    assert second["repo_name"] == "lumbungemas-prod"
+    assert second["status"] == "idle"
+
+
+def test_me_sessions_graceful_on_manager_error():
+    mgr = _FakeSessionManager(raise_exc=RuntimeError("boom"))
+    p = _sessions(mgr=mgr)
+    assert p == {"active": 0, "sessions": []}
+
+
+def test_me_sessions_requires_auth():
+    status, payload = mobile_handle(
+        "GET", "/me/sessions", {}, None,
+        auth_ctx=None, auth_service=None,
+        session_manager=_FakeSessionManager(sessions=[_mk_session()]),
+    )
+    assert status == HTTPStatus.UNAUTHORIZED
+    assert payload["error"]["code"] == "unauthorized"
+
+
+def test_me_sessions_idle_seconds_monotonic_nonneg():
+    # If last_activity_at is in the future (clock skew), idle_seconds clamps to 0.
+    future = datetime.now(timezone.utc) + timedelta(seconds=30)
+    p = _sessions(mgr=_FakeSessionManager(sessions=[
+        _mk_session(last_activity_at=future),
+    ]))
+    assert p["active"] == 1
+    assert p["sessions"][0]["idle_seconds"] == 0
 
 
 def test_chat_messages_returns_reply():

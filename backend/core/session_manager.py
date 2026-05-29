@@ -244,6 +244,16 @@ class SessionManager:
         self._user_sessions[user_id].add(session_id)
         return session, True
 
+    def list_sessions_snapshot(self) -> list[Session]:
+        """Return a snapshot of all known sessions (sync, no prune).
+
+        Safe to call from a non-asyncio thread (e.g. the device-api HTTP
+        handler) for read-only display purposes. Does not invoke the
+        idle-expiry pruner; callers should treat returned sessions as
+        "last known state" which may include very recently idle ones.
+        """
+        return list(self._sessions.values())
+
     async def _release_lease(self, lease: SessionLease, summary_update: str) -> None:
         async with self._lock:
             session = self._sessions.get(lease.session.session_id)

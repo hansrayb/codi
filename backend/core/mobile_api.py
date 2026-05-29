@@ -19,6 +19,7 @@ import logging
 import os
 from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
+from pathlib import Path
 from typing import Any, Callable
 
 from core import mobile_metrics
@@ -46,6 +47,7 @@ def mobile_handle(
     auth_ctx: AuthContext | None,
     auth_service: AuthService | None,
     chat_fn: ChatFn | None = None,
+    session_manager: Any = None,
 ) -> JsonResult:
     """Dispatch satu request mobile.
 
@@ -54,6 +56,8 @@ def mobile_handle(
     `auth_service` = service auth; bila None, endpoint auth/accounts gagal.
     `chat_fn` = sync chat callable (msg, user_id, scope) -> reply text.
                 Bila None, `/chat/messages` return stub fallback.
+    `session_manager` = SessionManager (read-only) untuk `/me/sessions`.
+                Bila None, endpoint return empty snapshot.
     """
     try:
         return _dispatch(
@@ -64,6 +68,7 @@ def mobile_handle(
             auth_ctx=auth_ctx,
             auth_service=auth_service,
             chat_fn=chat_fn,
+            session_manager=session_manager,
         )
     except AuthError as exc:
         return _http(exc.http_status), _error(exc.code, exc.message)
@@ -80,6 +85,7 @@ def _dispatch(
     auth_ctx: AuthContext | None,
     auth_service: AuthService | None,
     chat_fn: ChatFn | None,
+    session_manager: Any = None,
 ) -> JsonResult:
     # ── Public auth endpoints ────────────────────────────────
     if method == "POST" and path == "/auth/login":
@@ -101,6 +107,8 @@ def _dispatch(
         return _me(auth_ctx, auth_service)
     if method == "PATCH" and path == "/me/preferences":
         return _me(auth_ctx, auth_service, preferences_override=body)
+    if method == "GET" and path == "/me/sessions":
+        return _me_sessions(session_manager)
     if method == "GET" and path == "/dashboard/summary":
         require_scope(auth_ctx, "dashboard:read")
         return _dashboard_summary(query.get("period", "month"))
@@ -343,6 +351,57 @@ def _me(
             "last_login_at": account.last_login_at.isoformat() if account.last_login_at else None,
         },
     }
+
+
+def _me_sessions(session_manager: Any) -> JsonResult:
+    """Snapshot sesi Codi aktif (read-only). Bot-wide, bukan per-user.
+
+    Source: `SessionManager.list_sessions_snapshot()` (sync). Mapping ke
+    kontrak app: id, role, repo, repo_name, started_at, last_activity_at,
+    idle_seconds. Field tambahan (status, case_id, owner_user_id,
+    message_count) untuk diagnosis — frontend abaikan yang tak dikenal.
+    """
+    if session_manager is None:
+        return HTTPStatus.OK, {"active": 0, "sessions": []}
+    try:
+        raw_sessions = session_manager.list_sessions_snapshot()
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully
+        logger.warning("session_manager.list_sessions_snapshot failed: %s", exc)
+        return HTTPStatus.OK, {"active": 0, "sessions": []}
+    now = datetime.now(timezone.utc)
+    items: list[dict[str, Any]] = []
+    for s in raw_sessions:
+        try:
+            started = getattr(s, "created_at", None)
+            last_act = getattr(s, "last_activity_at", None)
+            repo = str(getattr(s, "cwd", "") or "")
+            repo_name = Path(repo).name if repo else ""
+            idle_seconds: int | None = None
+            if isinstance(last_act, datetime):
+                idle_seconds = max(0, int((now - last_act).total_seconds()))
+            items.append({
+                "id": str(getattr(s, "session_id", "") or ""),
+                "role": str(getattr(s, "role", "") or ""),
+                "repo": repo,
+                "repo_name": repo_name,
+                "started_at": started.isoformat() if isinstance(started, datetime) else None,
+                "last_activity_at": (
+                    last_act.isoformat() if isinstance(last_act, datetime) else None
+                ),
+                "idle_seconds": idle_seconds,
+                "status": str(getattr(s, "status", "") or ""),
+                "case_id": getattr(s, "case_id", None),
+                "user_id": getattr(s, "owner_user_id", None),
+                "message_count": int(getattr(s, "message_count", 0) or 0),
+            })
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("session shape unexpected: %s", exc)
+    # Sort: most recently active first.
+    items.sort(
+        key=lambda it: it.get("last_activity_at") or "",
+        reverse=True,
+    )
+    return HTTPStatus.OK, {"active": len(items), "sessions": items}
 
 
 # ── Account CRUD ────────────────────────────────────────────────────
