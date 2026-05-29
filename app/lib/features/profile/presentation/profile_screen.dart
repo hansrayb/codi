@@ -121,7 +121,7 @@ class ProfileScreen extends ConsumerWidget {
                     AppSpacing.s8,
                   ),
                   child: Text(
-                    '${data.footer}\nUntuk Bapak ${data.name}',
+                    '${data.footer}\nUntuk ${data.name}',
                     textAlign: TextAlign.center,
                     style: AppTypography.labelS.copyWith(
                       color: c.inkFaint,

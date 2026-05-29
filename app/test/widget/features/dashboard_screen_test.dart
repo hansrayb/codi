@@ -83,7 +83,7 @@ void main() {
     await tester.pump(); // future resolves
     await tester.pump(const Duration(milliseconds: 16));
 
-    expect(find.text('Bapak Leo Sastra C.W.'), findsOneWidget);
+    expect(find.text('Leo Sastra C.W.'), findsOneWidget);
     expect(find.textContaining('OMZET MEI 2026'), findsOneWidget);
     expect(find.byType(SummaryCard), findsOneWidget);
     expect(find.byType(StatsRow), findsOneWidget);

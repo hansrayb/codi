@@ -32,7 +32,7 @@ class ApiException implements Exception {
       case DioExceptionType.connectionError:
         return const ApiException(
           kind: ApiErrorKind.noInternet,
-          message: 'Tidak ada koneksi internet. Cek WiFi/data Anda.',
+          message: 'Tidak ada koneksi internet. Cek WiFi/data kamu.',
         );
       case DioExceptionType.badResponse:
         return _fromStatus(e.response?.statusCode, e.response?.data);

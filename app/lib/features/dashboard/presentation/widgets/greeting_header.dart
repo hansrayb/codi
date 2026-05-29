@@ -5,7 +5,7 @@ import '../../../../widgets/emas_avatar.dart';
 
 /// Greeting + avatar (`docs/06-SCREENS.md` → Greeting & mockup `.top-nav`).
 ///
-/// Sapaan dinamis by jam. Format formal: "Bapak {nama}".
+/// Sapaan dinamis by jam. Format formal-kasual: "{nama}".
 class GreetingHeader extends StatelessWidget {
   const GreetingHeader({
     required this.name,
@@ -14,7 +14,7 @@ class GreetingHeader extends StatelessWidget {
     super.key,
   });
 
-  /// Nama user (tanpa "Bapak").
+  /// Nama user.
   final String name;
 
   /// Jabatan, mis. "Direktur Utama".
@@ -55,7 +55,7 @@ class GreetingHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.s2),
                 Text(
-                  'Bapak $name',
+                  name,
                   style: AppTypography.headlineM.copyWith(fontSize: 17),
                 ),
                 const SizedBox(height: AppSpacing.s2),

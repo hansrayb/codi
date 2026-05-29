@@ -106,7 +106,7 @@ class WidgetGallery extends StatelessWidget {
           const SizedBox(
             height: 220,
             child: EmasErrorView(
-              message: 'Tidak ada koneksi internet. Cek WiFi/data Anda.',
+              message: 'Tidak ada koneksi internet. Cek WiFi/data kamu.',
               onRetry: _noop,
             ),
           ),

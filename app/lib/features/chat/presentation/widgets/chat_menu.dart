@@ -144,7 +144,7 @@ class _CodiAboutBody extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.s16),
             Text(
-              'Codi adalah asisten eksekutif Anda — terhubung langsung ke '
+              'Codi adalah asisten eksekutif kamu — terhubung langsung ke '
               'sistem operasional (Lumbung, HR/payroll) untuk menjawab '
               'pertanyaan dengan data nyata.',
               style: AppTypography.bodyM.copyWith(color: c.inkMuted),
@@ -155,7 +155,7 @@ class _CodiAboutBody extends StatelessWidget {
             const _Row(label: 'Respon', value: 'Real-time streaming'),
             const SizedBox(height: AppSpacing.s14),
             Text(
-              'Pesan Anda diproses oleh orchestrator Codi di server. '
+              'Pesan kamu diproses oleh orchestrator Codi di server. '
               'Codi tidak mengubah data dari layar chat ini.',
               style: AppTypography.bodyS.copyWith(color: c.inkFaint),
             ),

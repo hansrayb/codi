@@ -61,7 +61,7 @@ class _FakeChatRepo implements ChatRepository {
       ChatConversation(
         id: 'conv_fake_1',
         title: 'Kondisi operasional Mei',
-        preview: 'Tiga hal yang perlu Bapak tahu...',
+        preview: 'Tiga hal yang perlu kamu tahu...',
         messageCount: 4,
         lastMessageAt: DateTime(2026, 5, 17, 9, 44),
       ),

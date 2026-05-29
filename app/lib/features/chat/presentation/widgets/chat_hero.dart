@@ -121,7 +121,7 @@ class _ChatHeroState extends State<ChatHero>
     const prompts = [
       'Ada yang bisa saya bantu hari ini?',
       'Mau lihat ringkasan apa hari ini?',
-      'Apa yang ingin Bapak ketahui?',
+      'Apa yang ingin kamu ketahui?',
       'Saya siap bantu — silakan tanya.',
       'Mulai dari mana hari ini?',
     ];
