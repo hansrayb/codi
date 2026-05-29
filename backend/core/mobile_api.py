@@ -696,26 +696,47 @@ _HTML_LINK = _re.compile(
     r"<\s*a\s+[^>]*>(.*?)<\s*/\s*a\s*>", _re.IGNORECASE | _re.DOTALL
 )
 _MULTI_NEWLINE = _re.compile(r"\n{3,}")
+# Markdown inline: **bold**, *italic*, __bold__, _italic_, `code`, ~~strike~~.
+_MD_BOLD = _re.compile(r"\*\*([^*\n]+?)\*\*")
+_MD_BOLD_UNDER = _re.compile(r"__([^_\n]+?)__")
+_MD_ITALIC = _re.compile(r"(?<![*\w])\*([^*\n]+?)\*(?!\w)")
+_MD_ITALIC_UNDER = _re.compile(r"(?<![_\w])_([^_\n]+?)_(?!\w)")
+_MD_CODE_INLINE = _re.compile(r"`([^`\n]+?)`")
+_MD_STRIKE = _re.compile(r"~~([^~\n]+?)~~")
+# Block: triple-backtick code fence, link [label](href).
+_MD_CODE_FENCE = _re.compile(
+    r"```[a-zA-Z0-9_+-]*\n?([\s\S]*?)```", _re.MULTILINE
+)
+_MD_LINK = _re.compile(r"\[([^\]]+)\]\([^)]+\)")
+# Heading lines: "## Heading" → "Heading".
+_MD_HEADING = _re.compile(r"^\s{0,3}#{1,6}\s+", _re.MULTILINE)
 
 
 def _clean_chat_text(raw: str) -> str:
-    """Hilangkan HTML tag Telegram, decode entity, normalize whitespace.
+    """Hilangkan HTML tag Telegram + markdown inline, decode entity,
+    normalize whitespace.
 
-    Output plain text rapi untuk mobile (mobile bubble render Text plain,
-    tak parse HTML). Markup `<b>...</b>` jadi text biasa (drop tag).
+    Output plain text rapi untuk mobile (bubble render Text plain, tak parse
+    HTML/markdown). `<b>X</b>` dan `**X**` jadi `X`.
     """
     if not raw:
         return raw
-    # Anchor tag: ambil label saja, drop href.
+    # 1. HTML cleanup.
     s = _HTML_LINK.sub(r"\1", raw)
-    # Semua tag pasangan/single → strip.
     s = _HTML_TAG.sub("", s)
-    # Decode entity HTML (&amp; &lt; &gt; &quot; &#39;).
     s = _html.unescape(s)
-    # Normalize: max 2 newline berturut.
+    # 2. Markdown cleanup (drop markup, pertahankan content).
+    s = _MD_CODE_FENCE.sub(r"\1", s)
+    s = _MD_LINK.sub(r"\1", s)
+    s = _MD_BOLD.sub(r"\1", s)
+    s = _MD_BOLD_UNDER.sub(r"\1", s)
+    s = _MD_ITALIC.sub(r"\1", s)
+    s = _MD_ITALIC_UNDER.sub(r"\1", s)
+    s = _MD_CODE_INLINE.sub(r"\1", s)
+    s = _MD_STRIKE.sub(r"\1", s)
+    s = _MD_HEADING.sub("", s)
+    # 3. Whitespace normalize.
     s = _MULTI_NEWLINE.sub("\n\n", s)
-    # Strip trailing/leading whitespace tiap baris (Telegram sering ada
-    # trailing space sebelum newline).
     s = "\n".join(line.rstrip() for line in s.splitlines())
     return s.strip()
 

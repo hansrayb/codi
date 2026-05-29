@@ -283,6 +283,41 @@ TOOLS: list[Tool] = [
             "required": ["run_id"],
         },
     ),
+    # ── Lumbung business metrics (dashboard data dari NestJS via Codi) ──
+    Tool(
+        name="lumbung_dashboard_summary",
+        description=(
+            "Ringkasan operasional bisnis Lumbung (omzet, order, transaksi, "
+            "stok, dll). Pakai saat user tanya 'kondisi hari ini', "
+            "'ringkasan', 'omzet bulan ini'. Period: today/week/month/year."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "description": "today / week / month (default) / year",
+                    "default": "month",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="lumbung_dashboard_insight",
+        description=(
+            "KPI + komposisi omzet + AI analysis untuk Lumbung. Lebih detail "
+            "dari summary. Period: today/week/month/year."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "default": "month",
+                },
+            },
+        },
+    ),
     # ── Agent-to-agent messaging (peer messaging via Codi broker) ──
     Tool(
         name="agent_send",
@@ -463,6 +498,19 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
     if name == "hr_finalize_payroll_run":
         path = f"/api/payroll/runs/{args['run_id']}/finalize"
         return _ok(await asyncio.to_thread(_hr, "POST", path, {}))
+
+    # ── Lumbung business metrics ──────────────────────────────────────────────
+    if name == "lumbung_dashboard_summary":
+        period = args.get("period", "month")
+        return _ok(await asyncio.to_thread(
+            _codi, "GET", f"/api/v1/dashboard/summary?period={period}"
+        ))
+
+    if name == "lumbung_dashboard_insight":
+        period = args.get("period", "month")
+        return _ok(await asyncio.to_thread(
+            _codi, "GET", f"/api/v1/dashboard/insight?period={period}"
+        ))
 
     # ── Agent-to-agent messaging ──────────────────────────────────────────────
     if name == "agent_send":
