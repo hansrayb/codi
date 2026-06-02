@@ -37,7 +37,7 @@ HR_PASSWORD = os.environ.get("HR_SERVICE_PASSWORD", "")
 
 # ── Shared state ───────────────────────────────────────────────────────────────
 
-_hr_token: str | None = None
+_hr_token_cache: str | None = None
 _hr_token_expiry: float = 0.0
 _hr_token_lock = threading.Lock()
 
@@ -74,17 +74,22 @@ def _codi(method: str, path: str, body: dict | None = None) -> Any:
 
 
 def _hr_token() -> str:
-    global _hr_token, _hr_token_expiry
+    # NB: previously cached value lived in a module-level var also named
+    # `_hr_token`, which `def` silently overwrote — so after the first call
+    # the function name was replaced by the str token and every subsequent
+    # tool invocation raised `'str' object is not callable`. Cache renamed
+    # to `_hr_token_cache` to break the name shadow.
+    global _hr_token_cache, _hr_token_expiry
     with _hr_token_lock:
-        if _hr_token and time.time() < _hr_token_expiry:
-            return _hr_token
+        if _hr_token_cache and time.time() < _hr_token_expiry:
+            return _hr_token_cache
         data = _http("POST", f"{HR_API_URL}/api/auth/login", {"username": HR_EMAIL, "password": HR_PASSWORD})
         tok = data.get("access_token") or data.get("token") or ""
         if not tok:
             raise RuntimeError("HR login did not return a token.")
-        _hr_token = tok
+        _hr_token_cache = tok
         _hr_token_expiry = time.time() + 50 * 60
-        return _hr_token
+        return _hr_token_cache
 
 
 def _hr(method: str, path: str, body: dict | None = None) -> Any:
