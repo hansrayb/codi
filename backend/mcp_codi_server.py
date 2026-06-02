@@ -445,7 +445,9 @@ async def _dispatch(name: str, args: dict) -> CallToolResult:
         return _ok(await asyncio.to_thread(_hr, "GET", path))
 
     if name == "hr_get_payroll_items":
-        path = f"/api/payroll/runs/{args['run_id']}/items"
+        # HR backend returns items list directly on the run detail path
+        # (no separate /items endpoint). Confirmed by probe.
+        path = f"/api/payroll/runs/{args['run_id']}"
         return _ok(await asyncio.to_thread(_hr, "GET", path))
 
     if name == "hr_get_leave_requests":
