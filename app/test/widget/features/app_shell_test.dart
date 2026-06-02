@@ -72,7 +72,7 @@ Future<void> _pump(WidgetTester tester) {
         insightRepositoryProvider.overrideWithValue(_FakeInsightRepo()),
         tokenStoreProvider.overrideWithValue(FakeTokenStore()),
       ],
-      child: const MaterialApp(home: AppShell()),
+      child: MaterialApp(home: AppShell(onLogout: () async {})),
     ),
   );
 }

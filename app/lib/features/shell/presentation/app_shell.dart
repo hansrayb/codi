@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../auth/presentation/login_screen.dart';
 import '../../chat/presentation/chat_screen.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../insight/presentation/insight_screen.dart';
@@ -16,7 +15,12 @@ import 'widgets/bottom_nav.dart';
 /// penuh). Routing `go_router` penuh = Fase 2 (`docs/07-ROADMAP.md`);
 /// shell ini cukup untuk MVP.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({required this.onLogout, super.key});
+
+  /// Logout → di-handle root (`AppBootstrap`): recreate ProviderContainer
+  /// (server logout + clear token + wipe seluruh state Riverpod). Tree
+  /// fresh balik ke Login, jadi tak perlu navigasi manual di sini.
+  final Future<void> Function() onLogout;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -45,20 +49,6 @@ class _AppShellState extends State<AppShell> {
   void _openChat() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const ChatScreen()),
-    );
-  }
-
-  /// Logout dari Profil → balik ke Login (replace stack). Login di-wire
-  /// ulang: auth sukses → AppShell baru (sesi fresh).
-  void _logout() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (ctx) => LoginScreen(
-          onAuthenticated: () => Navigator.of(ctx).pushReplacement(
-            MaterialPageRoute<void>(builder: (_) => const AppShell()),
-          ),
-        ),
-      ),
     );
   }
 
@@ -91,7 +81,7 @@ class _AppShellState extends State<AppShell> {
       ProfileScreen(
         onOpenChat: _openChat,
         onNavTap: _select,
-        onLogout: _logout,
+        onLogout: () => widget.onLogout(),
         showBottomNav: false,
       ),
     ];

@@ -10,8 +10,8 @@ import 'package:emas_berlian_insight/features/auth/presentation/login_screen.dar
 void main() {
   testWidgets('App boot ke Login screen', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: EmasBerlianInsightApp(),
+      ProviderScope(
+        child: EmasBerlianInsightApp(onLogout: () async {}),
       ),
     );
     await tester.pump();

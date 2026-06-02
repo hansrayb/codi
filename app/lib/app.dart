@@ -14,7 +14,11 @@ import 'theme/app_theme.dart';
 /// `IndexedStack`. `go_router` penuh = Fase 2
 /// (`docs/05-ARCHITECTURE.md`, `docs/07-ROADMAP.md`).
 class EmasBerlianInsightApp extends ConsumerWidget {
-  const EmasBerlianInsightApp({super.key});
+  const EmasBerlianInsightApp({required this.onLogout, super.key});
+
+  /// Dipanggil saat user logout — di-handle root (`AppBootstrap`) untuk
+  /// me-recreate ProviderContainer (wipe seluruh state per-akun).
+  final Future<void> Function() onLogout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,7 +33,7 @@ class EmasBerlianInsightApp extends ConsumerWidget {
         builder: (context) => LoginScreen(
           onAuthenticated: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
-              builder: (_) => const AppShell(),
+              builder: (_) => AppShell(onLogout: onLogout),
             ),
           ),
         ),
